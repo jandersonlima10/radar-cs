@@ -347,6 +347,39 @@
   .agenda-dia-row .agenda-dia-horarios{ display:flex; align-items:center; gap:6px; color:var(--muted); font-size:12.5px; }
   .agenda-cliente-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-bottom:1px solid var(--border); }
   .agenda-cliente-row:last-child{ border-bottom:none; }
+
+  /* Calendário Dia/Semana/Mês da tela Agenda */
+  .agenda-cal-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .agenda-cal-modos{ display:flex; gap:6px; }
+  .agenda-cal-modos .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  .agenda-cal-nav{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .agenda-cal-grid{ border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+
+  .agenda-cal-mes-grade{ display:grid; grid-template-columns:repeat(7,1fr); }
+  .agenda-cal-mes-cab{ padding:6px 8px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); background:var(--surface-2); border-bottom:1px solid var(--border); text-align:center; }
+  .agenda-cal-mes-dia{ min-height:74px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); padding:6px; cursor:pointer; background:var(--surface); transition:background .12s; }
+  .agenda-cal-mes-dia:hover{ background:var(--surface-2); }
+  .agenda-cal-mes-dia:nth-child(7n){ border-right:none; }
+  .agenda-cal-mes-dia.fora-mes{ opacity:.4; }
+  .agenda-cal-mes-dia.hoje .agenda-cal-mes-numero{ background:var(--accent); color:var(--accent-ink); border-radius:50%; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; }
+  .agenda-cal-mes-numero{ font-size:12.5px; font-weight:700; }
+  .agenda-cal-mes-pontos{ display:flex; flex-wrap:wrap; gap:3px; margin-top:6px; }
+  .agenda-cal-mes-ponto{ width:6px; height:6px; border-radius:50%; background:var(--accent); }
+  .agenda-cal-mes-contagem{ margin-top:4px; font-size:11px; color:var(--muted); }
+
+  .agenda-cal-semana-cab{ display:grid; grid-template-columns:52px repeat(var(--dias,7), 1fr); border-bottom:1px solid var(--border); background:var(--surface-2); }
+  .agenda-cal-semana-cab-dia{ padding:8px 6px; text-align:center; font-size:12px; font-weight:700; border-left:1px solid var(--border); }
+  .agenda-cal-semana-cab-dia.hoje{ color:var(--accent); }
+  .agenda-cal-semana-corpo{ display:grid; grid-template-columns:52px repeat(var(--dias,7), 1fr); max-height:560px; overflow-y:auto; position:relative; }
+  .agenda-cal-hora-label{ font-size:10.5px; color:var(--muted); text-align:right; padding-right:6px; border-top:1px solid var(--border); position:relative; top:-6px; }
+  .agenda-cal-coluna-dia{ border-left:1px solid var(--border); position:relative; }
+  .agenda-cal-slot{ height:34px; border-top:1px solid var(--border); box-sizing:border-box; }
+  .agenda-cal-slot.livre{ cursor:pointer; background:var(--accent-soft); }
+  .agenda-cal-slot.livre:hover{ background:var(--accent); opacity:.35; }
+  .agenda-cal-slot.fora{ background:repeating-linear-gradient(45deg, var(--surface-2), var(--surface-2) 6px, var(--surface) 6px, var(--surface) 12px); }
+  .agenda-cal-evento{ position:absolute; left:2px; right:2px; background:var(--accent); color:var(--accent-ink); border-radius:6px; padding:3px 6px; font-size:11px; line-height:1.25; overflow:hidden; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.18); }
+  .agenda-cal-evento.origem-cliente{ background:var(--accent-strong); }
+  .agenda-cal-evento b{ display:block; font-size:11.5px; }
   .booking-slot-dia{ margin-bottom:14px; }
   .booking-slot-dia h4{ margin:0 0 7px; font-size:13px; color:var(--ink-2); }
   .booking-slots-wrap{ display:flex; flex-wrap:wrap; gap:7px; }
@@ -762,11 +795,22 @@
           </select>
         </div>
 
+        <div class="config-banner" id="carteiraBarraSelecao" style="display:none;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+            <div id="carteiraSelecaoTexto">0 clientes selecionados</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm" id="btnLimparSelecaoCarteira">Limpar seleção</button>
+              <button type="button" class="btn btn-sm btn-accent" id="btnReatribuirCsmMassa">Reatribuir CSM</button>
+            </div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th data-role-gate="admin" style="display:none; width:28px;"><input type="checkbox" id="chkCarteiraTodos" style="width:auto;" title="Selecionar todos os clientes exibidos"></th>
                   <th>Cliente</th>
                   <th>Curva</th>
                   <th>CSM</th>
@@ -906,6 +950,28 @@
             <div><h2>Link de agendamento por cliente</h2><div class="hint">Cada cliente tem seu próprio link — ao abrir, ele vê os horários livres do CSM responsável por ele e agenda sem precisar de login.</div></div>
           </div>
           <div class="card-body pad-top" id="agendaClientesLista"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Calendário</h2><div class="hint">Clique num horário livre (dentro da disponibilidade configurada acima) para criar um agendamento manual — ele ocupa a vaga e ela deixa de aparecer no link público. Clique num agendamento existente para ver detalhes ou cancelar.</div></div>
+          </div>
+          <div class="card-body pad-top">
+            <div class="agenda-cal-toolbar">
+              <div class="agenda-cal-modos">
+                <button type="button" class="btn btn-sm" data-agenda-modo="dia">Dia</button>
+                <button type="button" class="btn btn-sm" data-agenda-modo="semana">Semana</button>
+                <button type="button" class="btn btn-sm" data-agenda-modo="mes">Mês</button>
+              </div>
+              <div class="agenda-cal-nav">
+                <button type="button" class="icon-btn" id="btnAgendaAnterior" title="Anterior">‹</button>
+                <button type="button" class="btn btn-sm" id="btnAgendaHoje">Hoje</button>
+                <button type="button" class="icon-btn" id="btnAgendaProximo" title="Próximo">›</button>
+                <span id="agendaPeriodoLabel" style="margin-left:8px; font-weight:700; font-size:13px;"></span>
+              </div>
+            </div>
+            <div id="agendaCalendarioGrid" class="agenda-cal-grid"></div>
+          </div>
         </div>
 
         <div class="card">
@@ -1136,7 +1202,7 @@
         <div class="field"><label>Telefone (WhatsApp)</label><input id="ciTelefone" type="text" placeholder="DDI+DDD+número, ex: 5511999998888"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>CSM responsável</label><input id="ciCsm" type="text" placeholder="Nome do CSM" list="listaCsmsDatalist"></div>
+        <div class="field"><label>CSM responsável</label><select id="ciCsm"></select></div>
         <div class="field"><label>Vencimento da licença</label><input id="ciVencimento" type="date"></div>
       </div>
       <div class="field-row">
@@ -1374,6 +1440,70 @@
     <div class="modal-foot">
       <button class="btn" data-close="overlaySenha">Cancelar</button>
       <button class="btn btn-accent" id="btnSalvarSenha">Salvar nova senha</button>
+    </div>
+  </div>
+</div>
+
+<!-- Reatribuição de CSM em massa — mexe só no campo csm dos clientes
+     selecionados na Carteira (e no onboarding em andamento deles). -->
+<div class="overlay" id="overlayReatribuirCsm">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Reatribuir CSM</h3>
+      <button class="icon-btn" data-close="overlayReatribuirCsm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Novo CSM responsável</label><select id="rmCsmDestino"></select></div>
+      <div class="hint" style="margin-top:10px; margin-bottom:6px;" id="rmContagemTexto"></div>
+      <div id="rmListaClientes" style="max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:8px;"></div>
+      <div class="gate-error" id="rmError"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="overlayReatribuirCsm">Cancelar</button>
+      <button class="btn btn-accent" id="btnConfirmarReatribuicaoMassa">Confirmar reatribuição</button>
+    </div>
+  </div>
+</div>
+
+<!-- Criar agendamento manual a partir de um horário livre clicado no
+     calendário da Agenda. Usa o mesmo formato de registro que o link
+     público de agendamento gera, então o horário escolhido some das
+     opções livres mostradas ao cliente automaticamente. -->
+<div class="overlay" id="overlayAgendaManual">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Novo agendamento</h3>
+      <button class="icon-btn" data-close="overlayAgendaManual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="hint" id="amHorarioTexto" style="margin-bottom:10px;"></div>
+      <div class="field"><label>Cliente</label><select id="amCliente"></select></div>
+      <div class="field-row">
+        <div class="field"><label>Nome do contato</label><input id="amContatoNome" type="text" placeholder="Quem vai participar"></div>
+        <div class="field"><label>WhatsApp (opcional)</label><input id="amContatoTelefone" type="text" placeholder="DDI+DDD+número"></div>
+      </div>
+      <div class="gate-error" id="amError"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="overlayAgendaManual">Cancelar</button>
+      <button class="btn btn-accent" id="btnConfirmarAgendaManual">Criar agendamento</button>
+    </div>
+  </div>
+</div>
+
+<!-- Detalhe de um agendamento existente, aberto ao clicar num evento no
+     calendário — reaproveita a mesma ação de cancelar já usada na
+     tabela "Próximos agendamentos". -->
+<div class="overlay" id="overlayAgendaDetalhe">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Agendamento</h3>
+      <button class="icon-btn" data-close="overlayAgendaDetalhe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body" id="adCorpo"></div>
+    <div class="modal-foot">
+      <button class="btn" data-close="overlayAgendaDetalhe">Fechar</button>
+      <button class="btn btn-danger" id="btnCancelarAgendaDetalhe">Cancelar agendamento</button>
     </div>
   </div>
 </div>
@@ -2050,6 +2180,20 @@
     var a = agendas.filter(function(x){ return x.id === csmUserId; })[0];
     return a ? Object.assign(disponibilidadePadrao(), a) : null;
   }
+  // Acha o CSM "dono" de um cliente sem precisar ler a tabela
+  // "usuarios" — ela só pode ser lida por quem está logado (ver
+  // schema), então a página pública de agendamento (sem login) não
+  // consegue usar usuarioCsmPorNome() de verdade. Em vez disso usa
+  // clientes.csmId, gravado no cliente no momento em que um admin
+  // escolhe o CSM (ver salvarCliente/confirmarReatribuicaoMassa) — o
+  // próprio registro do cliente já é liberado pra leitura anônima.
+  // Cai para usuarioCsmPorNome (que só funciona se "usuarios" já
+  // estiver carregado, ex.: alguém autenticado pré-visualizando o
+  // link) como último recurso, pra clientes antigos sem csmId salvo.
+  function csmDoClientePublico(cliente){
+    if(cliente.csmId) return {id: cliente.csmId, nome: cliente.csm || ''};
+    return usuarioCsmPorNome(cliente.csm);
+  }
   function mensagemConviteAgendamento(cliente){
     var contatoNome = ((cliente.contato||'').split(' — ')[0] || '').trim() || cliente.nome || '';
     var csmNome = (currentUser && currentUser.nome) || cliente.csm || '';
@@ -2360,7 +2504,14 @@
       // update() (merge) para não apagar dados já preenchidos no cadastro
       // (plano de sucesso, tags, alertas etc.) que a planilha não cobre.
       var body = { nome: nome, curva: curva };
-      if(get('csm') !== '') body.csm = String(get('csm')).trim();
+      if(get('csm') !== ''){
+        body.csm = String(get('csm')).trim();
+        // Só resolve pra um csmId se o nome da planilha bater com um CSM
+        // já cadastrado; senão fica sem csmId por enquanto (o link
+        // público desse cliente passa a funcionar assim que alguém abrir
+        // e salvar o cadastro dele escolhendo o CSM na lista).
+        body.csmId = resolverCsmIdPorNome(body.csm);
+      }
       if(arr != null) body.arr = arr;
       if(vencimento !== undefined) body.vencimento = vencimento;
       if(proximoContatoImportado != null) body.proximoContatoImportado = proximoContatoImportado;
@@ -2921,6 +3072,49 @@
     });
   }
 
+  // Nomes de CSM "oficiais" — só de usuários realmente cadastrados
+  // (perfil csm ou admin), na forma exata usada para bater com
+  // clientes.csm (csmVinculado quando existe, senão o próprio nome).
+  // Usado para popular o seletor de "CSM responsável" do cliente, que
+  // antes era texto livre e podia gerar nomes que não batiam com
+  // ninguém (cliente "sumia" da carteira de todo mundo).
+  // Acha o id do usuário cadastrado (CSM ou admin) por trás de um nome
+  // de CSM. Usado para gravar clientes.csmId junto com clientes.csm —
+  // ver nota grande em salvarCliente() sobre por que isso é necessário
+  // para o link público de agendamento funcionar.
+  function resolverCsmIdPorNome(nome){
+    var alvo = String(nome||'').trim().toLowerCase();
+    if(!alvo) return null;
+    var achou = csmUsuarios().filter(function(u){ return String(u.csmVinculado||u.nome||'').trim().toLowerCase() === alvo; })[0];
+    return achou ? achou.id : null;
+  }
+
+  function nomesCsmCadastrados(){
+    var set = {};
+    csmUsuarios().forEach(function(u){
+      var nome = (u.csmVinculado || u.nome || '').trim();
+      if(nome) set[nome] = true;
+    });
+    return Object.keys(set).sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+  }
+
+  // Popula o <select> de "CSM responsável" do modal de cliente. Se o
+  // valor atual do cliente não corresponder a nenhum usuário cadastrado
+  // (dado antigo, importação, nome digitado diferente antes desta
+  // mudança), mantém esse valor como uma opção extra sinalizada — assim
+  // abrir e salvar o cadastro não troca o CSM do cliente sem querer.
+  function popularCiCsmOptions(valorAtual){
+    var sel = document.getElementById('ciCsm');
+    var lista = nomesCsmCadastrados();
+    var extra = '';
+    if(valorAtual && lista.indexOf(valorAtual) === -1){
+      extra = '<option value="'+esc(valorAtual)+'">'+esc(valorAtual)+' (não cadastrado)</option>';
+    }
+    sel.innerHTML = '<option value="">Selecione o CSM...</option>' + extra +
+      lista.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
+    sel.value = valorAtual || '';
+  }
+
   function csmList(){
     var set = {};
     clientes.forEach(function(c){ if(c.csm) set[c.csm] = true; });
@@ -3404,15 +3598,26 @@
     return true;
   }
 
+  // Seleção múltipla na Carteira (admin), usada pela reatribuição de
+  // CSM em massa. Mapa id -> true; sobrevive a novas renderizações (ex.:
+  // dados chegando em tempo real) até ser limpa manualmente ou depois
+  // de uma reatribuição aplicada com sucesso.
+  var carteiraSelecionados = {};
+  var carteiraUltimoRenderIds = [];
+
   function renderCarteira(){
     var stats = allStats().filter(passaFiltrosCarteira)
       .sort(function(a,b){ return b.score - a.score; });
 
     document.getElementById('carteiraSubtitle').textContent = stats.length + ' de ' + clientes.length + ' clientes exibidos';
 
+    var admin = isAdmin();
+    carteiraUltimoRenderIds = stats.map(function(s){ return s.cliente.id; });
+
     var body = document.getElementById('tabelaCarteira');
     if(!stats.length){
-      body.innerHTML = '<tr><td colspan="10"><div class="empty-note">Nenhum cliente encontrado com os filtros atuais.</div></td></tr>';
+      body.innerHTML = '<tr><td colspan="11"><div class="empty-note">Nenhum cliente encontrado com os filtros atuais.</div></td></tr>';
+      atualizarBarraSelecaoCarteira();
       return;
     }
 
@@ -3422,6 +3627,7 @@
       var proxCls = (s.frio || s.diasAtraso > 0) ? 'color:var(--critical-ink); font-weight:600;' : '';
       var riscoPill = s.risco === 'alto' ? healthPill('critical','Alto') : (s.risco === 'medio' ? healthPill('warning','Médio') : healthPill('good','Baixo'));
       return '<tr>' +
+        (admin ? '<td><input type="checkbox" class="chk-carteira-item" data-carteira-item="'+esc(c.id)+'" style="width:auto;"'+(carteiraSelecionados[c.id]?' checked':'')+'></td>' : '') +
         '<td><div class="cell-client">' +
             '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
             '<div><div class="nm">'+esc(c.nome)+(c.alertaAtivo?' <span class="pill pill-critical" style="margin-left:4px;"><span class="pill-dot"></span>Alerta</span>':'')+'</div>' +
@@ -3445,6 +3651,88 @@
         '</div></td>' +
       '</tr>';
     }).join('');
+
+    atualizarBarraSelecaoCarteira();
+  }
+
+  function contagemSelecaoCarteira(){ return Object.keys(carteiraSelecionados).length; }
+
+  function atualizarBarraSelecaoCarteira(){
+    var barra = document.getElementById('carteiraBarraSelecao');
+    var n = contagemSelecaoCarteira();
+    var mostrar = isAdmin() && n > 0;
+    barra.style.display = mostrar ? 'block' : 'none';
+    if(mostrar){
+      document.getElementById('carteiraSelecaoTexto').textContent = n + (n===1?' cliente selecionado':' clientes selecionados');
+    }
+    var chkTodos = document.getElementById('chkCarteiraTodos');
+    if(chkTodos){
+      var idsExibidos = carteiraUltimoRenderIds;
+      var todosMarcados = idsExibidos.length>0 && idsExibidos.every(function(id){ return !!carteiraSelecionados[id]; });
+      var algumMarcado = idsExibidos.some(function(id){ return !!carteiraSelecionados[id]; });
+      chkTodos.checked = todosMarcados;
+      chkTodos.indeterminate = !todosMarcados && algumMarcado;
+    }
+  }
+
+  function limparSelecaoCarteira(){
+    carteiraSelecionados = {};
+    renderCarteira();
+  }
+
+  function abrirReatribuirCsmMassa(){
+    var ids = Object.keys(carteiraSelecionados);
+    if(!ids.length) return;
+    var errEl = document.getElementById('rmError');
+    errEl.classList.remove('show');
+    var destinoSel = document.getElementById('rmCsmDestino');
+    var lista = nomesCsmCadastrados();
+    destinoSel.innerHTML = '<option value="">Selecione o CSM de destino...</option>' +
+      lista.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
+    var selecionados = clientes.filter(function(c){ return carteiraSelecionados[c.id]; });
+    document.getElementById('rmContagemTexto').textContent = selecionados.length + (selecionados.length===1?' cliente selecionado:':' clientes selecionados:');
+    document.getElementById('rmListaClientes').innerHTML = selecionados.map(function(c){
+      return '<div style="padding:4px 0; display:flex; justify-content:space-between; gap:8px;">' +
+        '<span>'+esc(c.nome)+'</span><span class="hint">'+esc(c.csm||'sem CSM')+'</span></div>';
+    }).join('');
+    openOverlay('overlayReatribuirCsm');
+  }
+
+  async function confirmarReatribuicaoMassa(){
+    var errEl = document.getElementById('rmError');
+    errEl.classList.remove('show');
+    var novoCsm = document.getElementById('rmCsmDestino').value;
+    if(!novoCsm){ errEl.textContent = 'Selecione o CSM de destino.'; errEl.classList.add('show'); return; }
+    var ids = Object.keys(carteiraSelecionados);
+    if(!ids.length) return;
+    if(!confirm('Isso vai mover '+ids.length+(ids.length===1?' cliente':' clientes')+' para '+novoCsm+'. Confirmar?')) return;
+
+    var novoCsmId = resolverCsmIdPorNome(novoCsm);
+    try{
+      for(var i=0;i<ids.length;i++){
+        var id = ids[i];
+        if(db && !offline){
+          await db.collection('clientes').doc(id).update({csm: novoCsm, csmId: novoCsmId});
+          // Só toca no onboarding se já existir um em andamento para este
+          // cliente — não cria um onboarding "do nada" só por causa da
+          // reatribuição.
+          if(onboardings.some(function(o){ return o.id===id; })){
+            await db.collection('onboardings').doc(id).update({csm: novoCsm});
+          }
+        }else{
+          var idxC = clientes.findIndex(function(c){return c.id===id;});
+          if(idxC>-1){ clientes[idxC].csm = novoCsm; clientes[idxC].csmId = novoCsmId; }
+          var idxO = onboardings.findIndex(function(o){return o.id===id;});
+          if(idxO>-1) onboardings[idxO].csm = novoCsm;
+        }
+      }
+      carteiraSelecionados = {};
+      closeOverlay('overlayReatribuirCsm');
+      if(!db || offline) renderAll();
+    }catch(e){
+      errEl.textContent = 'Não foi possível reatribuir agora. Confira sua conexão e tente novamente.';
+      errEl.classList.add('show');
+    }
   }
 
   // ---------------------------------------------------------------
@@ -3828,7 +4116,7 @@
     document.getElementById('ciContato').value = '';
     document.getElementById('ciTelefone').value = '';
     document.getElementById('ciCurva').value = 'B';
-    document.getElementById('ciCsm').value = (currentUser ? (meuCsmVinculado() || currentUser.nome) : '');
+    popularCiCsmOptions(currentUser ? (meuCsmVinculado() || currentUser.nome) : '');
     document.getElementById('ciCsm').disabled = !isAdmin();
     document.getElementById('ciVencimento').value = off(90);
     document.getElementById('ciArr').value = '';
@@ -3868,7 +4156,7 @@
     document.getElementById('ciContato').value = c.contato||'';
     document.getElementById('ciTelefone').value = c.telefone||'';
     document.getElementById('ciCurva').value = c.curva||'B';
-    document.getElementById('ciCsm').value = c.csm||'';
+    popularCiCsmOptions(c.csm||'');
     document.getElementById('ciCsm').disabled = !isAdmin();
     document.getElementById('ciVencimento').value = c.vencimento||'';
     document.getElementById('ciArr').value = c.arr||'';
@@ -3921,6 +4209,12 @@
       telefone: normalizeTelefone(document.getElementById('ciTelefone').value),
       curva: document.getElementById('ciCurva').value,
       csm: document.getElementById('ciCsm').value.trim(),
+      // csmId (além do nome em csm) é o que a página pública de
+      // agendamento usa pra achar a agenda do CSM sem precisar ler a
+      // tabela "usuarios" (que só pode ser lida por quem está logado —
+      // sem isso, o link público sempre mostraria "Agendamento
+      // indisponível", mesmo com a disponibilidade certinha configurada).
+      csmId: resolverCsmIdPorNome(document.getElementById('ciCsm').value),
       vencimento: document.getElementById('ciVencimento').value || off(90),
       arr: document.getElementById('ciArr').value ? Number(document.getElementById('ciArr').value) : null,
       proximoContatoImportado: document.getElementById('ciProximoImportado').value || null,
@@ -4466,7 +4760,12 @@
   // ---------------------------------------------------------------
   var agendaSelecionadoCsmId = null;
 
-  function csmUsuarios(){ return usuarios.filter(function(u){ return u.perfil === 'csm'; }); }
+  // Lista de usuários que podem ter uma agenda própria de atendimento.
+  // Antes só listava perfil "csm", então um admin que também atende
+  // clientes diretamente (carteira própria) não aparecia nesta lista e
+  // a tela de Agenda ficava sem ninguém para selecionar/salvar — por
+  // isso inclui também os admins.
+  function csmUsuarios(){ return usuarios.filter(function(u){ return u.perfil === 'csm' || u.perfil === 'admin'; }); }
 
   function renderAgendaDiasGrid(disp){
     document.getElementById('agDiasGrid').innerHTML = DIAS_SEMANA.map(function(d){
@@ -4528,6 +4827,269 @@
         '<td>'+(a.origem==='cliente' ? 'Cliente (link)' : 'CSM')+'</td>' +
         '<td><button type="button" class="btn btn-sm btn-danger" data-cancelar-agendamento="'+esc(a.id)+'">Cancelar</button></td></tr>';
     }).join('') : '<tr><td colspan="5"><div class="empty-note">Nenhum agendamento futuro.</div></td></tr>';
+
+    // Guarda pro calendário (Dia/Semana/Mês) usar sem recalcular tudo de novo.
+    agendaDispAtual = disp;
+    agendaClientesDoCsmAtual = meusClientes;
+    agendaNomeCsmAtual = nomeCsmAtual;
+    renderAgendaCalendario();
+  }
+
+  // ---------------------------------------------------------------
+  // Calendário Dia/Semana/Mês da Agenda (estilo Google Agenda) — só
+  // uma forma nova de visualizar os mesmos agendamentos que já existem;
+  // não muda como eles são criados pelo link público. Clicar num
+  // horário livre cria um agendamento manual (mesmo formato de registro
+  // do agendamento feito pelo cliente), então ele passa a ocupar a vaga
+  // nos dois lugares — aqui e no link externo — automaticamente, porque
+  // os dois usam a mesma lista de agendamentos como fonte da verdade.
+  // ---------------------------------------------------------------
+  var agendaViewMode = 'semana'; // 'dia' | 'semana' | 'mes'
+  var agendaViewDate = new Date();
+  var agendaDispAtual = null;
+  var agendaClientesDoCsmAtual = [];
+  var agendaNomeCsmAtual = '';
+  var agendaSlotClicado = null; // {data, horaInicio, horaFim} pendente no modal de criação manual
+  var agendaDetalheId = null;
+
+  function dateToISO(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function addDiasData(d, n){ var r = new Date(d.getFullYear(), d.getMonth(), d.getDate()); r.setDate(r.getDate()+n); return r; }
+  function inicioSemana(d){ return addDiasData(d, -d.getDay()); } // domingo daquela semana
+  function minutosParaHHMM(min){ min = Math.max(0, min); return pad(Math.floor(min/60)%24)+':'+pad(min%60); }
+  function hhmmParaMinutos(hhmm){ var p=String(hhmm||'0:0').split(':'); return Number(p[0])*60+Number(p[1]); }
+
+  function agendamentosDoCsmAtual(){
+    if(!agendaSelecionadoCsmId) return [];
+    return agendamentos.filter(function(a){ return a.csmId === agendaSelecionadoCsmId && a.status !== 'cancelado'; });
+  }
+
+  // Faixa de horário (em minutos desde 00:00) que cobre todos os dias
+  // ativos configurados em "Disponibilidade" — define até onde a grade
+  // de Semana/Dia precisa desenhar horas.
+  function faixaHorariaDisp(disp){
+    var minMin = null, maxMin = null;
+    DIAS_SEMANA.forEach(function(d){
+      var cfg = disp.dias && disp.dias[d.key];
+      if(!cfg || !cfg.ativo) return;
+      var ini = hhmmParaMinutos(cfg.inicio||'09:00');
+      var fim = hhmmParaMinutos(cfg.fim||'18:00');
+      if(minMin===null || ini<minMin) minMin = ini;
+      if(maxMin===null || fim>maxMin) maxMin = fim;
+    });
+    if(minMin===null){ minMin = 8*60; maxMin = 18*60; }
+    return {inicio:minMin, fim:maxMin};
+  }
+
+  function diaDentroDisponibilidade(disp, diaKey, iniMin, fimMin){
+    var cfg = disp.dias && disp.dias[diaKey];
+    if(!cfg || !cfg.ativo) return false;
+    var iniDia = hhmmParaMinutos(cfg.inicio||'09:00'), fimDia = hhmmParaMinutos(cfg.fim||'18:00');
+    return iniMin >= iniDia && fimMin <= fimDia;
+  }
+
+  function agendaAtualizarToolbar(){
+    document.querySelectorAll('[data-agenda-modo]').forEach(function(b){
+      b.classList.toggle('is-ativo', b.getAttribute('data-agenda-modo') === agendaViewMode);
+    });
+    var label = '';
+    if(agendaViewMode === 'mes'){
+      label = agendaViewDate.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
+    }else if(agendaViewMode === 'semana'){
+      var ini = inicioSemana(agendaViewDate), fim = addDiasData(ini, 6);
+      var mesmomes = ini.getMonth() === fim.getMonth();
+      label = ini.getDate() + (mesmomes ? '' : ' de '+ini.toLocaleDateString('pt-BR',{month:'short'}).replace('.','')) +
+        ' – ' + fim.getDate() + ' de ' + fim.toLocaleDateString('pt-BR',{month:'short'}).replace('.','') + ' de ' + fim.getFullYear();
+    }else{
+      label = agendaViewDate.toLocaleDateString('pt-BR', {weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+    }
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+    document.getElementById('agendaPeriodoLabel').textContent = label;
+  }
+
+  function renderAgendaCalendario(){
+    if(!document.getElementById('agendaCalendarioGrid')) return;
+    agendaAtualizarToolbar();
+    if(agendaViewMode === 'mes') renderAgendaCalMes();
+    else if(agendaViewMode === 'dia') renderAgendaGradeDiasHoras([new Date(agendaViewDate.getFullYear(), agendaViewDate.getMonth(), agendaViewDate.getDate())]);
+    else{
+      var ini = inicioSemana(agendaViewDate);
+      var dias = [0,1,2,3,4,5,6].map(function(i){ return addDiasData(ini, i); });
+      renderAgendaGradeDiasHoras(dias);
+    }
+  }
+
+  function renderAgendaCalMes(){
+    var wrap = document.getElementById('agendaCalendarioGrid');
+    var ano = agendaViewDate.getFullYear(), mes = agendaViewDate.getMonth();
+    var primeiroDoMes = new Date(ano, mes, 1);
+    var inicioGrade = addDiasData(primeiroDoMes, -primeiroDoMes.getDay());
+    var listaAg = agendamentosDoCsmAtual();
+    var contagemPorDia = {};
+    listaAg.forEach(function(a){ contagemPorDia[a.data] = (contagemPorDia[a.data]||0) + 1; });
+
+    var cabecalho = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map(function(d){ return '<div class="agenda-cal-mes-cab">'+d+'</div>'; }).join('');
+    var celulas = '';
+    for(var i=0;i<42;i++){
+      var dia = addDiasData(inicioGrade, i);
+      var iso = dateToISO(dia);
+      var foraMes = dia.getMonth() !== mes;
+      var ehHoje = iso === todayISO();
+      var n = contagemPorDia[iso] || 0;
+      celulas += '<div class="agenda-cal-mes-dia'+(foraMes?' fora-mes':'')+(ehHoje?' hoje':'')+'" data-agenda-mes-dia="'+iso+'">' +
+        '<div class="agenda-cal-mes-numero">'+dia.getDate()+'</div>' +
+        (n>0 ? '<div class="agenda-cal-mes-pontos">'+Array(Math.min(n,6)).fill('<span class="agenda-cal-mes-ponto"></span>').join('')+'</div><div class="agenda-cal-mes-contagem">'+n+(n===1?' agendamento':' agendamentos')+'</div>' : '') +
+        '</div>';
+    }
+    wrap.innerHTML = '<div class="agenda-cal-mes-grade">' + cabecalho + celulas + '</div>';
+  }
+
+  function renderAgendaGradeDiasHoras(diasDatas){
+    var wrap = document.getElementById('agendaCalendarioGrid');
+    var disp = agendaDispAtual || disponibilidadePadrao();
+    var passo = disp.duracaoMin || 30;
+    var faixa = faixaHorariaDisp(disp);
+    var linhas = Math.max(1, Math.round((faixa.fim - faixa.inicio) / passo));
+    var listaAg = agendamentosDoCsmAtual();
+    var agora = new Date();
+    var n = diasDatas.length;
+    var ALTURA_LINHA = 34;
+
+    var cab = '<div class="agenda-cal-semana-cab" style="--dias:'+n+';"><div></div>' + diasDatas.map(function(d){
+      var iso = dateToISO(d);
+      var ehHoje = iso === todayISO();
+      var label = (n>1 ? d.toLocaleDateString('pt-BR',{weekday:'short'}).replace('.','')+' ' : '') + d.getDate();
+      return '<div class="agenda-cal-semana-cab-dia'+(ehHoje?' hoje':'')+'">'+esc(label)+'</div>';
+    }).join('') + '</div>';
+
+    var linhasHtml = '';
+    for(var i=0;i<linhas;i++){
+      var minutoIni = faixa.inicio + i*passo;
+      var mostraLabel = (minutoIni % 60 === 0);
+      linhasHtml += '<div class="agenda-cal-hora-label">'+(mostraLabel?minutosParaHHMM(minutoIni):'')+'</div>';
+      for(var j=0;j<n;j++){
+        var dia = diasDatas[j];
+        var iso = dateToISO(dia);
+        var diaKey = DIAS_SEMANA[dia.getDay()].key;
+        var minutoFim = minutoIni + passo;
+        var horaIniSlot = minutosParaHHMM(minutoIni), horaFimSlot = minutosParaHHMM(minutoFim);
+        var dentro = diaDentroDisponibilidade(disp, diaKey, minutoIni, minutoFim);
+        var slotDate = new Date(dia.getFullYear(), dia.getMonth(), dia.getDate(), Math.floor(minutoIni/60), minutoIni%60);
+        var passou = slotDate.getTime() <= agora.getTime();
+        var ocupado = listaAg.some(function(a){
+          if(a.data !== iso) return false;
+          var iniAg = hhmmParaMinutos(a.horaInicio), fimAg = hhmmParaMinutos(a.horaFim||a.horaInicio);
+          return iniAg < minutoFim && fimAg > minutoIni;
+        });
+        var livre = dentro && !passou && !ocupado;
+        linhasHtml += '<div class="agenda-cal-slot'+(livre?' livre':(!dentro?' fora':''))+'"' +
+          (livre ? ' data-agenda-slot="'+iso+'|'+horaIniSlot+'|'+horaFimSlot+'"' : '') +
+          ' title="'+(livre?'Clique para criar um agendamento':'')+'"></div>';
+      }
+    }
+
+    var eventosHtml = '';
+    diasDatas.forEach(function(dia, j){
+      var iso = dateToISO(dia);
+      listaAg.filter(function(a){ return a.data === iso; }).forEach(function(a){
+        var iniAg = Math.max(faixa.inicio, hhmmParaMinutos(a.horaInicio));
+        var fimAg = Math.min(faixa.fim, hhmmParaMinutos(a.horaFim||a.horaInicio) || (iniAg+passo));
+        if(fimAg <= iniAg) fimAg = iniAg + passo;
+        var top = ((iniAg - faixa.inicio) / passo) * ALTURA_LINHA;
+        var altura = Math.max(18, ((fimAg - iniAg) / passo) * ALTURA_LINHA - 2);
+        var esquerda = 'calc(52px + (100% - 52px) * '+j+' / '+n+')';
+        var largura = 'calc((100% - 52px) / '+n+')';
+        eventosHtml += '<div class="agenda-cal-evento'+(a.origem==='cliente'?' origem-cliente':'')+'" ' +
+          'style="top:'+top+'px; height:'+altura+'px; left:'+esquerda+'; width:'+largura+';" ' +
+          'data-agenda-evento="'+esc(a.id)+'" title="'+esc(a.clienteNome||a.contatoNome||'')+' · '+esc(a.horaInicio)+'">' +
+          '<b>'+esc(a.horaInicio)+' '+esc(a.clienteNome||a.contatoNome||'')+'</b>' +
+          (a.origem==='cliente'?'Agendado pelo cliente':'Agendamento manual') +
+          '</div>';
+      });
+    });
+
+    var corpo = '<div class="agenda-cal-semana-corpo" style="--dias:'+n+';">' + linhasHtml + eventosHtml + '</div>';
+    wrap.innerHTML = cab + corpo;
+  }
+
+  function agendaNavegar(direcao){
+    if(agendaViewMode === 'mes') agendaViewDate = new Date(agendaViewDate.getFullYear(), agendaViewDate.getMonth()+direcao, 1);
+    else if(agendaViewMode === 'semana') agendaViewDate = addDiasData(agendaViewDate, direcao*7);
+    else agendaViewDate = addDiasData(agendaViewDate, direcao);
+    renderAgendaCalendario();
+  }
+
+  function agendaIrHoje(){ agendaViewDate = new Date(); renderAgendaCalendario(); }
+
+  function agendaTrocarModo(modo){ agendaViewMode = modo; renderAgendaCalendario(); }
+
+  function abrirAgendaManual(dataISO, horaInicio, horaFim){
+    agendaSlotClicado = {data:dataISO, horaInicio:horaInicio, horaFim:horaFim};
+    var errEl = document.getElementById('amError');
+    errEl.classList.remove('show');
+    document.getElementById('amHorarioTexto').textContent = fmtDate(dataISO) + ' às ' + horaInicio + ' (com ' + (agendaNomeCsmAtual||'—') + ')';
+    var sel = document.getElementById('amCliente');
+    sel.innerHTML = '<option value="">Selecione o cliente...</option>' + agendaClientesDoCsmAtual.map(function(c){
+      return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>';
+    }).join('');
+    document.getElementById('amContatoNome').value = '';
+    document.getElementById('amContatoTelefone').value = '';
+    openOverlay('overlayAgendaManual');
+  }
+
+  function aoTrocarClienteAgendaManual(e){
+    var c = clientes.filter(function(x){ return x.id === e.target.value; })[0];
+    if(c){
+      document.getElementById('amContatoNome').value = (c.contato||'').split(' — ')[0] || '';
+      document.getElementById('amContatoTelefone').value = c.telefone ? fmtTelefoneExibicao(c.telefone) : '';
+    }
+  }
+
+  async function confirmarAgendaManual(){
+    var errEl = document.getElementById('amError');
+    errEl.classList.remove('show');
+    if(!agendaSlotClicado || !agendaSelecionadoCsmId) return;
+    var clienteId = document.getElementById('amCliente').value;
+    var cliente = clientes.filter(function(c){ return c.id === clienteId; })[0];
+    if(!cliente){ errEl.textContent = 'Selecione o cliente.'; errEl.classList.add('show'); return; }
+    var contatoNome = document.getElementById('amContatoNome').value.trim();
+    var contatoTelefone = normalizeTelefone(document.getElementById('amContatoTelefone').value);
+    var csms = csmUsuarios();
+    var csmUser = csms.filter(function(u){ return u.id === agendaSelecionadoCsmId; })[0];
+
+    var body = {
+      csmId: agendaSelecionadoCsmId, csmNome: csmUser ? csmUser.nome : agendaNomeCsmAtual,
+      clienteId: cliente.id, clienteNome: cliente.nome,
+      contatoNome: contatoNome || cliente.nome, contatoTelefone: contatoTelefone || null,
+      data: agendaSlotClicado.data, horaInicio: agendaSlotClicado.horaInicio, horaFim: agendaSlotClicado.horaFim,
+      criadoEm: new Date().toISOString(), status: 'confirmado', origem: 'csm'
+    };
+    try{
+      if(db && !offline){
+        await db.collection('agendamentos').add(body);
+      }else{
+        agendamentos.push(Object.assign({id: novoId('ag')}, body));
+        renderAll();
+      }
+      closeOverlay('overlayAgendaManual');
+    }catch(e){
+      errEl.textContent = 'Não foi possível criar agora. Confira sua conexão e tente novamente.';
+      errEl.classList.add('show');
+    }
+  }
+
+  function abrirAgendaDetalhe(id){
+    var a = agendamentos.filter(function(x){ return x.id === id; })[0];
+    if(!a) return;
+    agendaDetalheId = id;
+    document.getElementById('adCorpo').innerHTML =
+      '<div class="field"><label>Cliente</label><div>'+esc(a.clienteNome||'—')+'</div></div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Data</label><div>'+fmtDate(a.data)+'</div></div>' +
+        '<div class="field"><label>Horário</label><div>'+esc(a.horaInicio)+' – '+esc(a.horaFim||'')+'</div></div>' +
+      '</div>' +
+      '<div class="field"><label>Contato</label><div>'+esc(a.contatoNome||'—')+(a.contatoTelefone?' · '+esc(fmtTelefoneExibicao(a.contatoTelefone)):'')+'</div></div>' +
+      '<div class="field"><label>Origem</label><div>'+(a.origem==='cliente'?'Agendado pelo próprio cliente (link)':'Agendamento manual (CSM)')+'</div></div>';
+    openOverlay('overlayAgendaDetalhe');
   }
 
   async function salvarAgenda(){
@@ -4608,7 +5170,7 @@
       pb.innerHTML = '<h1>Link inválido</h1><div class="hint">Não encontramos esse link de agendamento. Peça ao seu CSM para reenviar.</div>';
       return;
     }
-    var csmUser = usuarioCsmPorNome(cliente.csm);
+    var csmUser = csmDoClientePublico(cliente);
     var disp = csmUser ? agendaDoCsm(csmUser.id) : null;
     if(!csmUser || !disp){
       pb.innerHTML = '<h1>Agendamento indisponível</h1><div class="hint">Seu CSM ainda não configurou horários disponíveis por aqui. Entre em contato diretamente para combinar um horário.</div>';
@@ -4676,7 +5238,7 @@
     var telEl = document.getElementById('pbCliTelefone');
     var telefone = telEl ? normalizeTelefone(telEl.value) : null;
     var cliente = clientes.filter(function(c){ return c.id === publicBookingClienteId; })[0];
-    var csmUser = cliente ? usuarioCsmPorNome(cliente.csm) : null;
+    var csmUser = cliente ? csmDoClientePublico(cliente) : null;
     if(!cliente || !csmUser) return;
 
     var body = {
@@ -5691,6 +6253,36 @@
     });
 
     document.getElementById('btnSalvarAgenda').addEventListener('click', salvarAgenda);
+
+    document.querySelectorAll('[data-agenda-modo]').forEach(function(b){
+      b.addEventListener('click', function(){ agendaTrocarModo(b.getAttribute('data-agenda-modo')); });
+    });
+    document.getElementById('btnAgendaAnterior').addEventListener('click', function(){ agendaNavegar(-1); });
+    document.getElementById('btnAgendaProximo').addEventListener('click', function(){ agendaNavegar(1); });
+    document.getElementById('btnAgendaHoje').addEventListener('click', agendaIrHoje);
+    document.getElementById('agendaCalendarioGrid').addEventListener('click', function(e){
+      var slot = e.target.closest('[data-agenda-slot]');
+      if(slot){
+        var partes = slot.getAttribute('data-agenda-slot').split('|');
+        abrirAgendaManual(partes[0], partes[1], partes[2]);
+        return;
+      }
+      var evento = e.target.closest('[data-agenda-evento]');
+      if(evento){ abrirAgendaDetalhe(evento.getAttribute('data-agenda-evento')); return; }
+      var diaMes = e.target.closest('[data-agenda-mes-dia]');
+      if(diaMes){
+        agendaViewDate = parseISO(diaMes.getAttribute('data-agenda-mes-dia'));
+        agendaViewMode = 'dia';
+        renderAgendaCalendario();
+      }
+    });
+    document.getElementById('amCliente').addEventListener('change', aoTrocarClienteAgendaManual);
+    document.getElementById('btnConfirmarAgendaManual').addEventListener('click', confirmarAgendaManual);
+    document.getElementById('btnCancelarAgendaDetalhe').addEventListener('click', function(){
+      if(!agendaDetalheId) return;
+      cancelarAgendamento(agendaDetalheId);
+      closeOverlay('overlayAgendaDetalhe');
+    });
     document.getElementById('agCsmSelect').addEventListener('change', function(e){
       agendaSelecionadoCsmId = e.target.value;
       renderAgenda();
@@ -5783,6 +6375,24 @@
       var abrirOnb = e.target.closest('[data-abrir-onboarding]');
       if(abrirOnb){ e.preventDefault(); abrirOnboarding(abrirOnb.getAttribute('data-abrir-onboarding')); return; }
     });
+
+    document.getElementById('tabelaCarteira').addEventListener('change', function(e){
+      var chk = e.target.closest('[data-carteira-item]');
+      if(!chk) return;
+      var id = chk.getAttribute('data-carteira-item');
+      if(chk.checked) carteiraSelecionados[id] = true; else delete carteiraSelecionados[id];
+      atualizarBarraSelecaoCarteira();
+    });
+    document.getElementById('chkCarteiraTodos').addEventListener('change', function(e){
+      var marcar = e.target.checked;
+      carteiraUltimoRenderIds.forEach(function(id){
+        if(marcar) carteiraSelecionados[id] = true; else delete carteiraSelecionados[id];
+      });
+      renderCarteira();
+    });
+    document.getElementById('btnLimparSelecaoCarteira').addEventListener('click', limparSelecaoCarteira);
+    document.getElementById('btnReatribuirCsmMassa').addEventListener('click', abrirReatribuirCsmMassa);
+    document.getElementById('btnConfirmarReatribuicaoMassa').addEventListener('click', confirmarReatribuicaoMassa);
 
     ['fBusca','fCsm','fCurva','fSaude','fCadencia'].forEach(function(id){
       var key = id.replace('f','');
