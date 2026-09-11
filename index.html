@@ -497,8 +497,10 @@
   .role-pill{ display:inline-flex; align-items:center; padding:1.5px 7px; border-radius:99px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; margin-top:2px; }
   .role-pill-admin{ background:var(--accent-soft); color:var(--accent-strong); }
   .role-pill-csm{ background:var(--surface-3); color:var(--ink-2); }
+  .role-pill-coord{ background:var(--warning-soft); color:var(--warning-ink); }
   .user-card .role-pill-admin{ background:rgba(255,255,255,0.2); color:#ffffff; }
   .user-card .role-pill-csm{ background:rgba(255,255,255,0.14); color:var(--sidebar-ink-muted); }
+  .user-card .role-pill-coord{ background:rgba(255,255,255,0.18); color:#ffffff; }
 
   /* ---------- Tags ---------- */
   .tag-chip{
@@ -645,7 +647,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
         Agenda
       </button>
-      <button class="nav-item" data-view="relatorios" data-role-gate="admin">
+      <button class="nav-item" data-view="relatorios" data-role-gate="admin-coord">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
         Relatórios
       </button>
@@ -715,6 +717,24 @@
             <div class="label">NPS médio (mês)</div>
             <div class="value num" id="statNps">–</div>
             <div class="sub" id="statNpsSub"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Meta de hoje e cobertura da carteira</h2>
+              <div class="hint">Quantos clientes únicos contatar hoje para rodar a carteira dentro do prazo configurado, e quanto da carteira já está coberta.</div>
+            </div>
+          </div>
+          <div class="card-body pad-top">
+            <div id="painelMetaHoje" class="empty-note"></div>
+            <div style="margin-top:14px; display:flex; align-items:baseline; gap:8px;">
+              <div class="value num" id="painelCoberturaPct" style="font-size:22px;">–</div>
+              <div class="hint">da carteira com contato dentro do prazo</div>
+            </div>
+            <div id="painelCoberturaBarra" style="display:flex; gap:2px; margin-top:10px; border-radius:8px; overflow:hidden; cursor:pointer;"></div>
+            <div id="painelCoberturaLegenda" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"></div>
           </div>
         </div>
 
@@ -1053,6 +1073,18 @@
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-head"><div><h2>Cobertura da carteira</h2><div class="hint">% de clientes com pelo menos um contato dentro do prazo configurado em Configurações.</div></div></div>
+          <div class="card-body pad-top">
+            <div style="display:flex; align-items:baseline; gap:8px;">
+              <div class="value num" id="relCoberturaPct" style="font-size:22px;">–</div>
+              <div class="hint">da carteira coberta</div>
+            </div>
+            <div id="relCoberturaBarra" style="display:flex; gap:2px; margin-top:10px; border-radius:8px; overflow:hidden; cursor:pointer;"></div>
+            <div id="relCoberturaLegenda" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"></div>
+          </div>
+        </div>
+
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
           <div class="card">
             <div class="card-head"><div><h2>Distribuição de risco de churn</h2><div class="hint">Com base no último contato registrado por cliente.</div></div></div>
@@ -1065,6 +1097,11 @@
         </div>
 
         <div class="card">
+          <div class="card-head"><div><h2>Motivos de risco de churn</h2><div class="hint">Distribuição dos motivos registrados nos contatos com risco médio/alto do período selecionado acima. Fica mais útil com o tempo — contatos antigos não têm motivo registrado.</div></div></div>
+          <div class="card-body pad-top" id="distribMotivoRisco"></div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><div><h2>Clientes críticos</h2><div class="hint">Motivo do alerta e plano de ação mais recente.</div></div></div>
           <div class="card-body pad-top" id="listaCriticos"></div>
         </div>
@@ -1072,6 +1109,31 @@
         <div class="card">
           <div class="card-head"><div><h2>Planos de ação em aberto</h2></div></div>
           <div class="card-body pad-top" id="listaAcoes"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Atividades realizadas</h2><div class="hint">Atividades de plano de ação concluídas no período — cada CSM vê as próprias; o admin/coordenador pode escolher um CSM acima.</div></div>
+          </div>
+          <div class="card-body pad-top">
+            <div class="filters" style="margin-bottom:12px;">
+              <select id="fAtividadesPeriodo">
+                <option value="hoje">Hoje</option>
+                <option value="semana" selected>Esta semana</option>
+                <option value="mes">Este mês</option>
+                <option value="custom">Período customizado</option>
+              </select>
+              <input type="date" id="fAtividadesInicio" style="display:none;">
+              <input type="date" id="fAtividadesFim" style="display:none;">
+            </div>
+            <div id="atividadesRealizadasContador" class="hint" style="margin-bottom:8px;"></div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Cliente</th><th>Atividade</th><th>Concluída em</th><th>Plano de ação</th></tr></thead>
+                <tbody id="tabelaAtividadesRealizadas"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1124,6 +1186,59 @@
               <button class="btn btn-sm btn-accent" id="btnSalvarCurvaConfig">Salvar faixas</button>
             </div>
             <div class="gate-error" id="curvaConfigError"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Cobertura da carteira</h2><div class="hint">Prazo esperado para todo cliente receber pelo menos um contato — usado para calcular a meta diária de cada CSM e o indicador de cobertura no Painel e em Relatórios.</div></div>
+          </div>
+          <div class="card-body pad-top">
+            <div class="field" style="max-width:320px;"><label>Prazo para rodar a carteira completa (dias)</label><input id="cfgPrazoCarteira" type="number" min="1" step="1"></div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-sm btn-accent" id="btnSalvarPrazoConfig">Salvar prazo</button>
+            </div>
+            <div class="gate-error" id="prazoConfigError"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Pesos de priorização (Priority Score)</h2><div class="hint">Cada fator soma pontos ao score que ordena a fila do Painel. Ajuste os pesos se quiser recalibrar o que conta mais na hora de decidir quem atender primeiro.</div></div>
+          </div>
+          <div class="card-body pad-top">
+            <div class="field-row" style="grid-template-columns:repeat(4,1fr);">
+              <div class="field"><label>Curva A</label><input id="cfgPesoCurvaA" type="number" min="0" step="1"></div>
+              <div class="field"><label>Curva B</label><input id="cfgPesoCurvaB" type="number" min="0" step="1"></div>
+              <div class="field"><label>Curva C</label><input id="cfgPesoCurvaC" type="number" min="0" step="1"></div>
+              <div class="field"><label>Curva D</label><input id="cfgPesoCurvaD" type="number" min="0" step="1"></div>
+            </div>
+            <div class="field-row" style="grid-template-columns:repeat(3,1fr); margin-top:8px;">
+              <div class="field"><label>Risco baixo</label><input id="cfgPesoRiscoBaixo" type="number" min="0" step="1"></div>
+              <div class="field"><label>Risco médio</label><input id="cfgPesoRiscoMedio" type="number" min="0" step="1"></div>
+              <div class="field"><label>Risco alto</label><input id="cfgPesoRiscoAlto" type="number" min="0" step="1"></div>
+            </div>
+            <div class="field-row" style="grid-template-columns:repeat(3,1fr); margin-top:8px;">
+              <div class="field"><label>Cliente nunca contactado</label><input id="cfgPesoFrio" type="number" min="0" step="1"></div>
+              <div class="field"><label>Cada dia de atraso (contato)</label><input id="cfgPesoAtrasoPorDia" type="number" min="0" step="0.1"></div>
+              <div class="field"><label>Licença vencida</label><input id="cfgPesoLicencaVencida" type="number" min="0" step="1"></div>
+            </div>
+            <div class="field-row" style="grid-template-columns:repeat(3,1fr); margin-top:8px;">
+              <div class="field"><label>Renovação próxima (≤60d)</label><input id="cfgPesoRenovacaoProxima" type="number" min="0" step="1"></div>
+              <div class="field"><label>NPS detrator (≤6)</label><input id="cfgPesoNpsDetrator" type="number" min="0" step="1"></div>
+              <div class="field"><label>Ação em aberto</label><input id="cfgPesoAcaoAberta" type="number" min="0" step="1"></div>
+            </div>
+            <div class="field-row" style="grid-template-columns:repeat(4,1fr); margin-top:8px;">
+              <div class="field"><label>Etapa: Risco</label><input id="cfgPesoEtapaRisco" type="number" min="0" step="1"></div>
+              <div class="field"><label>Alerta manual</label><input id="cfgPesoAlertaManual" type="number" min="0" step="1"></div>
+              <div class="field"><label>Onboarding sem agendamento</label><input id="cfgPesoOnboardingSemAgendamento" type="number" min="0" step="1"></div>
+              <div class="field"><label>Fase de onboarding vencida</label><input id="cfgPesoFaseOnboardingVencida" type="number" min="0" step="1"></div>
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-sm btn-accent" id="btnSalvarPesosScore">Salvar pesos</button>
+              <button class="btn btn-sm" id="btnRestaurarPesosScore">Restaurar padrão</button>
+            </div>
+            <div class="gate-error" id="pesosScoreError"></div>
           </div>
         </div>
 
@@ -1359,9 +1474,52 @@
           <select id="coRisco"><option value="baixo">Baixo</option><option value="medio">Médio</option><option value="alto">Alto</option></select>
         </div>
       </div>
+      <div class="field-row" id="coMotivoRiscoWrap" style="display:none;">
+        <div class="field"><label>Motivo do risco</label>
+          <select id="coMotivoRisco">
+            <option value="">Selecione...</option>
+            <option value="produto">Produto</option>
+            <option value="suporte">Suporte</option>
+            <option value="preco">Preço</option>
+            <option value="financeiro">Financeiro</option>
+            <option value="concorrencia">Concorrência</option>
+            <option value="adocao">Falta de adoção/uso</option>
+            <option value="relacionamento">Relacionamento</option>
+            <option value="instabilidade">Instabilidade técnica</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="field" id="coMotivoRiscoOutroWrap" style="display:none;"><label>Detalhe do motivo</label><input id="coMotivoRiscoOutro" type="text" placeholder="Descreva brevemente"></div>
+      </div>
+      <div class="gate-error" id="coMotivoRiscoError"></div>
       <div class="field-row">
         <div class="field"><label>NPS (0–10, opcional)</label><input id="coNps" type="number" min="0" max="10" step="1" placeholder="—"></div>
         <div class="field"><label>Próximo contato</label><input id="coProximo" type="date"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Motivo principal (opcional)</label>
+          <select id="coMotivoContato">
+            <option value="">—</option>
+            <option value="uso">Uso</option>
+            <option value="produto">Produto</option>
+            <option value="suporte">Suporte</option>
+            <option value="financeiro">Financeiro</option>
+            <option value="preco">Preço</option>
+            <option value="relacionamento">Relacionamento</option>
+            <option value="treinamento">Treinamento</option>
+            <option value="renovacao">Renovação</option>
+            <option value="expansao">Expansão</option>
+            <option value="outro">Outro</option>
+          </select>
+        </div>
+        <div class="field"><label>Sentimento da conversa (opcional)</label>
+          <select id="coSentimento">
+            <option value="">—</option>
+            <option value="positivo">Positivo</option>
+            <option value="neutro">Neutro</option>
+            <option value="negativo">Negativo</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="modal-foot">
@@ -1408,9 +1566,14 @@
       <div class="field"><label>Nome</label><input id="uiNome" type="text" placeholder="Nome completo"></div>
       <div class="field-row">
         <div class="field"><label>Perfil de acesso</label>
-          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
+          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
         </div>
         <div class="field" id="uiCsmVinculadoWrap"><label>Carteira vinculada</label><input id="uiCsmVinculado" type="text" placeholder="Nome do CSM na carteira" list="listaCsmsDatalist"></div>
+      </div>
+      <div class="field" id="uiEquipeWrap" style="display:none;">
+        <label>CSMs desta equipe</label>
+        <div id="uiEquipePicker" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+        <div class="hint" style="margin-top:4px;">O Coordenador enxerga a soma da carteira de todos os CSMs marcados aqui (Painel, Carteira e Relatórios), sem acesso a Configurações.</div>
       </div>
       <div class="field" id="uiEmailWrap" style="display:none;"><label>E-mail</label><input id="uiEmail" type="email" placeholder="pessoa@empresa.com" autocomplete="username"></div>
       <div class="field-row" id="uiSenhaFieldsWrap">
@@ -1912,6 +2075,26 @@
   var pendingOnboardingClienteId = null; // cliente cujo painel de onboarding está aberto no momento
   var curvaConfig = { limiteA:8000, limiteB:5000, limiteC:2000 }; // calibrável em Configurações
   var waConfig = { empresa:'' }; // nome da empresa usado na mensagem padrão do WhatsApp, calibrável em Configurações
+  var PRAZO_CARTEIRA_PADRAO = 90;
+  var prazoConfig = { dias: PRAZO_CARTEIRA_PADRAO }; // "rodar a carteira" — calibrável em Configurações
+  // Pesos usados por computeStats() para montar o Priority Score — os
+  // valores abaixo são os mesmos que já estavam fixos no código antes
+  // desta virar uma configuração; calibrável em Configurações.
+  var PESOS_SCORE_PADRAO = {
+    curvaA: 4, curvaB: 3, curvaC: 2, curvaD: 1, // multiplicados por 10 (mantém a escala anterior)
+    riscoBaixo: 1, riscoMedio: 2, riscoAlto: 3, // multiplicados por 8
+    frio: 45,
+    atrasoPorDia: 0.5,
+    licencaVencida: 40,
+    renovacaoProxima: 25,
+    npsDetrator: 22,
+    acaoAberta: 12,
+    etapaRisco: 35,
+    alertaManual: 30,
+    onboardingSemAgendamento: 25,
+    faseOnboardingVencida: 20
+  };
+  var pesosScore = Object.assign({}, PESOS_SCORE_PADRAO);
   var db = null;
   var offline = false;
   var dataPronta = false;
@@ -1927,8 +2110,9 @@
   var currentUserId = localStorage.getItem('radarcs.userId') || '';
   var currentUser = null; // resolvido a partir de usuarios + currentUserId
   var escopoAdminCsm = 'todos'; // filtro do painel quando o perfil é admin
-  var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos' };
+  var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos', cobertura:'todas' };
   var relFiltro = { mes: '', csm: 'todos' };
+  var atividadesFiltro = { periodo:'semana', csm:'todos', inicio:'', fim:'' }; // "Atividades realizadas" em Relatórios
   var pendingClienteEditId = null;
   var pendingContatoClienteId = null;
   var pendingUsuarioEditId = null;
@@ -1946,9 +2130,23 @@
   var ciTagsSelecionadas = [];
   var criteriosSucessoEdit = [];
 
-  var CURVA_PESO = { A:4, B:3, C:2, D:1 };
-  var RISCO_PESO = { alto:3, medio:2, baixo:1 };
+  // Lêem de pesosScore (Configurações) em vez de constante fixa, para que
+  // calibrar os pesos na tela recalcule a fila/score na hora.
+  function CURVA_PESO_ATUAL(){ return { A:pesosScore.curvaA, B:pesosScore.curvaB, C:pesosScore.curvaC, D:pesosScore.curvaD }; }
+  function RISCO_PESO_ATUAL(){ return { alto:pesosScore.riscoAlto, medio:pesosScore.riscoMedio, baixo:pesosScore.riscoBaixo }; }
   var RISCO_LABEL = { alto:'Alto', medio:'Médio', baixo:'Baixo' };
+  var MOTIVO_RISCO_LABEL = {
+    produto:'Produto', suporte:'Suporte', preco:'Preço', financeiro:'Financeiro',
+    concorrencia:'Concorrência', adocao:'Falta de adoção/uso', relacionamento:'Relacionamento',
+    instabilidade:'Instabilidade técnica', outro:'Outro'
+  };
+  var MOTIVO_CONTATO_LABEL = {
+    uso:'Uso', produto:'Produto', suporte:'Suporte', financeiro:'Financeiro', preco:'Preço',
+    relacionamento:'Relacionamento', treinamento:'Treinamento', renovacao:'Renovação',
+    expansao:'Expansão', outro:'Outro'
+  };
+  var SENTIMENTO_LABEL = { positivo:'Positivo', neutro:'Neutro', negativo:'Negativo' };
+  var FAIXA_COBERTURA_LABEL = { dentro:'Dentro do ciclo', atencao:'Atenção', prioritario:'Prioritário', vencida:'Ação vencida' };
   var STATUS_LABEL = { aberto:'Aberto', fechado:'Fechado' };
   var PLAYBOOK_CATEGORIA_LABEL = { onboarding:'Onboarding', risco:'Risco de churn', renovacao:'Renovação', expansao:'Expansão', outro:'Outro' };
   var ETAPA_LABEL = { implantacao:'Implantação', adocao:'Adoção', engajamento:'Engajamento', expansao:'Expansão', renovacao:'Renovação', risco:'Risco' };
@@ -2850,6 +3048,8 @@
       var d = (snap.exists && snap.data()) || {};
       curvaConfig = Object.assign({limiteA:8000, limiteB:5000, limiteC:2000}, d.curvaConfig||{});
       waConfig = Object.assign({empresa:''}, d.waConfig||{});
+      prazoConfig = Object.assign({dias: PRAZO_CARTEIRA_PADRAO}, d.prazoConfig||{});
+      pesosScore = Object.assign({}, PESOS_SCORE_PADRAO, d.pesosScore||{});
       setupCompleto = !!d.setupCompleto;
     }).catch(function(){ setupCompleto = false; });
   }
@@ -2911,6 +3111,8 @@
       var d = (snap.exists && snap.data()) || {};
       curvaConfig = Object.assign({limiteA:8000, limiteB:5000, limiteC:2000}, d.curvaConfig||{});
       waConfig = Object.assign({empresa:''}, d.waConfig||{});
+      prazoConfig = Object.assign({dias: PRAZO_CARTEIRA_PADRAO}, d.prazoConfig||{});
+      pesosScore = Object.assign({}, PESOS_SCORE_PADRAO, d.pesosScore||{});
       renderAll();
     }, function(){});
 
@@ -3021,13 +3223,14 @@
     var nps = last ? (last.nps === '' || last.nps == null ? null : Number(last.nps)) : null;
     var status = last ? last.status : null;
 
+    var motivoRisco = last ? (last.motivoRisco || null) : null; // {categoria, detalhe}
     var motivos = [];
     if(frio) motivos.push({tipo:'crit', texto:'Nunca contactado'});
     else if(diasAtraso > 0) motivos.push({tipo: diasAtraso>30 ? 'crit':'warn', texto:'Atrasado '+diasAtraso+'d'});
     if(diasParaVencimento < 0) motivos.push({tipo:'crit', texto:'Licença vencida'});
     else if(diasParaVencimento <= 60) motivos.push({tipo:'warn', texto:'Renova em '+diasParaVencimento+'d'});
-    if(risco === 'alto') motivos.push({tipo:'crit', texto:'Risco de churn alto'});
-    else if(risco === 'medio' && !nunca) motivos.push({tipo:'warn', texto:'Risco de churn médio'});
+    if(risco === 'alto') motivos.push({tipo:'crit', texto:'Risco de churn alto'+(motivoRisco?' — '+motivoRiscoTexto(motivoRisco):'')});
+    else if(risco === 'medio' && !nunca) motivos.push({tipo:'warn', texto:'Risco de churn médio'+(motivoRisco?' — '+motivoRiscoTexto(motivoRisco):'')});
     if(nps != null && nps <= 6) motivos.push({tipo:'crit', texto:'NPS detrator ('+nps+')'});
     else if(nps != null && nps <= 8) motivos.push({tipo:'warn', texto:'NPS neutro ('+nps+')'});
     if(status === 'aberto') motivos.push({tipo:'warn', texto:'Ação em aberto'});
@@ -3038,19 +3241,36 @@
     var faseVencidaTexto = onboardingFaseVencida(onboardingDoCliente(cliente.id));
     if(faseVencidaTexto) motivos.push({tipo:'crit', texto:faseVencidaTexto});
 
+    var CURVA_PESO = CURVA_PESO_ATUAL();
+    var RISCO_PESO = RISCO_PESO_ATUAL();
     var score = 0;
     score += (CURVA_PESO[cliente.curva]||1) * 10;
     score += (RISCO_PESO[risco]||2) * 8;
-    if(frio) score += 45;
-    else if(diasAtraso > 0) score += Math.min(diasAtraso, 180) * 0.5;
-    if(diasParaVencimento < 0) score += 40;
-    else if(diasParaVencimento <= 60) score += 25;
-    if(nps != null && nps <= 6) score += 22;
-    if(status === 'aberto') score += 12;
-    if(cliente.etapaAtual === 'risco') score += 35;
-    if(cliente.alertaAtivo) score += 30;
-    if(semAgendamentoOnboarding) score += 25;
-    if(faseVencidaTexto) score += 20;
+    if(frio) score += pesosScore.frio;
+    else if(diasAtraso > 0) score += Math.min(diasAtraso, 180) * pesosScore.atrasoPorDia;
+    if(diasParaVencimento < 0) score += pesosScore.licencaVencida;
+    else if(diasParaVencimento <= 60) score += pesosScore.renovacaoProxima;
+    if(nps != null && nps <= 6) score += pesosScore.npsDetrator;
+    if(status === 'aberto') score += pesosScore.acaoAberta;
+    if(cliente.etapaAtual === 'risco') score += pesosScore.etapaRisco;
+    if(cliente.alertaAtivo) score += pesosScore.alertaManual;
+    if(semAgendamentoOnboarding) score += pesosScore.onboardingSemAgendamento;
+    if(faseVencidaTexto) score += pesosScore.faseOnboardingVencida;
+
+    // Cobertura da carteira (seções 16-20 do plano): dias desde a última
+    // ação válida (nunca = sempre "ação vencida"), classificado nas
+    // mesmas 4 faixas que o prazo configurado em Configurações usa como
+    // referência (padrão 90 dias -> 0-60/61-75/76-89/90+).
+    var diasSemContato = last ? diffDays(hoje, last.data) : null;
+    var prazoCarteira = (prazoConfig && prazoConfig.dias) || PRAZO_CARTEIRA_PADRAO;
+    var limCobertura1 = Math.round(prazoCarteira * 2/3);
+    var limCobertura2 = Math.round(prazoCarteira * 5/6);
+    var faixaCobertura;
+    if(diasSemContato == null) faixaCobertura = 'vencida';
+    else if(diasSemContato <= limCobertura1) faixaCobertura = 'dentro';
+    else if(diasSemContato <= limCobertura2) faixaCobertura = 'atencao';
+    else if(diasSemContato < prazoCarteira) faixaCobertura = 'prioritario';
+    else faixaCobertura = 'vencida';
 
     var health = 'good';
     if(diasParaVencimento < 0 || risco === 'alto' || diasAtraso > 60 || (nps != null && nps <= 6 && cliente.curva === 'A') || cliente.etapaAtual === 'risco' || cliente.alertaAtivo){
@@ -3073,10 +3293,52 @@
     return {
       cliente: cliente, hist: hist, last: last, nunca: nunca, temAgendamento: temAgendamento, frio: frio,
       proximoContato: proximoContato, diasAtraso: diasAtraso,
-      diasParaVencimento: diasParaVencimento, risco: risco, nps: nps,
+      diasParaVencimento: diasParaVencimento, risco: risco, nps: nps, motivoRisco: motivoRisco,
       status: status, motivos: motivos, score: score, health: health,
-      precisaContato: precisaContato, prioridadeCS: prioridadeCS
+      precisaContato: precisaContato, prioridadeCS: prioridadeCS,
+      diasSemContato: diasSemContato, faixaCobertura: faixaCobertura
     };
+  }
+
+  var FAIXA_COBERTURA_COR = { dentro:'var(--good)', atencao:'var(--warning-fill)', prioritario:'#e6631f', vencida:'var(--critical)' };
+
+  // Reaproveitado pelo Painel e por Relatórios: recebe uma lista de stats
+  // (já filtrada pelo escopo certo) e desenha % coberta + barra de 4
+  // faixas + legenda clicável (clicar numa faixa manda pra Carteira já
+  // filtrada). Se algum dos elId vier null, aquele bloco é ignorado —
+  // permite reaproveitar só o cálculo, sem desenhar tudo de novo.
+  function renderCoberturaBloco(stats, pctElId, barraElId, legendaElId){
+    var contagem = {dentro:0, atencao:0, prioritario:0, vencida:0};
+    stats.forEach(function(s){ contagem[s.faixaCobertura] = (contagem[s.faixaCobertura]||0) + 1; });
+    var total = stats.length || 1;
+    var pctCoberta = stats.length ? Math.round(100*(stats.length - contagem.vencida)/stats.length) : null;
+
+    var pctEl = pctElId && document.getElementById(pctElId);
+    if(pctEl) pctEl.textContent = pctCoberta == null ? '—' : pctCoberta+'%';
+
+    var ordem = ['dentro','atencao','prioritario','vencida'];
+    var barraEl = barraElId && document.getElementById(barraElId);
+    if(barraEl){
+      barraEl.innerHTML = ordem.map(function(k){
+        var pct = Math.round(100*contagem[k]/total);
+        if(!pct) return '';
+        return '<div data-filtro-cobertura="'+k+'" title="'+esc(FAIXA_COBERTURA_LABEL[k])+': '+contagem[k]+'" style="width:'+pct+'%; min-width:'+(contagem[k]?'4px':'0')+'; height:14px; background:'+FAIXA_COBERTURA_COR[k]+';"></div>';
+      }).join('');
+    }
+    var legEl = legendaElId && document.getElementById(legendaElId);
+    if(legEl){
+      legEl.innerHTML = ordem.map(function(k){
+        return '<div data-filtro-cobertura="'+k+'" class="hint" style="cursor:pointer; display:flex; align-items:center; gap:5px;">' +
+          '<span style="width:9px; height:9px; border-radius:2px; background:'+FAIXA_COBERTURA_COR[k]+'; display:inline-block;"></span>' +
+          esc(FAIXA_COBERTURA_LABEL[k])+' ('+contagem[k]+')</div>';
+      }).join('');
+    }
+  }
+
+  function motivoRiscoTexto(m){
+    if(!m || !m.categoria) return '';
+    var lbl = MOTIVO_RISCO_LABEL[m.categoria] || m.categoria;
+    return (m.categoria === 'outro' && m.detalhe) ? m.detalhe : lbl;
   }
 
   function allStats(){ return clientes.map(computeStats); }
@@ -3103,7 +3365,7 @@
   function atividadesPendentesEscopo(csmFiltro){
     var out = [];
     planos.forEach(function(p){
-      if(csmFiltro && p.csm !== csmFiltro) return;
+      if(!noEscopo(p.csm, csmFiltro)) return;
       (p.atividades||[]).forEach(function(a){
         if(a.status !== 'concluida' && a.status !== 'cancelada'){
           out.push({planoId:p.id, planoTitulo:p.titulo, clienteId:p.clienteId, clienteNome:p.clienteNome, csm:p.csm, atividade:a});
@@ -3131,6 +3393,39 @@
     if(!alvo) return null;
     var achou = csmUsuarios().filter(function(u){ return String(u.csmVinculado||u.nome||'').trim().toLowerCase() === alvo; })[0];
     return achou ? achou.id : null;
+  }
+
+  // Conserto automático para clientes cadastrados ANTES de csmId existir
+  // (importados, ou criados numa versão anterior do sistema): sem
+  // csmId, o link público de agendamento nunca acha o CSM (ela não pode
+  // ler "usuarios" sem login) e mostra "Agendamento indisponível" mesmo
+  // com a disponibilidade certinha configurada. Roda sozinho toda vez
+  // que o admin abre o sistema logado: procura o csmId certo pelo nome
+  // já salvo em "csm" e grava de volta, sem precisar reabrir e resalvar
+  // cliente por cliente. Só o admin dispara (evita várias sessões de
+  // CSM escrevendo ao mesmo tempo); é seguro rodar de novo, porque só
+  // mexe em quem ainda está sem csmId.
+  var backfillCsmIdRodando = false;
+  async function backfillClientesCsmId(){
+    if(backfillCsmIdRodando) return;
+    if(!(db && !offline) || !isAdmin()) return;
+    var pendentes = clientes.filter(function(c){ return !c.csmId && c.csm; });
+    if(!pendentes.length) return;
+    backfillCsmIdRodando = true;
+    try{
+      for(var i=0;i<pendentes.length;i++){
+        var c = pendentes[i];
+        var novoId = resolverCsmIdPorNome(c.csm);
+        if(novoId){
+          try{
+            await db.collection('clientes').doc(c.id).update({csmId: novoId});
+            c.csmId = novoId;
+          }catch(e){ /* sem sorte agora; tenta de novo na próxima vez que a tela renderizar */ }
+        }
+      }
+    }finally{
+      backfillCsmIdRodando = false;
+    }
   }
 
   function nomesCsmCadastrados(){
@@ -3246,6 +3541,7 @@
     currentUser = usuarios.filter(function(u){ return u.id === currentUserId; })[0] || null;
   }
   function isAdmin(){ return !!(currentUser && currentUser.perfil === 'admin'); }
+  function isCoordenador(){ return !!(currentUser && currentUser.perfil === 'coordenador'); }
   function meuCsmVinculado(){ return currentUser ? currentUser.csmVinculado : null; }
 
   function entrarComo(userId){
@@ -3407,7 +3703,7 @@
         var body = {nome: nome, email: email, perfil: 'admin', csmVinculado: null};
         await db.collection('usuarios').doc(uid).set(body);
         await db.doc('meta/status').update({ setupCompleto: true, setupCompletoEm: new Date().toISOString() }).catch(function(){
-          return db.doc('meta/status').set({ setupCompleto: true, setupCompletoEm: new Date().toISOString(), curvaConfig: curvaConfig, waConfig: waConfig });
+          return db.doc('meta/status').set({ setupCompleto: true, setupCompletoEm: new Date().toISOString(), curvaConfig: curvaConfig, waConfig: waConfig, prazoConfig: prazoConfig, pesosScore: pesosScore });
         });
         setupCompleto = true;
         usuarios = [Object.assign({id: uid}, body)];
@@ -3427,12 +3723,21 @@
 
   function applyRoleVisibility(){
     var admin = isAdmin();
+    var coord = isCoordenador();
     document.querySelectorAll('[data-role-gate="admin"]').forEach(function(el){
       el.style.display = admin ? '' : 'none';
     });
+    // "admin-coord": visível para admin OU coordenador (hoje só a aba
+    // Relatórios — Configurações continua exclusiva do admin).
+    document.querySelectorAll('[data-role-gate="admin-coord"]').forEach(function(el){
+      el.style.display = (admin || coord) ? '' : 'none';
+    });
     if(!admin){
       var activeView = document.querySelector('.view.active');
-      if(activeView && (activeView.id === 'view-relatorios' || activeView.id === 'view-configuracoes')){
+      if(activeView && activeView.id === 'view-configuracoes'){
+        switchView('painel');
+      }
+      if(!coord && activeView && activeView.id === 'view-relatorios'){
         switchView('painel');
       }
     }
@@ -3440,30 +3745,45 @@
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
       document.getElementById('userCardNome').textContent = currentUser.nome;
       var roleEl = document.getElementById('userCardRole');
-      roleEl.textContent = admin ? 'Administrador' : 'CSM';
-      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : 'role-pill-csm');
+      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : 'CSM');
+      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : 'role-pill-csm'));
     }
   }
 
   // ---------------------------------------------------------------
   // Render: shell (filtros de CSM, nav)
   // ---------------------------------------------------------------
+  // null = sem restrição (admin), array = só esses nomes de CSM podem
+  // aparecer (Coordenador vê a própria equipe; CSM comum vê só a si
+  // mesmo). Usado tanto para montar os seletores quanto, de novo, na
+  // hora de filtrar de verdade — assim a restrição vale mesmo que
+  // alguém troque o valor do <select> pelo devtools.
+  function escopoVisivelCsmNomes(){
+    if(!currentUser) return [];
+    if(isAdmin()) return null;
+    if(isCoordenador()) return (currentUser.equipeCsm||[]).slice();
+    return [meuCsmVinculado() || currentUser.nome];
+  }
+
   function populateCsmSelect(){
-    var list = csmList();
+    var listaCompleta = csmList();
+    var escopo = escopoVisivelCsmNomes();
+    var list = escopo ? listaCompleta.filter(function(n){ return escopo.indexOf(n) > -1; }) : listaCompleta;
 
     ['fCsm','fCsmRel'].forEach(function(id){
       var s = document.getElementById(id);
       var keep = s.value;
-      s.innerHTML = '<option value="todos">Todos os CSMs</option>' + list.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
+      s.innerHTML = '<option value="todos">'+(isCoordenador()?'Minha equipe':'Todos os CSMs')+'</option>' + list.map(function(n){ return '<option value="'+esc(n)+'">'+esc(n)+'</option>'; }).join('');
       if(list.indexOf(keep) > -1) s.value = keep;
     });
 
     var dl = document.getElementById('listaCsmsDatalist');
-    dl.innerHTML = list.map(function(n){ return '<option value="'+esc(n)+'">'; }).join('');
+    dl.innerHTML = listaCompleta.map(function(n){ return '<option value="'+esc(n)+'">'; }).join('');
 
-    // Filtro de CSM na Carteira: CSM só enxerga a própria carteira.
+    // Filtro de CSM na Carteira: CSM comum só enxerga a própria carteira
+    // (fica travado, sem seletor). Coordenador e admin veem o seletor.
     var fCsmEl = document.getElementById('fCsm');
-    if(!isAdmin() && currentUser){
+    if(currentUser && !isAdmin() && !isCoordenador()){
       fCsmEl.style.display = 'none';
       filtros.csm = meuCsmVinculado() || currentUser.nome;
     }else{
@@ -3484,15 +3804,39 @@
         escopoAdminCsm = e.target.value;
         renderPainel();
       });
+    }else if(isCoordenador()){
+      var equipe = (currentUser.equipeCsm||[]).slice().sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+      wrap.innerHTML = '<select id="painelEscopoSelect" style="min-width:180px;">' +
+        '<option value="todos">Ver: minha equipe</option>' +
+        equipe.map(function(n){ return '<option value="'+esc(n)+'"'+(escopoAdminCsm===n?' selected':'')+'>Ver: '+esc(n)+'</option>'; }).join('') +
+      '</select>';
+      document.getElementById('painelEscopoSelect').value = escopoAdminCsm;
+      document.getElementById('painelEscopoSelect').addEventListener('change', function(e){
+        escopoAdminCsm = e.target.value;
+        renderPainel();
+      });
     }else{
       wrap.innerHTML = '<span class="chip">Sua carteira</span>';
     }
   }
 
+  // escopo pode ser: null (sem restrição, "todo mundo"), uma string
+  // (um CSM específico) ou um array de nomes (ex.: a equipe de um
+  // Coordenador). noEscopo() decide se um nome de CSM cai dentro disso.
+  function noEscopo(nomeCsm, escopo){
+    if(!escopo) return true;
+    if(Array.isArray(escopo)) return escopo.indexOf(nomeCsm) > -1;
+    return nomeCsm === escopo;
+  }
+
   function activeCsmFilterForPanel(){
     if(!currentUser) return null;
-    if(!isAdmin()) return meuCsmVinculado() || currentUser.nome;
-    return escopoAdminCsm === 'todos' ? null : escopoAdminCsm;
+    if(isAdmin()) return escopoAdminCsm === 'todos' ? null : escopoAdminCsm;
+    if(isCoordenador()){
+      if(escopoAdminCsm !== 'todos') return escopoAdminCsm; // um CSM específico da equipe
+      return (currentUser.equipeCsm||[]).slice(); // equipe toda
+    }
+    return meuCsmVinculado() || currentUser.nome;
   }
 
   // ---------------------------------------------------------------
@@ -3506,13 +3850,13 @@
     renderPainelEscopoControl();
 
     var escopoCsm = activeCsmFilterForPanel();
-    var stats = allStats().filter(function(s){ return !escopoCsm || s.cliente.csm === escopoCsm; });
+    var stats = allStats().filter(function(s){ return noEscopo(s.cliente.csm, escopoCsm); });
 
     // stat cards: mês atual
     var hojeISO = todayISO();
     var mesAtual = monthKey(hojeISO);
     var contatosMes = contatos.filter(function(c){
-      return monthKey(c.data) === mesAtual && (!escopoCsm || c.csm === escopoCsm);
+      return monthKey(c.data) === mesAtual && noEscopo(c.csm, escopoCsm);
     });
     var unicosMes = {};
     contatosMes.forEach(function(c){ unicosMes[c.clienteId] = true; });
@@ -3528,6 +3872,17 @@
     document.getElementById('statCriticosSub').textContent = criticos.length ? 'precisam de atenção imediata' : 'nenhum no momento';
     document.getElementById('statNps').textContent = npsMedio == null ? '—' : npsMedio.toFixed(1);
     document.getElementById('statNpsSub').textContent = npsMes.length ? (npsMes.length+' respostas no mês') : 'sem respostas no mês';
+
+    // meta diária (opção A: fixa) + cobertura da carteira dentro do prazo
+    var prazoCarteiraAtual = (prazoConfig && prazoConfig.dias) || PRAZO_CARTEIRA_PADRAO;
+    var metaHojeEl = document.getElementById('painelMetaHoje');
+    if(!stats.length){
+      metaHojeEl.innerHTML = 'Nenhum cliente nesta carteira ainda.';
+    }else{
+      var metaHoje = Math.ceil(stats.length / prazoCarteiraAtual);
+      metaHojeEl.innerHTML = '<strong>Meta de hoje: contatar '+metaHoje+' cliente'+(metaHoje===1?'':'s')+' único'+(metaHoje===1?'':'s')+'</strong> para manter o ritmo de cobrir toda a carteira em '+prazoCarteiraAtual+' dias.';
+    }
+    renderCoberturaBloco(stats, 'painelCoberturaPct', 'painelCoberturaBarra', 'painelCoberturaLegenda');
 
     // fila de prioridade
     var fila = stats.filter(function(s){ return s.precisaContato; })
@@ -3583,7 +3938,7 @@
     }
 
     // ações em aberto
-    var abertas = contatos.filter(function(c){ return c.status === 'aberto' && (!escopoCsm || c.csm === escopoCsm); })
+    var abertas = contatos.filter(function(c){ return c.status === 'aberto' && noEscopo(c.csm, escopoCsm); })
       .slice().sort(function(a,b){ return a.data < b.data ? 1 : -1; });
     var acoesEl = document.getElementById('acoesAbertas');
     if(!abertas.length){
@@ -3628,6 +3983,8 @@
   // Render: Carteira
   // ---------------------------------------------------------------
   function passaFiltrosCarteira(s){
+    var escopoTeam = escopoVisivelCsmNomes();
+    if(escopoTeam && escopoTeam.indexOf(s.cliente.csm) === -1) return false;
     if(filtros.busca){
       var q = filtros.busca.toLowerCase();
       var alvo = (s.cliente.nome+' '+s.cliente.id+' '+(s.cliente.contato||'')).toLowerCase();
@@ -3639,6 +3996,7 @@
     if(filtros.cadencia === 'atrasado' && !(s.diasAtraso > 0 && !s.frio)) return false;
     if(filtros.cadencia === 'nunca' && !s.frio) return false;
     if(filtros.cadencia === 'em_dia' && (s.frio || s.diasAtraso > 0)) return false;
+    if(filtros.cobertura && filtros.cobertura !== 'todas' && s.faixaCobertura !== filtros.cobertura) return false;
     return true;
   }
 
@@ -3653,7 +4011,14 @@
     var stats = allStats().filter(passaFiltrosCarteira)
       .sort(function(a,b){ return b.score - a.score; });
 
-    document.getElementById('carteiraSubtitle').textContent = stats.length + ' de ' + clientes.length + ' clientes exibidos';
+    var subtitleEl = document.getElementById('carteiraSubtitle');
+    var subtitleTxt = stats.length + ' de ' + clientes.length + ' clientes exibidos';
+    if(filtros.cobertura && filtros.cobertura !== 'todas'){
+      subtitleTxt += ' · filtro: ' + (FAIXA_COBERTURA_LABEL[filtros.cobertura]||filtros.cobertura);
+      subtitleEl.innerHTML = esc(subtitleTxt) + ' <a href="#" data-limpar-filtro-cobertura style="margin-left:4px;">(limpar)</a>';
+    }else{
+      subtitleEl.textContent = subtitleTxt;
+    }
 
     var admin = isAdmin();
     carteiraUltimoRenderIds = stats.map(function(s){ return s.cliente.id; });
@@ -3785,16 +4150,19 @@
   function renderRelatorios(){
     var mes = relFiltro.mes || monthKey(todayISO());
     var csmSel = relFiltro.csm;
+    // csmSel === 'todos' respeita a equipe de um Coordenador (não é
+    // literalmente "todo mundo" nesse caso) — ver escopoVisivelCsmNomes().
+    var escopoEfetivo = csmSel === 'todos' ? escopoVisivelCsmNomes() : csmSel;
 
     var contatosMes = contatos.filter(function(c){
-      return monthKey(c.data) === mes && (csmSel === 'todos' || c.csm === csmSel);
+      return monthKey(c.data) === mes && noEscopo(c.csm, escopoEfetivo);
     });
     var unicosMes = {};
     contatosMes.forEach(function(c){ unicosMes[c.clienteId] = true; });
     var npsMes = contatosMes.filter(function(c){ return c.nps != null && c.nps !== ''; }).map(function(c){ return Number(c.nps); });
     var npsMedio = npsMes.length ? npsMes.reduce(function(a,b){return a+b;},0)/npsMes.length : null;
 
-    var statsAll = allStats().filter(function(s){ return csmSel === 'todos' || s.cliente.csm === csmSel; });
+    var statsAll = allStats().filter(function(s){ return noEscopo(s.cliente.csm, escopoEfetivo); });
     var criticos = statsAll.filter(function(s){ return s.health === 'critical'; });
 
     document.getElementById('relContatos').textContent = contatosMes.length;
@@ -3802,8 +4170,35 @@
     document.getElementById('relNps').textContent = npsMedio == null ? '—' : npsMedio.toFixed(1);
     document.getElementById('relCriticoPct').textContent = statsAll.length ? Math.round(100*criticos.length/statsAll.length)+'%' : '—';
 
+    renderCoberturaBloco(statsAll, 'relCoberturaPct', 'relCoberturaBarra', 'relCoberturaLegenda');
+
+    // motivos de risco de churn (período do mês selecionado acima)
+    var contMotivo = {};
+    contatosMes.forEach(function(c){
+      if((c.risco==='medio'||c.risco==='alto') && c.motivoRisco && c.motivoRisco.categoria){
+        contMotivo[c.motivoRisco.categoria] = (contMotivo[c.motivoRisco.categoria]||0)+1;
+      }
+    });
+    var totalMotivo = Object.keys(contMotivo).reduce(function(a,k){return a+contMotivo[k];},0);
+    var elMotivo = document.getElementById('distribMotivoRisco');
+    if(!totalMotivo){
+      elMotivo.innerHTML = '<div class="empty-note">Nenhum motivo de risco registrado neste período ainda.</div>';
+    }else{
+      var motivosOrdenados = Object.keys(contMotivo).sort(function(a,b){ return contMotivo[b]-contMotivo[a]; });
+      elMotivo.innerHTML = motivosOrdenados.map(function(k){
+        var pct = Math.round(100*contMotivo[k]/totalMotivo);
+        return '<div class="bar-row">' +
+          '<div class="bar-label">'+esc(MOTIVO_RISCO_LABEL[k]||k)+'</div>' +
+          '<div class="bar-track"><div class="bar-fill" style="width:'+pct+'%; background:var(--warning-fill);"></div></div>' +
+          '<div class="bar-value">'+contMotivo[k]+'</div>' +
+        '</div>';
+      }).join('');
+    }
+
     // consolidado por csm
-    var csms = csmList();
+    var csmsTodos = csmList();
+    var teamScope = escopoVisivelCsmNomes();
+    var csms = teamScope ? csmsTodos.filter(function(n){ return teamScope.indexOf(n) > -1; }) : csmsTodos;
     var linhasCsm = csms.map(function(nome){
       var meusClientes = clientes.filter(function(c){ return c.csm === nome; });
       var meuStats = meusClientes.map(computeStats);
@@ -3846,7 +4241,7 @@
     }
     var maxVal = 10;
     var trendHtml = meses.map(function(mk){
-      var vals = contatos.filter(function(c){ return monthKey(c.data)===mk && (csmSel==='todos'||c.csm===csmSel) && c.nps!=null && c.nps!==''; }).map(function(c){return Number(c.nps);});
+      var vals = contatos.filter(function(c){ return monthKey(c.data)===mk && noEscopo(c.csm, escopoEfetivo) && c.nps!=null && c.nps!==''; }).map(function(c){return Number(c.nps);});
       var media = vals.length ? vals.reduce(function(a,b){return a+b;},0)/vals.length : null;
       var h = media==null ? 3 : Math.max(3, Math.round((media/maxVal)*76));
       var isCur = mk === mes;
@@ -3878,7 +4273,7 @@
     }
 
     // planos de ação em aberto
-    var acoes = contatos.filter(function(c){ return c.status==='aberto' && (csmSel==='todos'||c.csm===csmSel); })
+    var acoes = contatos.filter(function(c){ return c.status==='aberto' && noEscopo(c.csm, escopoEfetivo); })
       .slice().sort(function(a,b){ return a.data<b.data?1:-1; });
     var acoesEl = document.getElementById('listaAcoes');
     if(!acoes.length){
@@ -3893,6 +4288,65 @@
         '</div>';
       }).join('');
     }
+
+    renderAtividadesRealizadas(escopoEfetivo);
+  }
+
+  // Intervalo [inicioISO, fimISO] a partir do filtro de período de
+  // "Atividades realizadas" — hoje/semana/mês/customizado.
+  function intervaloAtividadesFiltro(){
+    var hoje = todayISO();
+    if(atividadesFiltro.periodo === 'hoje') return {ini: hoje, fim: hoje};
+    if(atividadesFiltro.periodo === 'mes'){
+      var mk = monthKey(hoje);
+      var d0 = parseISO(mk+'-01');
+      var ultimoDia = new Date(d0.getFullYear(), d0.getMonth()+1, 0);
+      return {ini: mk+'-01', fim: dateToISO(ultimoDia)};
+    }
+    if(atividadesFiltro.periodo === 'custom'){
+      return {ini: atividadesFiltro.inicio || hoje, fim: atividadesFiltro.fim || hoje};
+    }
+    // semana (padrão): domingo a sábado da semana atual
+    var ini = inicioSemana(parseISO(hoje));
+    var fim = addDiasData(ini, 6);
+    return {ini: dateToISO(ini), fim: dateToISO(fim)};
+  }
+
+  // Achata as atividades concluídas de todos os planos de ação, dentro
+  // do escopo de CSM e do intervalo de datas dados (seção 3 da spec de
+  // evolução — "Atividades realizadas", só concluídas).
+  function atividadesConcluidasEscopo(escopo, intervalo){
+    var out = [];
+    planos.forEach(function(p){
+      if(!noEscopo(p.csm, escopo)) return;
+      (p.atividades||[]).forEach(function(a){
+        if(a.status !== 'concluida' || !a.concluidoEm) return;
+        var dataConcl = String(a.concluidoEm).slice(0,10);
+        if(dataConcl < intervalo.ini || dataConcl > intervalo.fim) return;
+        out.push({planoId:p.id, planoTitulo:p.titulo, clienteNome:p.clienteNome, csm:p.csm, atividade:a, concluidoEm:dataConcl});
+      });
+    });
+    return out.sort(function(x,y){ return x.concluidoEm < y.concluidoEm ? 1 : -1; });
+  }
+
+  function renderAtividadesRealizadas(escopoEfetivo){
+    var intervalo = intervaloAtividadesFiltro();
+    var lista = atividadesConcluidasEscopo(escopoEfetivo, intervalo);
+    document.getElementById('atividadesRealizadasContador').textContent = lista.length + ' atividade'+(lista.length===1?'':'s')+' concluída'+(lista.length===1?'':'s')+' neste período';
+    var body = document.getElementById('tabelaAtividadesRealizadas');
+    if(!body) return;
+    if(!lista.length){
+      body.innerHTML = '<tr><td colspan="4"><div class="empty-note">Nenhuma atividade concluída neste período.</div></td></tr>';
+      return;
+    }
+    body.innerHTML = lista.map(function(x){
+      return '<tr>' +
+        '<td>'+esc(x.clienteNome)+'</td>' +
+        '<td>'+esc(x.atividade.titulo||'')+'</td>' +
+        '<td class="num">'+fmtDate(x.concluidoEm)+'</td>' +
+        '<td>'+esc(x.planoTitulo||'')+'</td>' +
+      '</tr>';
+    }).join('');
   }
 
   // ---------------------------------------------------------------
@@ -3904,13 +4358,13 @@
   function computeAlertas(){
     var escopoCsm = activeCsmFilterForPanel();
     var statsRisco = allStats().filter(function(s){
-      if(escopoCsm && s.cliente.csm !== escopoCsm) return false;
+      if(!noEscopo(s.cliente.csm, escopoCsm)) return false;
       return s.health === 'critical' || s.cliente.etapaAtual === 'risco' || s.cliente.alertaAtivo;
     }).sort(function(a,b){ return b.score - a.score; });
 
     var atividadesAlerta = [];
     planos.forEach(function(p){
-      if(escopoCsm && p.csm !== escopoCsm) return;
+      if(!noEscopo(p.csm, escopoCsm)) return;
       (p.atividades||[]).forEach(function(a, idx){
         if(a.status==='concluida' || a.status==='cancelada') return;
         var atrasada = atividadeAtrasada(a);
@@ -3999,7 +4453,8 @@
     renderAlertas();
     renderOnboarding();
     renderAgenda();
-    if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); }
+    if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); backfillClientesCsmId(); }
+    else if(isCoordenador()){ renderRelatorios(); }
     var histOverlay = document.getElementById('overlayHistorico');
     if(histOverlay && histOverlay.classList.contains('open') && pendingPlanoClienteId){
       renderPlanosSecaoHistorico(pendingPlanoClienteId);
@@ -4323,7 +4778,27 @@
     document.getElementById('coRisco').value = 'baixo';
     document.getElementById('coNps').value = '';
     document.getElementById('coProximo').value = off(90);
+    document.getElementById('coMotivoRisco').value = '';
+    document.getElementById('coMotivoRiscoOutro').value = '';
+    document.getElementById('coMotivoRiscoOutroWrap').style.display = 'none';
+    document.getElementById('coMotivoContato').value = '';
+    document.getElementById('coSentimento').value = '';
+    var errEl0 = document.getElementById('coMotivoRiscoError');
+    if(errEl0) errEl0.classList.remove('show');
+    atualizarVisibilidadeMotivoRisco();
     openOverlay('overlayContato');
+  }
+
+  // Mostra o campo "Motivo do risco" só quando o risco marcado é
+  // médio/alto (seção 2 da spec de evolução) — risco baixo não pede
+  // explicação de algo que não é risco.
+  function atualizarVisibilidadeMotivoRisco(){
+    var risco = document.getElementById('coRisco').value;
+    var precisaMotivo = risco === 'medio' || risco === 'alto';
+    document.getElementById('coMotivoRiscoWrap').style.display = precisaMotivo ? '' : 'none';
+    if(!precisaMotivo){
+      document.getElementById('coMotivoRiscoError').classList.remove('show');
+    }
   }
 
   async function salvarContato(){
@@ -4331,6 +4806,27 @@
     var c = clientes.filter(function(x){return x.id===pendingContatoClienteId;})[0];
     if(!c) return;
     var npsRaw = document.getElementById('coNps').value;
+    var risco = document.getElementById('coRisco').value;
+    var errEl = document.getElementById('coMotivoRiscoError');
+    errEl.classList.remove('show');
+
+    var motivoRisco = null;
+    if(risco === 'medio' || risco === 'alto'){
+      var categoria = document.getElementById('coMotivoRisco').value;
+      if(!categoria){
+        errEl.textContent = 'Selecione o motivo do risco (obrigatório quando o risco é médio ou alto).';
+        errEl.classList.add('show');
+        return;
+      }
+      var detalhe = document.getElementById('coMotivoRiscoOutro').value.trim();
+      if(categoria === 'outro' && !detalhe){
+        errEl.textContent = 'Descreva o motivo do risco no campo de detalhe.';
+        errEl.classList.add('show');
+        return;
+      }
+      motivoRisco = { categoria: categoria, detalhe: detalhe };
+    }
+
     var body = {
       clienteId: pendingContatoClienteId,
       clienteNome: c.nome,
@@ -4339,18 +4835,27 @@
       observacao: document.getElementById('coObs').value.trim(),
       planoAcao: document.getElementById('coPlano').value.trim(),
       status: document.getElementById('coStatus').value,
-      risco: document.getElementById('coRisco').value,
+      risco: risco,
+      motivoRisco: motivoRisco,
       nps: npsRaw === '' ? null : Number(npsRaw),
-      proximoContato: document.getElementById('coProximo').value || null
+      proximoContato: document.getElementById('coProximo').value || null,
+      motivoContato: document.getElementById('coMotivoContato').value || null,
+      sentimento: document.getElementById('coSentimento').value || null
     };
 
-    if(db && !offline){
-      await db.collection('contatos').add(body);
-    }else{
-      contatos.push(Object.assign({id:'local-'+Date.now()}, body));
-      renderAll();
+    try{
+      if(db && !offline){
+        await db.collection('contatos').add(body);
+      }else{
+        contatos.push(Object.assign({id:'local-'+Date.now()}, body));
+        renderAll();
+      }
+      closeOverlay('overlayContato');
+      mostrarToastSucesso('Contato registrado com sucesso.');
+    }catch(e){
+      errEl.textContent = 'Não foi possível salvar: ' + detalheErro(e);
+      errEl.classList.add('show');
     }
-    closeOverlay('overlayContato');
   }
 
   function abrirHistorico(clienteId){
@@ -4358,11 +4863,15 @@
     if(!c) return;
     var s = computeStats(c);
     document.getElementById('historicoTitulo').textContent = c.nome;
+    var motivoRiscoAtual = motivoRiscoTexto(s.motivoRisco);
     document.getElementById('historicoResumo').innerHTML =
       '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
       healthPill(s.health) +
+      '<span class="chip" title="Priority Score — quanto maior, mais cedo este cliente aparece na fila do Painel">Priority Score '+Math.round(s.score)+'</span>' +
       '<span class="chip">'+esc(c.csm||'—')+'</span>' +
       '<span class="chip">Vence '+fmtDate(c.vencimento)+'</span>' +
+      '<span class="chip">'+esc(FAIXA_COBERTURA_LABEL[s.faixaCobertura])+'</span>' +
+      (motivoRiscoAtual ? '<span class="chip c-warn">Risco: '+esc(motivoRiscoAtual)+'</span>' : '') +
       (c.arr ? '<span class="chip">'+fmtMoney(c.arr)+' ARR</span>' : '') +
       waButton(c);
 
@@ -4373,13 +4882,17 @@
     }else{
       tlEl.innerHTML = hist.map(function(h){
         var riscoPill = h.risco === 'alto' ? healthPill('critical','Alto') : (h.risco==='medio'?healthPill('warning','Médio'):healthPill('good','Baixo'));
+        var motivoTxt = (h.risco==='medio'||h.risco==='alto') ? motivoRiscoTexto(h.motivoRisco) : '';
         return '<div class="tl-item">' +
           '<div class="tl-date">'+fmtDate(h.data)+'</div>' +
           '<div class="tl-body">' +
             '<div class="tl-obs">'+esc(h.observacao||'<em style="color:var(--muted);">Sem observação registrada.</em>')+'</div>' +
             '<div class="tl-meta">' + riscoPill +
+              (motivoTxt ? '<span class="chip c-warn">Motivo: '+esc(motivoTxt)+'</span>' : '') +
               (h.nps!=null && h.nps!=='' ? '<span class="chip">NPS '+h.nps+'</span>' : '') +
               '<span class="chip'+(h.status==='aberto'?' c-warn':' c-good')+'">'+STATUS_LABEL[h.status]+'</span>' +
+              (h.motivoContato ? '<span class="chip">'+esc(MOTIVO_CONTATO_LABEL[h.motivoContato]||h.motivoContato)+'</span>' : '') +
+              (h.sentimento ? '<span class="chip">'+esc(SENTIMENTO_LABEL[h.sentimento]||h.sentimento)+'</span>' : '') +
               (h.csm ? '<span class="chip">'+esc(h.csm)+'</span>' : '') +
             '</div>' +
             (h.planoAcao ? '<div class="tl-plan">Plano de ação: '+esc(h.planoAcao)+'</div>' : '') +
@@ -5216,9 +5729,13 @@
       return;
     }
     var csmUser = csmDoClientePublico(cliente);
-    var disp = csmUser ? agendaDoCsm(csmUser.id) : null;
-    if(!csmUser || !disp){
-      pb.innerHTML = '<h1>Agendamento indisponível</h1><div class="hint">Seu CSM ainda não configurou horários disponíveis por aqui. Entre em contato diretamente para combinar um horário.</div>';
+    if(!csmUser){
+      pb.innerHTML = '<h1>Agendamento indisponível</h1><div class="hint">Não conseguimos identificar o responsável por este cliente. Peça ao seu CSM para abrir o cadastro do cliente (Carteira → Editar) e salvar de novo escolhendo o CSM na lista — isso corrige o vínculo.</div>';
+      return;
+    }
+    var disp = agendaDoCsm(csmUser.id);
+    if(!disp){
+      pb.innerHTML = '<h1>Agendamento indisponível</h1><div class="hint">Seu CSM ('+esc(csmUser.nome)+') ainda não configurou horários disponíveis por aqui. Entre em contato diretamente para combinar um horário.</div>';
       return;
     }
 
@@ -5868,6 +6385,88 @@
     }
   }
 
+  function renderPrazoConfigInputs(){
+    var el = document.getElementById('cfgPrazoCarteira');
+    if(!el || document.activeElement === el) return;
+    el.value = (prazoConfig && prazoConfig.dias) || PRAZO_CARTEIRA_PADRAO;
+  }
+
+  async function salvarPrazoConfig(){
+    var dias = Number(document.getElementById('cfgPrazoCarteira').value);
+    var errEl = document.getElementById('prazoConfigError');
+    if(!isFinite(dias) || dias <= 0){
+      errEl.textContent = 'Informe um número de dias maior que zero.';
+      errEl.classList.add('show');
+      return;
+    }
+    errEl.classList.remove('show');
+    var novoConfig = {dias: Math.round(dias)};
+    try{
+      if(db && !offline){
+        await db.doc('meta/status').update({prazoConfig: novoConfig});
+      }else{
+        prazoConfig = novoConfig;
+        renderAll();
+      }
+      mostrarToastSucesso('Prazo salvo com sucesso.');
+    }catch(e){
+      errEl.textContent = 'Não foi possível salvar: ' + detalheErro(e);
+      errEl.classList.add('show');
+    }
+  }
+
+  var PESOS_SCORE_CAMPOS = {
+    cfgPesoCurvaA:'curvaA', cfgPesoCurvaB:'curvaB', cfgPesoCurvaC:'curvaC', cfgPesoCurvaD:'curvaD',
+    cfgPesoRiscoBaixo:'riscoBaixo', cfgPesoRiscoMedio:'riscoMedio', cfgPesoRiscoAlto:'riscoAlto',
+    cfgPesoFrio:'frio', cfgPesoAtrasoPorDia:'atrasoPorDia', cfgPesoLicencaVencida:'licencaVencida',
+    cfgPesoRenovacaoProxima:'renovacaoProxima', cfgPesoNpsDetrator:'npsDetrator', cfgPesoAcaoAberta:'acaoAberta',
+    cfgPesoEtapaRisco:'etapaRisco', cfgPesoAlertaManual:'alertaManual',
+    cfgPesoOnboardingSemAgendamento:'onboardingSemAgendamento', cfgPesoFaseOnboardingVencida:'faseOnboardingVencida'
+  };
+
+  function renderPesosScoreInputs(){
+    Object.keys(PESOS_SCORE_CAMPOS).forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el || document.activeElement === el) return;
+      el.value = pesosScore[PESOS_SCORE_CAMPOS[id]];
+    });
+  }
+
+  async function salvarPesosScore(){
+    var errEl = document.getElementById('pesosScoreError');
+    var novoConfig = {};
+    var ids = Object.keys(PESOS_SCORE_CAMPOS);
+    for(var i=0;i<ids.length;i++){
+      var v = Number(document.getElementById(ids[i]).value);
+      if(!isFinite(v) || v < 0){
+        errEl.textContent = 'Todos os pesos precisam ser números válidos, maiores ou iguais a zero.';
+        errEl.classList.add('show');
+        return;
+      }
+      novoConfig[PESOS_SCORE_CAMPOS[ids[i]]] = v;
+    }
+    errEl.classList.remove('show');
+    try{
+      if(db && !offline){
+        await db.doc('meta/status').update({pesosScore: novoConfig});
+      }else{
+        pesosScore = novoConfig;
+        renderAll();
+      }
+      mostrarToastSucesso('Pesos salvos com sucesso.');
+    }catch(e){
+      errEl.textContent = 'Não foi possível salvar: ' + detalheErro(e);
+      errEl.classList.add('show');
+    }
+  }
+
+  function restaurarPesosScorePadrao(){
+    Object.keys(PESOS_SCORE_CAMPOS).forEach(function(id){
+      var el = document.getElementById(id);
+      if(el) el.value = PESOS_SCORE_PADRAO[PESOS_SCORE_CAMPOS[id]];
+    });
+  }
+
   function renderWaConfigInputs(){
     var el = document.getElementById('cfgWaEmpresa');
     if(el && document.activeElement !== el) el.value = (waConfig && waConfig.empresa) || '';
@@ -5897,6 +6496,8 @@
   function renderConfiguracoes(){
     renderTags();
     renderCurvaConfigInputs();
+    renderPrazoConfigInputs();
+    renderPesosScoreInputs();
     renderWaConfigInputs();
     var body = document.getElementById('tabelaUsuarios');
     if(!usuarios.length){
@@ -5905,15 +6506,54 @@
     }
     body.innerHTML = usuarios.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); }).map(function(u){
       var eh = u.perfil === 'admin';
+      var ehCoord = u.perfil === 'coordenador';
+      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : 'role-pill-csm');
+      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : 'CSM');
+      var carteiraTxt = eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
+        (ehCoord ? 'Equipe: ' + ((u.equipeCsm&&u.equipeCsm.length) ? esc(u.equipeCsm.join(', ')) : '<span class="ct" style="color:var(--muted);">nenhum CSM ainda</span>') :
+        esc(u.csmVinculado||u.nome));
       return '<tr>' +
         '<td><div class="cell-client"><span class="gate-avatar">'+esc(initials(u.nome))+'</span><div class="nm">'+esc(u.nome)+(u.id===currentUserId?' <span class="ct">(você)</span>':'')+'</div></div></td>' +
-        '<td><span class="role-pill '+(eh?'role-pill-admin':'role-pill-csm')+'">'+(eh?'Admin':'CSM')+'</span></td>' +
-        '<td>'+(eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' : esc(u.csmVinculado||u.nome))+'</td>' +
+        '<td><span class="role-pill '+roleCls+'">'+roleLbl+'</span></td>' +
+        '<td>'+carteiraTxt+'</td>' +
         '<td><div style="display:flex; gap:4px; justify-content:flex-end;">' +
           '<button class="btn btn-sm" data-open-editar-usuario="'+esc(u.id)+'">Editar</button>' +
         '</div></td>' +
       '</tr>';
     }).join('');
+  }
+
+  // Lista de checkboxes com os CSMs cadastrados, para montar a "equipe"
+  // de um Coordenador (seção 6 da spec de evolução).
+  function renderUiEquipePicker(selecionados){
+    var opcoes = usuarios.filter(function(u){ return u.perfil === 'csm'; })
+      .map(function(u){ return u.csmVinculado || u.nome; })
+      .filter(function(n, i, arr){ return n && arr.indexOf(n) === i; })
+      .sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+    var picker = document.getElementById('uiEquipePicker');
+    if(!opcoes.length){
+      picker.innerHTML = '<div class="empty-note">Nenhum CSM cadastrado ainda.</div>';
+      return;
+    }
+    picker.innerHTML = opcoes.map(function(n){
+      var marcado = (selecionados||[]).indexOf(n) > -1;
+      return '<label style="display:flex; align-items:center; gap:6px; font-size:13px; border:1px solid var(--border); border-radius:8px; padding:5px 10px; cursor:pointer;">' +
+        '<input type="checkbox" data-equipe-csm-opcao="'+esc(n)+'" '+(marcado?'checked':'')+' style="width:auto;">'+esc(n)+
+      '</label>';
+    }).join('');
+  }
+
+  function equipeCsmSelecionadaAtual(){
+    return Array.from(document.querySelectorAll('#uiEquipePicker [data-equipe-csm-opcao]:checked')).map(function(el){ return el.getAttribute('data-equipe-csm-opcao'); });
+  }
+
+  // Mostra/esconde "Carteira vinculada" (só CSM) e "CSMs desta equipe"
+  // (só Coordenador) conforme o perfil escolhido no formulário.
+  function atualizarVisibilidadeCamposUsuario(equipeAtual){
+    var perfil = document.getElementById('uiPerfil').value;
+    document.getElementById('uiCsmVinculadoWrap').style.display = (perfil === 'csm') ? '' : 'none';
+    document.getElementById('uiEquipeWrap').style.display = (perfil === 'coordenador') ? '' : 'none';
+    if(perfil === 'coordenador') renderUiEquipePicker(equipeAtual||[]);
   }
 
   function abrirNovoUsuario(){
@@ -5923,7 +6563,7 @@
     document.getElementById('uiNome').value = '';
     document.getElementById('uiPerfil').value = 'csm';
     document.getElementById('uiCsmVinculado').value = '';
-    document.getElementById('uiCsmVinculadoWrap').style.display = '';
+    atualizarVisibilidadeCamposUsuario([]);
     document.getElementById('uiEmailWrap').style.display = online ? '' : 'none';
     document.getElementById('uiEmail').value = '';
     document.getElementById('uiSenhaFieldsWrap').style.display = '';
@@ -5946,7 +6586,7 @@
     document.getElementById('uiNome').value = u.nome||'';
     document.getElementById('uiPerfil').value = u.perfil||'csm';
     document.getElementById('uiCsmVinculado').value = u.csmVinculado||'';
-    document.getElementById('uiCsmVinculadoWrap').style.display = (u.perfil==='admin') ? 'none' : '';
+    atualizarVisibilidadeCamposUsuario(u.equipeCsm||[]);
     document.getElementById('uiEmailWrap').style.display = online ? '' : 'none';
     document.getElementById('uiEmail').value = u.email||'';
     if(online){
@@ -6008,7 +6648,7 @@
         if(resp.error) throw resp.error;
         if(!resp.data || !resp.data.user){ throw new Error('Não foi possível criar a conta.'); }
         var uid = resp.data.user.id;
-        var body = {nome: nome, email: email, perfil: perfil, csmVinculado: perfil==='admin' ? null : csmVinculado};
+        var body = {nome: nome, email: email, perfil: perfil, csmVinculado: perfil==='csm' ? csmVinculado : null, equipeCsm: perfil==='coordenador' ? equipeCsmSelecionadaAtual() : null};
         await db.collection('usuarios').doc(uid).set(body);
         closeOverlay('overlayUsuario');
         mostrarToastSucesso('Usuário criado com sucesso.');
@@ -6026,7 +6666,7 @@
     }
 
     var id = pendingUsuarioEditId || slugify(nome);
-    var body = {nome: nome, perfil: perfil, csmVinculado: perfil==='admin' ? null : csmVinculado};
+    var body = {nome: nome, perfil: perfil, csmVinculado: perfil==='csm' ? csmVinculado : null, equipeCsm: perfil==='coordenador' ? equipeCsmSelecionadaAtual() : null};
     if(online) body.email = email || (usuarios.filter(function(u){return u.id===id;})[0]||{}).email || null;
     if(!online && senha){
       var salt = randomSalt();
@@ -6174,8 +6814,8 @@
     document.getElementById('btnSalvarUsuario').addEventListener('click', salvarUsuario);
     document.getElementById('btnExcluirUsuario').addEventListener('click', excluirUsuario);
     document.getElementById('btnResetSenhaEmailUsuario').addEventListener('click', enviarResetSenhaUsuario);
-    document.getElementById('uiPerfil').addEventListener('change', function(e){
-      document.getElementById('uiCsmVinculadoWrap').style.display = (e.target.value==='admin') ? 'none' : '';
+    document.getElementById('uiPerfil').addEventListener('change', function(){
+      atualizarVisibilidadeCamposUsuario(equipeCsmSelecionadaAtual());
     });
     document.getElementById('btnAlterarSenha').addEventListener('click', abrirAlterarSenha);
     document.getElementById('btnSalvarSenha').addEventListener('click', salvarNovaSenha);
@@ -6258,6 +6898,10 @@
     document.getElementById('ciAlertaAtivo').addEventListener('change', function(e){
       document.getElementById('ciAlertaMotivoWrap').style.display = e.target.checked ? 'block' : 'none';
     });
+    document.getElementById('coRisco').addEventListener('change', atualizarVisibilidadeMotivoRisco);
+    document.getElementById('coMotivoRisco').addEventListener('change', function(e){
+      document.getElementById('coMotivoRiscoOutroWrap').style.display = (e.target.value === 'outro') ? '' : 'none';
+    });
     document.getElementById('ciTagsPicker').addEventListener('click', function(e){
       var tagT = e.target.closest('[data-tag-toggle]');
       if(!tagT) return;
@@ -6269,6 +6913,9 @@
 
     document.getElementById('btnSalvarCurvaConfig').addEventListener('click', salvarCurvaConfig);
     document.getElementById('btnSalvarWaConfig').addEventListener('click', salvarWaConfig);
+    document.getElementById('btnSalvarPrazoConfig').addEventListener('click', salvarPrazoConfig);
+    document.getElementById('btnSalvarPesosScore').addEventListener('click', salvarPesosScore);
+    document.getElementById('btnRestaurarPesosScore').addEventListener('click', restaurarPesosScorePadrao);
     document.getElementById('cfgWaEmpresa').addEventListener('input', renderWaConfigInputs);
     document.getElementById('btnNovaTag').addEventListener('click', abrirNovoTag);
     document.getElementById('btnSalvarTag').addEventListener('click', salvarTag);
@@ -6396,6 +7043,20 @@
     });
 
     document.body.addEventListener('click', function(e){
+      var filtroCobertura = e.target.closest('[data-filtro-cobertura]');
+      if(filtroCobertura){
+        e.preventDefault();
+        filtros.cobertura = filtroCobertura.getAttribute('data-filtro-cobertura');
+        switchView('carteira');
+        renderAll();
+        return;
+      }
+      if(e.target.closest('[data-limpar-filtro-cobertura]')){
+        e.preventDefault();
+        filtros.cobertura = 'todas';
+        renderAll();
+        return;
+      }
       var openContato = e.target.closest('[data-open-contato]');
       if(openContato){ e.preventDefault(); abrirContato(openContato.getAttribute('data-open-contato')); return; }
       var openHist = e.target.closest('[data-open-historico]');
@@ -6454,6 +7115,21 @@
     relFiltro.mes = monthKey(todayISO());
     document.getElementById('fMes').addEventListener('change', function(e){ relFiltro.mes = e.target.value; renderRelatorios(); });
     document.getElementById('fCsmRel').addEventListener('change', function(e){ relFiltro.csm = e.target.value; renderRelatorios(); });
+    document.getElementById('fAtividadesPeriodo').addEventListener('change', function(e){
+      atividadesFiltro.periodo = e.target.value;
+      var custom = atividadesFiltro.periodo === 'custom';
+      document.getElementById('fAtividadesInicio').style.display = custom ? '' : 'none';
+      document.getElementById('fAtividadesFim').style.display = custom ? '' : 'none';
+      renderAtividadesRealizadas(relFiltro.csm === 'todos' ? escopoVisivelCsmNomes() : relFiltro.csm);
+    });
+    document.getElementById('fAtividadesInicio').addEventListener('change', function(e){
+      atividadesFiltro.inicio = e.target.value;
+      renderAtividadesRealizadas(relFiltro.csm === 'todos' ? escopoVisivelCsmNomes() : relFiltro.csm);
+    });
+    document.getElementById('fAtividadesFim').addEventListener('change', function(e){
+      atividadesFiltro.fim = e.target.value;
+      renderAtividadesRealizadas(relFiltro.csm === 'todos' ? escopoVisivelCsmNomes() : relFiltro.csm);
+    });
 
     document.addEventListener('keydown', function(e){
       if(e.key === 'Escape'){ document.querySelectorAll('.overlay.open').forEach(function(ov){ ov.classList.remove('open'); }); }
