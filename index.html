@@ -1060,6 +1060,32 @@
         </div>
 
         <div class="card">
+          <div class="card-head">
+            <div><h2>Funil de negociação</h2><div class="hint">Em aberto → Antecipação/Proposta → Título gerado → Renovado, com Churn possível a qualquer momento.</div></div>
+            <div class="topbar-actions">
+              <select id="fRenovCurva" style="min-width:130px;">
+                <option value="todas">Todas as curvas</option>
+                <option value="A">Curva A</option>
+                <option value="B">Curva B</option>
+                <option value="C">Curva C</option>
+                <option value="D">Curva D</option>
+              </select>
+              <button type="button" class="btn btn-sm" id="btnRenovModoKanban">Quadro</button>
+              <button type="button" class="btn btn-sm" id="btnRenovModoLista">Lista</button>
+            </div>
+          </div>
+          <div class="card-body pad-top">
+            <div id="renovFunilKanban" class="kanban-board"></div>
+            <div id="renovFunilLista" class="table-wrap" style="display:none;">
+              <table>
+                <thead><tr><th>Cliente</th><th>Curva</th><th>CSM</th><th>Vencimento</th><th class="num">Valor da licença</th><th>Contrato assinado</th><th>Status</th><th>Saúde</th><th></th></tr></thead>
+                <tbody id="renovFunilListaTabela"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><div><h2>Vencendo este mês</h2><div class="hint">Licença vence dentro do mês corrente e ainda não foi marcada como renovada.</div></div></div>
           <div class="card-body pad-top" id="renovFilaVencendo"></div>
         </div>
@@ -1072,25 +1098,6 @@
         <div class="card">
           <div class="card-head"><div><h2>Vencidas sem renovação</h2><div class="hint">Já venceu e não está marcada como renovada — fila mais crítica.</div></div></div>
           <div class="card-body pad-top" id="renovFilaVencida"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div><h2>Funil de negociação</h2><div class="hint">Em aberto → Antecipação/Proposta → Título gerado → Renovado, com Churn possível a qualquer momento.</div></div>
-            <div class="topbar-actions">
-              <button type="button" class="btn btn-sm" id="btnRenovModoKanban">Quadro</button>
-              <button type="button" class="btn btn-sm" id="btnRenovModoLista">Lista</button>
-            </div>
-          </div>
-          <div class="card-body pad-top">
-            <div id="renovFunilKanban" class="kanban-board"></div>
-            <div id="renovFunilLista" class="table-wrap" style="display:none;">
-              <table>
-                <thead><tr><th>Cliente</th><th>CSM</th><th>Vencimento</th><th>Status</th><th>Saúde</th><th></th></tr></thead>
-                <tbody id="renovFunilListaTabela"></tbody>
-              </table>
-            </div>
-          </div>
         </div>
       </div>
     </section>
@@ -3465,6 +3472,13 @@
     var r = renovacaoDoCliente(cliente);
     return (r && r.status) || 'aberto';
   }
+  function contratoAssinado(cliente){
+    var r = renovacaoDoCliente(cliente);
+    return !!(r && r.contratoAssinado);
+  }
+  // Filtro por curva do funil de negociação (Quadro e Lista) — seleção
+  // única, compartilhada entre os dois modos de visualização.
+  var renovFiltroCurva = 'todas';
   // Chave "YYYY-MM" do mês seguinte ao de hoje (não existe helper de
   // soma de meses no restante do código; monthKey() só formata).
   function mesSeguinteKey(){
@@ -3519,6 +3533,7 @@
       historicoStatus: historico,
       valorNegociado: atual ? (atual.valorNegociado != null ? atual.valorNegociado : null) : null,
       observacoes: atual ? (atual.observacoes || '') : '',
+      contratoAssinado: atual ? !!atual.contratoAssinado : false,
       atualizadoEm: new Date().toISOString(),
       atualizadoPor: currentUser ? currentUser.nome : ''
     };
@@ -3534,6 +3549,41 @@
       mostrarToastSucesso('Status de renovação atualizado para "'+(RENOVACAO_STATUS_LABEL[novoStatus]||novoStatus)+'".');
     }catch(e){
       alert('Não foi possível atualizar o status agora: ' + detalheErro(e));
+    }
+  }
+
+  // Marca/desmarca "contrato assinado" — independente do status do funil
+  // (ex.: "Título gerado" é a cobrança emitida, mas o contrato de
+  // renovação em si pode ainda não ter voltado assinado do cliente).
+  async function toggleContratoAssinado(clienteId, novoValor){
+    var c = clientes.filter(function(x){ return x.id === clienteId; })[0];
+    if(!c) return;
+    var id = renovacaoDocId(c);
+    var atual = renovacoesData.filter(function(r){ return r.id === id; })[0];
+    var body = {
+      clienteId: c.id,
+      clienteNome: c.nome,
+      csm: c.csm || '',
+      status: atual ? (atual.status || 'aberto') : 'aberto',
+      historicoStatus: (atual && atual.historicoStatus) ? atual.historicoStatus.slice() : [],
+      valorNegociado: atual ? (atual.valorNegociado != null ? atual.valorNegociado : null) : null,
+      observacoes: atual ? (atual.observacoes || '') : '',
+      contratoAssinado: novoValor,
+      atualizadoEm: new Date().toISOString(),
+      atualizadoPor: currentUser ? currentUser.nome : ''
+    };
+    try{
+      if(db && !offline){
+        await db.collection('renovacoes').doc(id).set(body);
+      }else{
+        var idx = renovacoesData.findIndex(function(r){ return r.id === id; });
+        var rec = Object.assign({id:id}, body);
+        if(idx > -1) renovacoesData[idx] = rec; else renovacoesData.push(rec);
+        renderAll();
+      }
+      mostrarToastSucesso(novoValor ? 'Contrato marcado como assinado.' : 'Contrato marcado como não assinado.');
+    }catch(e){
+      alert('Não foi possível atualizar agora: ' + detalheErro(e));
     }
   }
 
@@ -3598,12 +3648,21 @@
       el.innerHTML = par[1].length ? par[1].map(renovQueueRowHtml).join('') : '<div class="empty-note">Nenhum cliente nesta fila agora.</div>';
     });
 
-    // Funil (Kanban): mesma população elegível, mas SEM excluir
-    // Renovado/Churn — eles aparecem nas colunas finais do quadro.
+    // Funil (Kanban/Lista): mesma população elegível, mas SEM excluir
+    // Renovado/Churn — eles aparecem nas colunas/linhas finais — e com o
+    // filtro de curva aplicado (compartilhado entre os dois modos).
     var elig = renovacaoElegiveis();
+    if(renovFiltroCurva !== 'todas'){
+      elig = elig.filter(function(x){ return x.cliente.curva === renovFiltroCurva; });
+    }
     var porStatus = {};
     RENOVACAO_STATUS_ORDEM.forEach(function(st){ porStatus[st] = []; });
     elig.forEach(function(x){ (porStatus[x.statusRenov] || porStatus.aberto).push(x); });
+
+    function contratoChip(c){
+      var assinado = contratoAssinado(c);
+      return '<button type="button" class="pill '+(assinado?'pill-good':'pill-neutral')+'" data-toggle-contrato-assinado="'+esc(c.id)+'" data-novo-valor="'+(assinado?'0':'1')+'" title="Clique para marcar como '+(assinado?'não assinado':'assinado')+'" style="border:none; cursor:pointer;"><span class="pill-dot"></span>'+(assinado?'Assinado':'Não assinado')+'</button>';
+    }
 
     var kEl = document.getElementById('renovFunilKanban');
     kEl.innerHTML = RENOVACAO_STATUS_ORDEM.map(function(st){
@@ -3613,9 +3672,10 @@
         (itens.length ? itens.map(function(x){
           var c = x.cliente, s = x.stats;
           return '<div class="kanban-card">' +
-            '<div class="nm"><a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a></div>' +
+            '<div class="nm"><span class="curva curva-'+c.curva+'">'+c.curva+'</span> <a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a></div>' +
             '<div class="hint">'+esc(c.csm||'—')+' · '+fmtDate(c.vencimento)+(c.arr?' · '+fmtMoney(c.arr):'')+'</div>' +
             healthPill(s.health) +
+            contratoChip(c) +
             '<select data-mudar-status-renovacao="'+esc(c.id)+'">' +
               RENOVACAO_STATUS_ORDEM.map(function(st2){ return '<option value="'+st2+'"'+(st===st2?' selected':'')+'>'+esc(RENOVACAO_STATUS_LABEL[st2])+'</option>'; }).join('') +
             '</select>' +
@@ -3629,13 +3689,16 @@
       var c = x.cliente, s = x.stats;
       return '<tr>' +
         '<td><a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit;">'+esc(c.nome)+'</a></td>' +
+        '<td><span class="curva curva-'+c.curva+'">'+c.curva+'</span></td>' +
         '<td>'+esc(c.csm||'—')+'</td>' +
         '<td class="num">'+fmtDate(c.vencimento)+'</td>' +
+        '<td class="num">'+(c.arr?fmtMoney(c.arr):'—')+'</td>' +
+        '<td>'+contratoChip(c)+'</td>' +
         '<td><span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span></td>' +
         '<td>'+healthPill(s.health)+'</td>' +
         '<td><button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button></td>' +
       '</tr>';
-    }).join('') : '<tr><td colspan="6"><div class="empty-note">Nenhum cliente no ciclo atual.</div></td></tr>';
+    }).join('') : '<tr><td colspan="9"><div class="empty-note">Nenhum cliente no ciclo atual'+(renovFiltroCurva!=='todas'?' para a curva '+esc(renovFiltroCurva):'')+'.</div></td></tr>';
   }
 
   // ---------------------------------------------------------------
@@ -4829,9 +4892,9 @@
 
     // 1) Clientes
     if(!(await salvar('radar-cs-clientes-'+carimbo+'.csv',
-      ['ID','Nome','Contato','Telefone','Curva','CSM','Vencimento','ARR','Segmento','Etapa','Responsavel_Clinica','Data_Inicio','Tempo_Contrato','Sistema_Anterior','Qtd_Usuarios','Unidades_Atendidas','Tags','Alerta_Ativo','Alerta_Motivo','Solucao','Licenca','SMS','Resp_Financeiro','Data_Referencia_Importacao','Ativo','Status_Renovacao'],
+      ['ID','Nome','Contato','Telefone','Curva','CSM','Vencimento','ARR','Segmento','Etapa','Responsavel_Clinica','Data_Inicio','Tempo_Contrato','Sistema_Anterior','Qtd_Usuarios','Unidades_Atendidas','Tags','Alerta_Ativo','Alerta_Motivo','Solucao','Licenca','SMS','Resp_Financeiro','Data_Referencia_Importacao','Ativo','Status_Renovacao','Contrato_Assinado'],
       clientes.map(function(c){
-        return [c.id, c.nome, c.contato||'', c.telefone||'', c.curva, c.csm||'', c.vencimento||'', c.arr!=null?c.arr:'', c.segmento||'', c.etapaAtual||'', c.responsavelClinica||'', c.dataInicio||'', c.tempoContrato||'', c.sistemaAnterior||'', c.qtdUsuarios!=null?c.qtdUsuarios:'', c.unidadesAtendidas!=null?c.unidadesAtendidas:'', (c.tags||[]).map(nomeTag).join(', '), c.alertaAtivo?'sim':'nao', c.alertaMotivo||'', c.solucao||'', c.licenca||'', c.sms||'', c.respFinanceiro||'', c.dataReferenciaImportacao||'', c.ativo===false?'nao':'sim', RENOVACAO_STATUS_LABEL[statusRenovacao(c)]||''];
+        return [c.id, c.nome, c.contato||'', c.telefone||'', c.curva, c.csm||'', c.vencimento||'', c.arr!=null?c.arr:'', c.segmento||'', c.etapaAtual||'', c.responsavelClinica||'', c.dataInicio||'', c.tempoContrato||'', c.sistemaAnterior||'', c.qtdUsuarios!=null?c.qtdUsuarios:'', c.unidadesAtendidas!=null?c.unidadesAtendidas:'', (c.tags||[]).map(nomeTag).join(', '), c.alertaAtivo?'sim':'nao', c.alertaMotivo||'', c.solucao||'', c.licenca||'', c.sms||'', c.respFinanceiro||'', c.dataReferenciaImportacao||'', c.ativo===false?'nao':'sim', RENOVACAO_STATUS_LABEL[statusRenovacao(c)]||'', contratoAssinado(c)?'sim':'nao'];
       })
     ))) return;
 
@@ -7434,12 +7497,24 @@
         toggleClienteAtivo(idAt, novoVal);
         return;
       }
+      var toggleContrato = e.target.closest('[data-toggle-contrato-assinado]');
+      if(toggleContrato){
+        e.preventDefault();
+        toggleContratoAssinado(toggleContrato.getAttribute('data-toggle-contrato-assinado'), toggleContrato.getAttribute('data-novo-valor') === '1');
+        return;
+      }
     });
 
     document.body.addEventListener('change', function(e){
       var selStatus = e.target.closest('[data-mudar-status-renovacao]');
       if(selStatus){
         mudarStatusRenovacao(selStatus.getAttribute('data-mudar-status-renovacao'), selStatus.value);
+        return;
+      }
+      var selCurvaRenov = e.target.closest('#fRenovCurva');
+      if(selCurvaRenov){
+        renovFiltroCurva = selCurvaRenov.value;
+        renderRenovacao();
         return;
       }
     });
