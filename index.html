@@ -498,9 +498,19 @@
   .role-pill-admin{ background:var(--accent-soft); color:var(--accent-strong); }
   .role-pill-csm{ background:var(--surface-3); color:var(--ink-2); }
   .role-pill-coord{ background:var(--warning-soft); color:var(--warning-ink); }
+  .role-pill-renov{ background:var(--accent-soft); color:var(--accent); }
   .user-card .role-pill-admin{ background:rgba(255,255,255,0.2); color:#ffffff; }
   .user-card .role-pill-csm{ background:rgba(255,255,255,0.14); color:var(--sidebar-ink-muted); }
   .user-card .role-pill-coord{ background:rgba(255,255,255,0.18); color:#ffffff; }
+  .user-card .role-pill-renov{ background:rgba(255,255,255,0.2); color:#ffffff; }
+
+  .kanban-board{ display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; }
+  .kanban-col{ flex:0 0 230px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; max-height:560px; overflow-y:auto; }
+  .kanban-col-head{ display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:700; color:var(--ink-2); padding:2px 2px 4px; position:sticky; top:0; background:var(--surface-2); }
+  .kanban-card{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:12.5px; display:flex; flex-direction:column; gap:5px; }
+  .kanban-card .nm{ font-weight:700; font-size:13px; }
+  .kanban-card select{ font-size:11.5px; padding:3px 5px; }
+  .kanban-empty{ font-size:12px; color:var(--muted); padding:6px 2px; }
 
   /* ---------- Tags ---------- */
   .tag-chip{
@@ -646,6 +656,10 @@
       <button class="nav-item" data-view="agenda">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
         Agenda
+      </button>
+      <button class="nav-item" data-view="renovacao" data-role-gate="admin-renov">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.7V12a9 9 0 0 1 15-6.7l3 2.8"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.3V12a9 9 0 0 1-15 6.7l-3-2.8"/></svg>
+        Renovação
       </button>
       <button class="nav-item" data-view="relatorios" data-role-gate="admin-coord">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
@@ -821,6 +835,9 @@
             <option value="nunca">Nunca contactado</option>
             <option value="em_dia">Em dia</option>
           </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-2);">
+            <input type="checkbox" id="fMostrarInativos" style="width:auto;">Mostrar inativos
+          </label>
         </div>
 
         <div class="config-banner" id="carteiraBarraSelecao" style="display:none;">
@@ -1011,6 +1028,66 @@
               <table>
                 <thead><tr><th>Cliente</th><th>Data</th><th>Horário</th><th>Origem</th><th></th></tr></thead>
                 <tbody id="agendaProximosTabela"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== RENOVAÇÃO ===================== -->
+    <section class="view" id="view-renovacao">
+      <div class="topbar">
+        <div>
+          <h1>Renovação</h1>
+          <div class="subtitle">Filas por vencimento e funil de negociação de renovação — histórico do cliente reaproveitado do CSM.</div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="grid-stats">
+          <div class="stat">
+            <div class="label">Vencendo este mês</div>
+            <div class="value num" id="renovStatVencendo">–</div>
+          </div>
+          <div class="stat">
+            <div class="label">Antecipação (mês seguinte)</div>
+            <div class="value num" id="renovStatAntecipacao">–</div>
+          </div>
+          <div class="stat">
+            <div class="label">Vencidas sem renovação</div>
+            <div class="value num" id="renovStatVencida">–</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h2>Vencendo este mês</h2><div class="hint">Licença vence dentro do mês corrente e ainda não foi marcada como renovada.</div></div></div>
+          <div class="card-body pad-top" id="renovFilaVencendo"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h2>Antecipação — mês seguinte</h2><div class="hint">Licença vence no mês seguinte: contato proativo, antes do aperto do prazo.</div></div></div>
+          <div class="card-body pad-top" id="renovFilaAntecipacao"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h2>Vencidas sem renovação</h2><div class="hint">Já venceu e não está marcada como renovada — fila mais crítica.</div></div></div>
+          <div class="card-body pad-top" id="renovFilaVencida"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Funil de negociação</h2><div class="hint">Em aberto → Antecipação/Proposta → Título gerado → Renovado, com Churn possível a qualquer momento.</div></div>
+            <div class="topbar-actions">
+              <button type="button" class="btn btn-sm" id="btnRenovModoKanban">Quadro</button>
+              <button type="button" class="btn btn-sm" id="btnRenovModoLista">Lista</button>
+            </div>
+          </div>
+          <div class="card-body pad-top">
+            <div id="renovFunilKanban" class="kanban-board"></div>
+            <div id="renovFunilLista" class="table-wrap" style="display:none;">
+              <table>
+                <thead><tr><th>Cliente</th><th>CSM</th><th>Vencimento</th><th>Status</th><th>Saúde</th><th></th></tr></thead>
+                <tbody id="renovFunilListaTabela"></tbody>
               </table>
             </div>
           </div>
@@ -1566,7 +1643,7 @@
       <div class="field"><label>Nome</label><input id="uiNome" type="text" placeholder="Nome completo"></div>
       <div class="field-row">
         <div class="field"><label>Perfil de acesso</label>
-          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
+          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="renovacao">Especialista de renovação (ambiente próprio)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
         </div>
         <div class="field" id="uiCsmVinculadoWrap"><label>Carteira vinculada</label><input id="uiCsmVinculado" type="text" placeholder="Nome do CSM na carteira" list="listaCsmsDatalist"></div>
       </div>
@@ -2072,6 +2149,14 @@
   var agendas = [];    // {id: <usuarioId do CSM>, duracaoMin, janelaDiasFrente, telefoneWhatsapp, dias:{seg:{ativo,inicio,fim}, ...}}
   var agendamentos = []; // {id, csmId, csmNome, clienteId, clienteNome, contatoNome, contatoTelefone, data, horaInicio, horaFim, criadoEm, status:'confirmado'|'cancelado', origem:'cliente'|'csm'}
   var onboardings = []; // {id: <clienteId>, clienteId, clienteNome, csm, faseAtual, dataInicio, dataPrevistaFinalizacao, ...campos por fase (ver ONBOARDING_FASES)}
+  // Ambiente de renovação: um documento por CICLO de renovação de um
+  // cliente (id = <clienteId>-<ano do vencimento>, ver renovacaoDocId()) —
+  // assim um cliente renovado ano após ano acumula um doc por ano, sem
+  // perder o histórico de ciclos anteriores. Nome no plural com sufixo
+  // "Data" de propósito: já existe uma variável local "renovacoes" (radar
+  // de renovação em 60 dias) dentro de renderPainel() — nomes diferentes
+  // evitam qualquer confusão entre os dois.
+  var renovacoesData = []; // {id, clienteId, clienteNome, csm, status, historicoStatus:[{status,data}], valorNegociado, observacoes, atualizadoEm}
   var pendingOnboardingClienteId = null; // cliente cujo painel de onboarding está aberto no momento
   var curvaConfig = { limiteA:8000, limiteB:5000, limiteC:2000 }; // calibrável em Configurações
   var waConfig = { empresa:'' }; // nome da empresa usado na mensagem padrão do WhatsApp, calibrável em Configurações
@@ -2110,7 +2195,7 @@
   var currentUserId = localStorage.getItem('radarcs.userId') || '';
   var currentUser = null; // resolvido a partir de usuarios + currentUserId
   var escopoAdminCsm = 'todos'; // filtro do painel quando o perfil é admin
-  var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos', cobertura:'todas' };
+  var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos', cobertura:'todas', mostrarInativos:false };
   var relFiltro = { mes: '', csm: 'todos' };
   var atividadesFiltro = { periodo:'semana', csm:'todos', inicio:'', fim:'' }; // "Atividades realizadas" em Relatórios
   var pendingClienteEditId = null;
@@ -2147,6 +2232,12 @@
   };
   var SENTIMENTO_LABEL = { positivo:'Positivo', neutro:'Neutro', negativo:'Negativo' };
   var FAIXA_COBERTURA_LABEL = { dentro:'Dentro do ciclo', atencao:'Atenção', prioritario:'Prioritário', vencida:'Ação vencida' };
+  // Funil de negociação de renovação (ambiente de renovação) — mesmas
+  // classificações já usadas informalmente pelo time hoje.
+  var RENOVACAO_STATUS_LABEL = { aberto:'Em aberto', antecipacao:'Antecipação', proposta:'Proposta', titulo_gerado:'Título gerado', renovado:'Renovado', churn:'Churn' };
+  var RENOVACAO_STATUS_ORDEM = ['aberto','antecipacao','proposta','titulo_gerado','renovado','churn'];
+  var RENOVACAO_STATUS_COR = { aberto:'pill-neutral', antecipacao:'pill-warning', proposta:'pill-warning', titulo_gerado:'pill-warning', renovado:'pill-good', churn:'pill-critical' };
+  var RENOVACAO_FILA_LABEL = { vencendo:'Vencendo este mês', antecipacao:'Antecipação (mês seguinte)', vencida:'Vencidas sem renovação' };
   var STATUS_LABEL = { aberto:'Aberto', fechado:'Fechado' };
   var PLAYBOOK_CATEGORIA_LABEL = { onboarding:'Onboarding', risco:'Risco de churn', renovacao:'Renovação', expansao:'Expansão', outro:'Outro' };
   var ETAPA_LABEL = { implantacao:'Implantação', adocao:'Adoção', engajamento:'Engajamento', expansao:'Expansão', renovacao:'Renovação', risco:'Risco' };
@@ -3000,7 +3091,8 @@
       {id:'ana-souza', nome:'Ana Souza', perfil:'csm', csmVinculado:'Ana Souza'},
       {id:'bruno-lima', nome:'Bruno Lima', perfil:'csm', csmVinculado:'Bruno Lima'},
       {id:'carla-mendes', nome:'Carla Mendes', perfil:'csm', csmVinculado:'Carla Mendes'},
-      {id:'coordenacao-cs', nome:'Coordenação CS', perfil:'admin', csmVinculado:null}
+      {id:'coordenacao-cs', nome:'Coordenação CS', perfil:'admin', csmVinculado:null},
+      {id:'renata-renovacao', nome:'Renata Renovação', perfil:'renovacao', csmVinculado:null}
     ];
     var out = [];
     for(var i=0;i<base.length;i++){
@@ -3025,6 +3117,7 @@
     });
     agendamentos = [];
     onboardings = [];
+    renovacoesData = [];
   }
 
   // ---------------------------------------------------------------
@@ -3128,6 +3221,11 @@
 
     db.collection('onboardings').onSnapshot(function(snap){
       onboardings = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderAll();
+    }, function(){});
+
+    db.collection('renovacoes').onSnapshot(function(snap){
+      renovacoesData = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderAll();
     }, function(){});
   }
@@ -3341,7 +3439,204 @@
     return (m.categoria === 'outro' && m.detalhe) ? m.detalhe : lbl;
   }
 
-  function allStats(){ return clientes.map(computeStats); }
+  // Por padrão, exclui clientes inativos (seção 7 da spec do ambiente de
+  // renovação) — eles somem da Carteira, Painel, Relatórios e Alertas por
+  // padrão, sem apagar nada. Passe true para incluir também os inativos
+  // (usado pelo filtro "mostrar inativos" da Carteira).
+  function clientesAtivos(){ return clientes.filter(function(c){ return c.ativo !== false; }); }
+  function allStats(incluirInativos){ return (incluirInativos ? clientes : clientesAtivos()).map(computeStats); }
+
+  // ---------------------------------------------------------------
+  // Ambiente de renovação
+  // ---------------------------------------------------------------
+  // Um documento de renovação por CICLO (cliente + ano do vencimento
+  // atual) — se o vencimento avançar de ano após uma renovação, um novo
+  // ciclo (novo doc) começa sozinho, preservando o histórico do ciclo
+  // anterior.
+  function renovacaoDocId(cliente){
+    var ano = (cliente.vencimento||'').slice(0,4) || String(new Date().getFullYear());
+    return cliente.id + '-' + ano;
+  }
+  function renovacaoDoCliente(cliente){
+    var id = renovacaoDocId(cliente);
+    return renovacoesData.filter(function(r){ return r.id === id; })[0] || null;
+  }
+  function statusRenovacao(cliente){
+    var r = renovacaoDoCliente(cliente);
+    return (r && r.status) || 'aberto';
+  }
+  // Chave "YYYY-MM" do mês seguinte ao de hoje (não existe helper de
+  // soma de meses no restante do código; monthKey() só formata).
+  function mesSeguinteKey(){
+    var partes = todayISO().slice(0,7).split('-');
+    var ano = Number(partes[0]), mes = Number(partes[1]) + 1;
+    if(mes > 12){ mes = 1; ano += 1; }
+    return ano + '-' + (mes < 10 ? '0' : '') + mes;
+  }
+  // Clientes ativos "no ciclo atual" de renovação: vence este mês, vence
+  // no mês seguinte (antecipação) ou já venceu — independente do status
+  // do funil (renderRenovacao() decide o que mostrar em cada bloco).
+  function renovacaoElegiveis(){
+    var hoje = todayISO();
+    var mesAtual = monthKey(hoje);
+    var mesSeg = mesSeguinteKey();
+    var out = [];
+    clientesAtivos().forEach(function(c){
+      if(!c.vencimento) return;
+      var mk = monthKey(c.vencimento);
+      var bucket = null;
+      if(mk === mesAtual) bucket = 'vencendo';
+      else if(mk === mesSeg) bucket = 'antecipacao';
+      else if(c.vencimento < hoje) bucket = 'vencida';
+      if(!bucket) return;
+      out.push({ cliente: c, bucket: bucket, statusRenov: statusRenovacao(c), stats: computeStats(c) });
+    });
+    return out;
+  }
+  // As 3 filas de trabalho (seção 4 da spec) — só quem ainda está
+  // pendente (fora de Renovado/Churn, que já saíram da pendência).
+  function filasRenovacao(){
+    var elig = renovacaoElegiveis().filter(function(x){ return x.statusRenov !== 'renovado' && x.statusRenov !== 'churn'; });
+    return {
+      vencendo: elig.filter(function(x){ return x.bucket === 'vencendo'; }).sort(function(a,b){ return a.stats.diasParaVencimento - b.stats.diasParaVencimento; }),
+      antecipacao: elig.filter(function(x){ return x.bucket === 'antecipacao'; }).sort(function(a,b){ return a.stats.diasParaVencimento - b.stats.diasParaVencimento; }),
+      vencida: elig.filter(function(x){ return x.bucket === 'vencida'; }).sort(function(a,b){ return a.stats.diasParaVencimento - b.stats.diasParaVencimento; })
+    };
+  }
+
+  async function mudarStatusRenovacao(clienteId, novoStatus){
+    var c = clientes.filter(function(x){ return x.id === clienteId; })[0];
+    if(!c || RENOVACAO_STATUS_ORDEM.indexOf(novoStatus) === -1) return;
+    var id = renovacaoDocId(c);
+    var atual = renovacoesData.filter(function(r){ return r.id === id; })[0];
+    var historico = (atual && atual.historicoStatus) ? atual.historicoStatus.slice() : [];
+    historico.push({ status: novoStatus, data: todayISO() });
+    var body = {
+      clienteId: c.id,
+      clienteNome: c.nome,
+      csm: c.csm || '',
+      status: novoStatus,
+      historicoStatus: historico,
+      valorNegociado: atual ? (atual.valorNegociado != null ? atual.valorNegociado : null) : null,
+      observacoes: atual ? (atual.observacoes || '') : '',
+      atualizadoEm: new Date().toISOString(),
+      atualizadoPor: currentUser ? currentUser.nome : ''
+    };
+    try{
+      if(db && !offline){
+        await db.collection('renovacoes').doc(id).set(body);
+      }else{
+        var idx = renovacoesData.findIndex(function(r){ return r.id === id; });
+        var rec = Object.assign({id:id}, body);
+        if(idx > -1) renovacoesData[idx] = rec; else renovacoesData.push(rec);
+        renderAll();
+      }
+      mostrarToastSucesso('Status de renovação atualizado para "'+(RENOVACAO_STATUS_LABEL[novoStatus]||novoStatus)+'".');
+    }catch(e){
+      alert('Não foi possível atualizar o status agora: ' + detalheErro(e));
+    }
+  }
+
+  // Ativar/inativar cliente (seção 7 da spec) — especialista de renovação
+  // e Admin. Não apaga nada: só tira o cliente da rotina de quem trabalha
+  // com a carteira ativa (Carteira/Painel/filas de renovação).
+  async function toggleClienteAtivo(clienteId, novoAtivo){
+    var c = clientes.filter(function(x){ return x.id === clienteId; })[0];
+    if(!c) return;
+    if(!isAdmin() && !isRenovacao()) return;
+    try{
+      if(db && !offline){
+        await db.collection('clientes').doc(clienteId).update({ativo: novoAtivo});
+      }else{
+        c.ativo = novoAtivo;
+        renderAll();
+      }
+      mostrarToastSucesso(novoAtivo ? 'Cliente reativado.' : 'Cliente marcado como inativo.');
+    }catch(e){
+      alert('Não foi possível atualizar agora: ' + detalheErro(e));
+    }
+  }
+
+  function renovQueueRowHtml(x){
+    var c = x.cliente, s = x.stats;
+    var dCls = s.diasParaVencimento < 0 ? 'pill-critical' : (s.diasParaVencimento <= 15 ? 'pill-critical' : 'pill-warning');
+    var dTxt = s.diasParaVencimento < 0 ? ('Venceu há '+Math.abs(s.diasParaVencimento)+'d') : ('Em '+s.diasParaVencimento+'d');
+    var motivoTxt = motivoRiscoTexto(s.motivoRisco);
+    return '<div class="queue-row">' +
+      '<div class="health-dot '+s.health+'"></div>' +
+      '<div class="queue-main">' +
+        '<div class="queue-name">' +
+          '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
+          '<a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a>' +
+          '<span class="id">'+esc(c.id)+' · '+esc(c.csm||'—')+'</span>' +
+        '</div>' +
+        '<div class="queue-meta">' +
+          '<span class="pill '+dCls+'"><span class="pill-dot"></span>'+dTxt+'</span>' +
+          '<span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span>' +
+          (s.risco === 'alto' ? healthPill('critical','Risco alto'+(motivoTxt?' — '+motivoTxt:'')) : (s.risco==='medio'?healthPill('warning','Risco médio'+(motivoTxt?' — '+motivoTxt:'')):'')) +
+        '</div>' +
+      '</div>' +
+      '<div class="queue-actions">' +
+        '<select data-mudar-status-renovacao="'+esc(c.id)+'" style="font-size:12px; padding:4px 6px;">' +
+          RENOVACAO_STATUS_ORDEM.map(function(st){ return '<option value="'+st+'"'+(x.statusRenov===st?' selected':'')+'>'+esc(RENOVACAO_STATUS_LABEL[st])+'</option>'; }).join('') +
+        '</select>' +
+        '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button>' +
+        '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderRenovacao(){
+    if(!isAdmin() && !isRenovacao()) return;
+    var filas = filasRenovacao();
+    document.getElementById('renovStatVencendo').textContent = filas.vencendo.length;
+    document.getElementById('renovStatAntecipacao').textContent = filas.antecipacao.length;
+    document.getElementById('renovStatVencida').textContent = filas.vencida.length;
+
+    [['renovFilaVencendo', filas.vencendo], ['renovFilaAntecipacao', filas.antecipacao], ['renovFilaVencida', filas.vencida]].forEach(function(par){
+      var el = document.getElementById(par[0]);
+      el.innerHTML = par[1].length ? par[1].map(renovQueueRowHtml).join('') : '<div class="empty-note">Nenhum cliente nesta fila agora.</div>';
+    });
+
+    // Funil (Kanban): mesma população elegível, mas SEM excluir
+    // Renovado/Churn — eles aparecem nas colunas finais do quadro.
+    var elig = renovacaoElegiveis();
+    var porStatus = {};
+    RENOVACAO_STATUS_ORDEM.forEach(function(st){ porStatus[st] = []; });
+    elig.forEach(function(x){ (porStatus[x.statusRenov] || porStatus.aberto).push(x); });
+
+    var kEl = document.getElementById('renovFunilKanban');
+    kEl.innerHTML = RENOVACAO_STATUS_ORDEM.map(function(st){
+      var itens = porStatus[st];
+      return '<div class="kanban-col">' +
+        '<div class="kanban-col-head"><span>'+esc(RENOVACAO_STATUS_LABEL[st])+'</span><span>'+itens.length+'</span></div>' +
+        (itens.length ? itens.map(function(x){
+          var c = x.cliente, s = x.stats;
+          return '<div class="kanban-card">' +
+            '<div class="nm"><a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a></div>' +
+            '<div class="hint">'+esc(c.csm||'—')+' · '+fmtDate(c.vencimento)+(c.arr?' · '+fmtMoney(c.arr):'')+'</div>' +
+            healthPill(s.health) +
+            '<select data-mudar-status-renovacao="'+esc(c.id)+'">' +
+              RENOVACAO_STATUS_ORDEM.map(function(st2){ return '<option value="'+st2+'"'+(st===st2?' selected':'')+'>'+esc(RENOVACAO_STATUS_LABEL[st2])+'</option>'; }).join('') +
+            '</select>' +
+          '</div>';
+        }).join('') : '<div class="kanban-empty">Nenhum cliente.</div>') +
+      '</div>';
+    }).join('');
+
+    var lEl = document.getElementById('renovFunilListaTabela');
+    lEl.innerHTML = elig.length ? elig.map(function(x){
+      var c = x.cliente, s = x.stats;
+      return '<tr>' +
+        '<td><a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit;">'+esc(c.nome)+'</a></td>' +
+        '<td>'+esc(c.csm||'—')+'</td>' +
+        '<td class="num">'+fmtDate(c.vencimento)+'</td>' +
+        '<td><span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span></td>' +
+        '<td>'+healthPill(s.health)+'</td>' +
+        '<td><button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button></td>' +
+      '</tr>';
+    }).join('') : '<tr><td colspan="6"><div class="empty-note">Nenhum cliente no ciclo atual.</div></td></tr>';
+  }
 
   // ---------------------------------------------------------------
   // Planos de ação (multi-atividade) e playbooks
@@ -3542,6 +3837,7 @@
   }
   function isAdmin(){ return !!(currentUser && currentUser.perfil === 'admin'); }
   function isCoordenador(){ return !!(currentUser && currentUser.perfil === 'coordenador'); }
+  function isRenovacao(){ return !!(currentUser && currentUser.perfil === 'renovacao'); }
   function meuCsmVinculado(){ return currentUser ? currentUser.csmVinculado : null; }
 
   function entrarComo(userId){
@@ -3724,6 +4020,7 @@
   function applyRoleVisibility(){
     var admin = isAdmin();
     var coord = isCoordenador();
+    var renov = isRenovacao();
     document.querySelectorAll('[data-role-gate="admin"]').forEach(function(el){
       el.style.display = admin ? '' : 'none';
     });
@@ -3731,6 +4028,18 @@
     // Relatórios — Configurações continua exclusiva do admin).
     document.querySelectorAll('[data-role-gate="admin-coord"]').forEach(function(el){
       el.style.display = (admin || coord) ? '' : 'none';
+    });
+    // "admin-renov": visível para admin OU especialista de renovação —
+    // hoje só o item de menu "Renovação".
+    document.querySelectorAll('[data-role-gate="admin-renov"]').forEach(function(el){
+      el.style.display = (admin || renov) ? '' : 'none';
+    });
+    // O especialista de renovação tem um ambiente próprio e exclusivo
+    // (seção 3 da spec): nada de Painel do CSM, Carteira, Onboarding,
+    // Alertas, Playbooks ou Agenda no menu dele.
+    ['painel','carteira','onboarding','alertas','playbooks','agenda'].forEach(function(v){
+      var el = document.querySelector('.nav-item[data-view="'+v+'"]');
+      if(el) el.style.display = renov ? 'none' : '';
     });
     if(!admin){
       var activeView = document.querySelector('.view.active');
@@ -3741,12 +4050,15 @@
         switchView('painel');
       }
     }
+    if(renov){
+      switchView('renovacao');
+    }
     if(currentUser){
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
       document.getElementById('userCardNome').textContent = currentUser.nome;
       var roleEl = document.getElementById('userCardRole');
-      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : 'CSM');
-      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : 'role-pill-csm'));
+      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : (renov ? 'Especialista de renovação' : 'CSM'));
+      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : (renov ? 'role-pill-renov' : 'role-pill-csm')));
     }
   }
 
@@ -4008,11 +4320,12 @@
   var carteiraUltimoRenderIds = [];
 
   function renderCarteira(){
-    var stats = allStats().filter(passaFiltrosCarteira)
+    var stats = allStats(filtros.mostrarInativos).filter(passaFiltrosCarteira)
       .sort(function(a,b){ return b.score - a.score; });
 
     var subtitleEl = document.getElementById('carteiraSubtitle');
-    var subtitleTxt = stats.length + ' de ' + clientes.length + ' clientes exibidos';
+    var totalBase = filtros.mostrarInativos ? clientes.length : clientesAtivos().length;
+    var subtitleTxt = stats.length + ' de ' + totalBase + ' clientes exibidos';
     if(filtros.cobertura && filtros.cobertura !== 'todas'){
       subtitleTxt += ' · filtro: ' + (FAIXA_COBERTURA_LABEL[filtros.cobertura]||filtros.cobertura);
       subtitleEl.innerHTML = esc(subtitleTxt) + ' <a href="#" data-limpar-filtro-cobertura style="margin-left:4px;">(limpar)</a>';
@@ -4039,7 +4352,7 @@
         (admin ? '<td><input type="checkbox" class="chk-carteira-item" data-carteira-item="'+esc(c.id)+'" style="width:auto;"'+(carteiraSelecionados[c.id]?' checked':'')+'></td>' : '') +
         '<td><div class="cell-client">' +
             '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
-            '<div><div class="nm">'+esc(c.nome)+(c.alertaAtivo?' <span class="pill pill-critical" style="margin-left:4px;"><span class="pill-dot"></span>Alerta</span>':'')+'</div>' +
+            '<div><div class="nm">'+esc(c.nome)+(c.alertaAtivo?' <span class="pill pill-critical" style="margin-left:4px;"><span class="pill-dot"></span>Alerta</span>':'')+(c.ativo===false?' <span class="pill pill-neutral" style="margin-left:4px;"><span class="pill-dot"></span>Inativo</span>':'')+'</div>' +
               '<div class="ct">'+esc(c.id)+' · '+esc((c.contato||'').split(' — ')[0]||'')+'</div>' +
               (c.tags && c.tags.length ? '<div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">'+tagChipsHtml(c.tags)+'</div>' : '') +
             '</div>' +
@@ -4453,8 +4766,9 @@
     renderAlertas();
     renderOnboarding();
     renderAgenda();
-    if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); backfillClientesCsmId(); }
+    if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); renderRenovacao(); backfillClientesCsmId(); }
     else if(isCoordenador()){ renderRelatorios(); }
+    else if(isRenovacao()){ renderRenovacao(); }
     var histOverlay = document.getElementById('overlayHistorico');
     if(histOverlay && histOverlay.classList.contains('open') && pendingPlanoClienteId){
       renderPlanosSecaoHistorico(pendingPlanoClienteId);
@@ -4515,9 +4829,9 @@
 
     // 1) Clientes
     if(!(await salvar('radar-cs-clientes-'+carimbo+'.csv',
-      ['ID','Nome','Contato','Telefone','Curva','CSM','Vencimento','ARR','Segmento','Etapa','Responsavel_Clinica','Data_Inicio','Tempo_Contrato','Sistema_Anterior','Qtd_Usuarios','Unidades_Atendidas','Tags','Alerta_Ativo','Alerta_Motivo','Solucao','Licenca','SMS','Resp_Financeiro','Data_Referencia_Importacao'],
+      ['ID','Nome','Contato','Telefone','Curva','CSM','Vencimento','ARR','Segmento','Etapa','Responsavel_Clinica','Data_Inicio','Tempo_Contrato','Sistema_Anterior','Qtd_Usuarios','Unidades_Atendidas','Tags','Alerta_Ativo','Alerta_Motivo','Solucao','Licenca','SMS','Resp_Financeiro','Data_Referencia_Importacao','Ativo','Status_Renovacao'],
       clientes.map(function(c){
-        return [c.id, c.nome, c.contato||'', c.telefone||'', c.curva, c.csm||'', c.vencimento||'', c.arr!=null?c.arr:'', c.segmento||'', c.etapaAtual||'', c.responsavelClinica||'', c.dataInicio||'', c.tempoContrato||'', c.sistemaAnterior||'', c.qtdUsuarios!=null?c.qtdUsuarios:'', c.unidadesAtendidas!=null?c.unidadesAtendidas:'', (c.tags||[]).map(nomeTag).join(', '), c.alertaAtivo?'sim':'nao', c.alertaMotivo||'', c.solucao||'', c.licenca||'', c.sms||'', c.respFinanceiro||'', c.dataReferenciaImportacao||''];
+        return [c.id, c.nome, c.contato||'', c.telefone||'', c.curva, c.csm||'', c.vencimento||'', c.arr!=null?c.arr:'', c.segmento||'', c.etapaAtual||'', c.responsavelClinica||'', c.dataInicio||'', c.tempoContrato||'', c.sistemaAnterior||'', c.qtdUsuarios!=null?c.qtdUsuarios:'', c.unidadesAtendidas!=null?c.unidadesAtendidas:'', (c.tags||[]).map(nomeTag).join(', '), c.alertaAtivo?'sim':'nao', c.alertaMotivo||'', c.solucao||'', c.licenca||'', c.sms||'', c.respFinanceiro||'', c.dataReferenciaImportacao||'', c.ativo===false?'nao':'sim', RENOVACAO_STATUS_LABEL[statusRenovacao(c)]||''];
       })
     ))) return;
 
@@ -4582,7 +4896,17 @@
   // Navegação
   // ---------------------------------------------------------------
   function switchView(view){
-    if((view === 'relatorios' || view === 'configuracoes') && !isAdmin()) view = 'painel';
+    if(view === 'configuracoes' && !isAdmin()) view = 'painel';
+    // "relatorios" também é visível para Coordenador (data-role-gate
+    // "admin-coord") — o guard antigo só liberava admin e por isso
+    // mandava o Coordenador de volta pro Painel ao clicar em Relatórios.
+    if(view === 'relatorios' && !isAdmin() && !isCoordenador()) view = 'painel';
+    if(view === 'renovacao' && !isAdmin() && !isRenovacao()) view = 'painel';
+    // Especialista de renovação: ambiente próprio e exclusivo — sem
+    // Painel do CSM, Onboarding, Playbooks, Agenda etc. (seção 3 da spec).
+    // Reforçado aqui (e não só escondendo os botões do menu) para que a
+    // restrição valha mesmo se algo tentar navegar direto por fora do menu.
+    if(isRenovacao() && view !== 'renovacao') view = 'renovacao';
     document.querySelectorAll('.nav-item[data-view]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-view')===view); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
   }
@@ -4731,6 +5055,11 @@
       respFinanceiro: document.getElementById('ciRespFinanceiro').value.trim(),
       dataReferenciaImportacao: document.getElementById('ciDataReferenciaImportacao').value || null,
       tags: ciTagsSelecionadas.slice(),
+      // "ativo" não é editado neste formulário (fica no botão Ativar/
+      // Inativar do Cliente 360 — seção 7 da spec do ambiente de
+      // renovação) — preserva o valor atual (true por padrão em clientes
+      // novos) em vez de reativar sem querer a cada edição de cadastro.
+      ativo: clienteAntes ? (clienteAntes.ativo !== false) : true,
       alertaAtivo: alertaAtivo,
       alertaMotivo: alertaAtivo ? document.getElementById('ciAlertaMotivo').value.trim() : '',
       alertaCriadoEm: alertaAtivo ? ((clienteAntes && clienteAntes.alertaAtivo) ? clienteAntes.alertaCriadoEm : todayISO()) : null,
@@ -4864,6 +5193,8 @@
     var s = computeStats(c);
     document.getElementById('historicoTitulo').textContent = c.nome;
     var motivoRiscoAtual = motivoRiscoTexto(s.motivoRisco);
+    var statusRenov = statusRenovacao(c);
+    var podeAtivarInativar = isAdmin() || isRenovacao();
     document.getElementById('historicoResumo').innerHTML =
       '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
       healthPill(s.health) +
@@ -4873,6 +5204,16 @@
       '<span class="chip">'+esc(FAIXA_COBERTURA_LABEL[s.faixaCobertura])+'</span>' +
       (motivoRiscoAtual ? '<span class="chip c-warn">Risco: '+esc(motivoRiscoAtual)+'</span>' : '') +
       (c.arr ? '<span class="chip">'+fmtMoney(c.arr)+' ARR</span>' : '') +
+      // Status de negociação de renovação: leitura pra qualquer perfil
+      // (o CSM vê sem poder editar — seção 8 da spec do ambiente de
+      // renovação); só edita quem está dentro do ambiente de renovação.
+      '<span class="pill '+(RENOVACAO_STATUS_COR[statusRenov]||'pill-neutral')+'" title="Status da negociação de renovação"><span class="pill-dot"></span>Renovação: '+esc(RENOVACAO_STATUS_LABEL[statusRenov]||statusRenov)+'</span>' +
+      (c.ativo === false ? '<span class="pill pill-neutral"><span class="pill-dot"></span>Inativo</span>' : '') +
+      (podeAtivarInativar ? (
+        c.ativo === false
+          ? '<button class="btn btn-sm" data-toggle-ativo-cliente="'+esc(c.id)+'" data-novo-valor="1">Reativar cliente</button>'
+          : '<button class="btn btn-sm" data-toggle-ativo-cliente="'+esc(c.id)+'" data-novo-valor="0">Marcar como inativo</button>'
+      ) : '') +
       waButton(c);
 
     var hist = s.hist.slice().reverse();
@@ -6507,11 +6848,13 @@
     body.innerHTML = usuarios.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); }).map(function(u){
       var eh = u.perfil === 'admin';
       var ehCoord = u.perfil === 'coordenador';
-      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : 'role-pill-csm');
-      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : 'CSM');
+      var ehRenov = u.perfil === 'renovacao';
+      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : 'role-pill-csm'));
+      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : 'CSM'));
       var carteiraTxt = eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
         (ehCoord ? 'Equipe: ' + ((u.equipeCsm&&u.equipeCsm.length) ? esc(u.equipeCsm.join(', ')) : '<span class="ct" style="color:var(--muted);">nenhum CSM ainda</span>') :
-        esc(u.csmVinculado||u.nome));
+        (ehRenov ? '<span class="ct" style="color:var(--muted);">Ambiente de renovação</span>' :
+        esc(u.csmVinculado||u.nome)));
       return '<tr>' +
         '<td><div class="cell-client"><span class="gate-avatar">'+esc(initials(u.nome))+'</span><div class="nm">'+esc(u.nome)+(u.id===currentUserId?' <span class="ct">(você)</span>':'')+'</div></div></td>' +
         '<td><span class="role-pill '+roleCls+'">'+roleLbl+'</span></td>' +
@@ -7082,7 +7425,41 @@
       if(cancelarAg){ e.preventDefault(); cancelarAgendamento(cancelarAg.getAttribute('data-cancelar-agendamento')); return; }
       var abrirOnb = e.target.closest('[data-abrir-onboarding]');
       if(abrirOnb){ e.preventDefault(); abrirOnboarding(abrirOnb.getAttribute('data-abrir-onboarding')); return; }
+      var toggleAtivo = e.target.closest('[data-toggle-ativo-cliente]');
+      if(toggleAtivo){
+        e.preventDefault();
+        var idAt = toggleAtivo.getAttribute('data-toggle-ativo-cliente');
+        var novoVal = toggleAtivo.getAttribute('data-novo-valor') === '1';
+        if(!novoVal && !confirm('Marcar este cliente como inativo? Ele sai da Carteira, do Painel e das filas de renovação (o histórico continua acessível).')) return;
+        toggleClienteAtivo(idAt, novoVal);
+        return;
+      }
     });
+
+    document.body.addEventListener('change', function(e){
+      var selStatus = e.target.closest('[data-mudar-status-renovacao]');
+      if(selStatus){
+        mudarStatusRenovacao(selStatus.getAttribute('data-mudar-status-renovacao'), selStatus.value);
+        return;
+      }
+    });
+
+    var btnRenovKanban = document.getElementById('btnRenovModoKanban');
+    var btnRenovLista = document.getElementById('btnRenovModoLista');
+    if(btnRenovKanban && btnRenovLista){
+      btnRenovKanban.addEventListener('click', function(){
+        document.getElementById('renovFunilKanban').style.display = '';
+        document.getElementById('renovFunilLista').style.display = 'none';
+        btnRenovKanban.classList.add('btn-accent');
+        btnRenovLista.classList.remove('btn-accent');
+      });
+      btnRenovLista.addEventListener('click', function(){
+        document.getElementById('renovFunilKanban').style.display = 'none';
+        document.getElementById('renovFunilLista').style.display = '';
+        btnRenovLista.classList.add('btn-accent');
+        btnRenovKanban.classList.remove('btn-accent');
+      });
+    }
 
     document.getElementById('tabelaCarteira').addEventListener('change', function(e){
       var chk = e.target.closest('[data-carteira-item]');
@@ -7109,6 +7486,10 @@
         filtros[key] = e.target.value;
         renderCarteira();
       });
+    });
+    document.getElementById('fMostrarInativos').addEventListener('change', function(e){
+      filtros.mostrarInativos = e.target.checked;
+      renderCarteira();
     });
 
     document.getElementById('fMes').value = monthKey(todayISO());
