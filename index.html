@@ -1756,9 +1756,11 @@
       <button class="icon-btn" data-close="overlayAgendaDetalhe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body" id="adCorpo"></div>
+    <div class="gate-error" id="adError" style="margin:0 20px;"></div>
     <div class="modal-foot">
       <button class="btn" data-close="overlayAgendaDetalhe">Fechar</button>
       <button class="btn btn-danger" id="btnCancelarAgendaDetalhe">Cancelar agendamento</button>
+      <button class="btn btn-accent" id="btnSalvarAgendaDetalhe">Salvar alterações</button>
     </div>
   </div>
 </div>
@@ -2134,6 +2136,13 @@
           if(!downloadsInstancia) downloadsInstancia = criarDownloadsShim();
           return downloadsInstancia;
         }
+        // CR-08 (Change Request 14/09/2026): acesso ao Supabase Storage,
+        // usado para anexar print na "Evolução da Usabilidade" do
+        // onboarding — usa o MESMO cliente autenticado do "db"/"auth",
+        // então só funciona depois que db já foi inicializado.
+        if(nome === 'storage'){
+          return sbInstancia ? sbInstancia.storage : null;
+        }
         return null;
       }
     };
@@ -2301,6 +2310,13 @@
     {key:'contasPagar', label:'Contas a Pagar'}
   ];
 
+  // CR-03: mapa "caminho do checklist" -> itens, usado pelo botão "Marcar
+  // todas" para saber quais chaves marcar/desmarcar sem duplicar a lista.
+  var ONBOARDING_CHECKLIST_ITENS_POR_PATH = {
+    checklistConfiguracoes: ONBOARDING_CHECKLIST_CONFIGURACOES,
+    requisitosEssenciais: ONBOARDING_REQUISITOS_ESSENCIAIS
+  };
+
   function onboardingVazio(cliente){
     return {
       clienteId: cliente.id, clienteNome: cliente.nome, csm: cliente.csm || '',
@@ -2325,7 +2341,7 @@
       evolucaoUsabilidade: [], evolucaoKpis: [],
       // Fase 5
       dataReuniaoFinalizacao: null, funcionalidadesCombinadas: '', kpisFinal: '',
-      analiseUsabilidadeColaborador: '', analiseUsabilidadeAtual: '',
+      observacoesReuniaoFinalizacao: '', notaProcessoOnboarding: '', notaTreinamentos: '',
       concluidoEm: null
     };
   }
@@ -2341,10 +2357,14 @@
       .slice().sort(function(a,b){ return (a.data+a.horaInicio) < (b.data+b.horaInicio) ? -1 : 1; });
     return lista.length ? lista[0] : null;
   }
+  // CR-02 (Change Request 14/09/2026): antes só liberava o avanço de fase
+  // depois do horário FINAL da reunião — o CSM precisa preencher os campos
+  // da fase seguinte durante a própria reunião, então o gatilho agora
+  // libera já a partir do horário de INÍCIO marcado.
   function reuniaoAlinhamentoJaAconteceu(agendamento){
     if(!agendamento) return false;
     var dataHora = parseISO(agendamento.data);
-    var partes = (agendamento.horaFim || agendamento.horaInicio || '23:59').split(':');
+    var partes = (agendamento.horaInicio || '23:59').split(':');
     dataHora.setHours(Number(partes[0]), Number(partes[1]));
     return dataHora.getTime() <= Date.now();
   }
@@ -6042,15 +6062,61 @@
     var a = agendamentos.filter(function(x){ return x.id === id; })[0];
     if(!a) return;
     agendaDetalheId = id;
+    document.getElementById('adError').classList.remove('show');
     document.getElementById('adCorpo').innerHTML =
       '<div class="field"><label>Cliente</label><div>'+esc(a.clienteNome||'—')+'</div></div>' +
       '<div class="field-row">' +
-        '<div class="field"><label>Data</label><div>'+fmtDate(a.data)+'</div></div>' +
-        '<div class="field"><label>Horário</label><div>'+esc(a.horaInicio)+' – '+esc(a.horaFim||'')+'</div></div>' +
+        '<div class="field"><label>Data</label><input type="date" id="adData" value="'+esc(a.data||'')+'"></div>' +
+        '<div class="field-row" style="flex:1;">' +
+          '<div class="field"><label>Início</label><input type="time" id="adHoraInicio" value="'+esc(a.horaInicio||'')+'"></div>' +
+          '<div class="field"><label>Fim</label><input type="time" id="adHoraFim" value="'+esc(a.horaFim||'')+'"></div>' +
+        '</div>' +
       '</div>' +
-      '<div class="field"><label>Contato</label><div>'+esc(a.contatoNome||'—')+(a.contatoTelefone?' · '+esc(fmtTelefoneExibicao(a.contatoTelefone)):'')+'</div></div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Nome do contato</label><input type="text" id="adContatoNome" value="'+esc(a.contatoNome||'')+'"></div>' +
+        '<div class="field"><label>WhatsApp do contato</label><input type="text" id="adContatoTelefone" value="'+esc(a.contatoTelefone?fmtTelefoneExibicao(a.contatoTelefone):'')+'"></div>' +
+      '</div>' +
       '<div class="field"><label>Origem</label><div>'+(a.origem==='cliente'?'Agendado pelo próprio cliente (link)':'Agendamento manual (CSM)')+'</div></div>';
     openOverlay('overlayAgendaDetalhe');
+  }
+
+  // CR-01 (Change Request 14/09/2026): antes só era possível cancelar um
+  // agendamento — qualquer ajuste simples (trocar horário, corrigir o
+  // contato) obrigava a cancelar e recriar. Agora dá para editar direto
+  // aqui; cliente e origem continuam somente leitura (não fazem sentido
+  // trocar depois de criado).
+  async function salvarAgendaDetalhe(){
+    var errEl = document.getElementById('adError');
+    errEl.classList.remove('show');
+    if(!agendaDetalheId) return;
+    var data = document.getElementById('adData').value;
+    var horaInicio = document.getElementById('adHoraInicio').value;
+    var horaFim = document.getElementById('adHoraFim').value;
+    if(!data || !horaInicio){
+      errEl.textContent = 'Preencha pelo menos a data e o horário de início.';
+      errEl.classList.add('show');
+      return;
+    }
+    var body = {
+      data: data,
+      horaInicio: horaInicio,
+      horaFim: horaFim || horaInicio,
+      contatoNome: document.getElementById('adContatoNome').value.trim(),
+      contatoTelefone: normalizeTelefone(document.getElementById('adContatoTelefone').value)
+    };
+    try{
+      if(db && !offline){
+        await db.collection('agendamentos').doc(agendaDetalheId).update(body);
+      }else{
+        var idx = agendamentos.findIndex(function(a){return a.id===agendaDetalheId;});
+        if(idx>-1){ Object.assign(agendamentos[idx], body); renderAll(); }
+      }
+      mostrarToastSucesso('Agendamento atualizado com sucesso.');
+      closeOverlay('overlayAgendaDetalhe');
+    }catch(e){
+      errEl.textContent = 'Não foi possível salvar: ' + detalheErro(e);
+      errEl.classList.add('show');
+    }
   }
 
   async function salvarAgenda(){
@@ -6331,11 +6397,18 @@
     openOverlay('overlayOnboarding');
   }
 
+  // CR-03 (Change Request 14/09/2026): botão "Marcar todas" em cada
+  // checklist da fase "Planejando o Sucesso" — evita marcar item por item
+  // quando tudo já foi concluído. Cada checklist (path) tem seu próprio
+  // botão, independente dos demais.
   function renderOnbChecklist(path, itens, onb){
-    return '<div class="onb-checklist">' + itens.map(function(it){
-      var checked = !!getDeepField(onb, path+'.'+it.key);
-      return '<label class="onb-checklist-item"><input type="checkbox" data-onb-check="'+path+'.'+it.key+'" '+(checked?'checked':'')+'> '+esc(it.label)+'</label>';
-    }).join('') + '</div>';
+    var todasMarcadas = itens.every(function(it){ return !!getDeepField(onb, path+'.'+it.key); });
+    return '<div class="onb-checklist">' +
+      '<button type="button" class="btn btn-sm" data-onb-marcar-todas="'+path+'" style="margin-bottom:8px;">'+(todasMarcadas?'Desmarcar todas':'Marcar todas')+'</button>' +
+      itens.map(function(it){
+        var checked = !!getDeepField(onb, path+'.'+it.key);
+        return '<label class="onb-checklist-item"><input type="checkbox" data-onb-check="'+path+'.'+it.key+'" '+(checked?'checked':'')+'> '+esc(it.label)+'</label>';
+      }).join('') + '</div>';
   }
 
   function renderOnbFase1(onb){
@@ -6402,12 +6475,96 @@
       (!todosRequisitos ? '<div class="field"><label>Motivo de não implantar algum requisito essencial</label><textarea data-onb-field="observacaoRequisitosNaoImplantados">'+esc(onb.observacaoRequisitosNaoImplantados||'')+'</textarea></div>' : '') +
       '<div class="field"><label>Excedendo as Expectativas (funcionalidades adicionais desejadas)</label><textarea data-onb-field="excedendoExpectativas">'+esc(onb.excedendoExpectativas||'')+'</textarea></div>' +
       '<div class="field"><label>Prazo para Finalizar "Construindo o Sucesso" (dias estimados)</label><input type="number" min="1" data-onb-field="prazoFinalizarConstruindo" value="'+esc(onb.prazoFinalizarConstruindo||'')+'"></div>' +
+      renderOnbAgendarAtividade(onb) +
     '</div>';
   }
 
+  // CR-05 (Change Request 14/09/2026): relato da CSM Samylle — depois da
+  // reunião de alinhamento ela fica responsável por enviar materiais de
+  // apoio e outras combinações, e acaba esquecendo por falta de um
+  // lembrete dentro da própria plataforma. Em vez de criar um conceito
+  // novo do zero, isto reaproveita os planos de ação/atividades que já
+  // existem: cria (ou usa um plano de onboarding já aberto do cliente) e
+  // adiciona uma atividade com a data de vencimento informada — que a
+  // partir daí já aparece sozinha no Painel do Dia, no bloco "Atividades
+  // pendentes dos planos de ação" (mesmo mecanismo que qualquer outra
+  // atividade de plano de ação usa).
+  function renderOnbAgendarAtividade(onb){
+    var cliente = clientes.filter(function(c){ return c.id === onb.clienteId; })[0] || {};
+    return '<div class="field onb-agendar-atividade">' +
+      '<label>Agendar atividade nesta fase</label>' +
+      '<div class="hint" style="margin-bottom:8px;">Cliente '+esc(onb.clienteId)+' · '+esc(onb.clienteNome||'')+' · CSM: '+esc(onb.csm||'—')+(cliente.telefone?' · '+esc(fmtTelefoneExibicao(cliente.telefone)):'')+'</div>' +
+      '<textarea id="onbAtividadeObs" placeholder="O que precisa ser feito (ex.: enviar materiais de apoio combinados na reunião)"></textarea>' +
+      '<div class="onb-add-row">' +
+        '<input type="date" id="onbAtividadeVencimento" min="'+esc(todayISO())+'">' +
+        '<button type="button" class="btn btn-sm" id="btnAgendarOnbAtividade">+ Agendar atividade</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  async function agendarAtividadeOnboarding(){
+    var onb = onboardingEdit;
+    if(!onb) return;
+    var obsEl = document.getElementById('onbAtividadeObs');
+    var vencEl = document.getElementById('onbAtividadeVencimento');
+    var observacao = obsEl.value.trim();
+    var vencimento = vencEl.value;
+    if(!observacao || !vencimento){
+      alert('Preencha a observação e a data de vencimento da atividade.');
+      return;
+    }
+    var cliente = clientes.filter(function(c){ return c.id === onb.clienteId; })[0] || {};
+    var novaAtividade = {
+      id: novoId('at'), titulo: observacao.length > 60 ? observacao.slice(0,60)+'…' : observacao,
+      descricao: observacao, causa: '', responsavel: onb.csm || cliente.csm || '',
+      prazo: vencimento, proximoAcompanhamento: vencimento, status: 'nao_iniciada', tags: [],
+      alertaAtivo: false, alertaMotivo: '', concluidoEm: null, origemAuto: 'onboardingFase3'
+    };
+    try{
+      // Reaproveita um plano de onboarding já aberto do cliente, se existir;
+      // senão cria um novo — assim várias atividades agendadas ao longo do
+      // onboarding ficam juntas no mesmo plano, em vez de espalhadas.
+      var planoAberto = planos.filter(function(p){
+        return p.clienteId === onb.clienteId && p.status === 'aberto' && p.titulo === 'Onboarding — acompanhamento';
+      })[0];
+      if(planoAberto){
+        var atividades = (planoAberto.atividades||[]).concat([novaAtividade]);
+        if(db && !offline){
+          await db.collection('planosAcao').doc(planoAberto.id).update({atividades: atividades, status: 'aberto'});
+        }else{
+          var idx = planos.findIndex(function(p){return p.id===planoAberto.id;});
+          if(idx>-1){ planos[idx].atividades = atividades; planos[idx].status = 'aberto'; renderAll(); }
+        }
+      }else{
+        var planoId = novoId('plano');
+        var body = {
+          clienteId: onb.clienteId, clienteNome: onb.clienteNome, csm: onb.csm || cliente.csm || '',
+          titulo: 'Onboarding — acompanhamento', origemPlaybookId: null, origemPlaybookNome: null,
+          criadoEm: todayISO(), status: 'aberto', objetivoPrincipal: '', criteriosSucesso: [],
+          diagnostico: {}, recuperacaoRisco: {}, atividades: [novaAtividade]
+        };
+        if(db && !offline){
+          await db.collection('planosAcao').doc(planoId).set(body);
+        }else{
+          planos.push(Object.assign({id:planoId}, body));
+          renderAll();
+        }
+      }
+      obsEl.value = '';
+      vencEl.value = '';
+      mostrarToastSucesso('Atividade agendada — vai aparecer no Painel do Dia em ' + fmtDate(vencimento) + '.');
+    }catch(e){
+      alert('Não foi possível agendar a atividade agora. Confira sua conexão e tente novamente.');
+    }
+  }
+
   function renderOnbFase4(onb){
+    // CR-08 (Change Request 14/09/2026): cada registro pode ter um print
+    // anexado (guardado no bucket "onboarding-anexos" do Supabase
+    // Storage) — quando existe, aparece como um link "Ver print" logo
+    // depois do registro no histórico.
     var usaLog = (onb.evolucaoUsabilidade||[]).slice().reverse().map(function(l){
-      return '<div class="onb-log-row">'+fmtDate(l.data)+' — <strong>'+(l.status==='utilizando'?'Utilizando':'Não utilizando')+'</strong>'+(l.nota?' — '+esc(l.nota):'')+'</div>';
+      return '<div class="onb-log-row">'+fmtDate(l.data)+' — <strong>'+(l.status==='utilizando'?'Utilizando':'Não utilizando')+'</strong>'+(l.nota?' — '+esc(l.nota):'')+(l.anexoUrl?' — <a href="'+esc(l.anexoUrl)+'" target="_blank" rel="noopener">Ver print</a>':'')+'</div>';
     }).join('') || '<div class="empty-note" style="padding:6px 0; font-size:12px;">Nenhum registro ainda.</div>';
     var kpiLog = (onb.evolucaoKpis||[]).slice().reverse().map(function(l){
       return '<div class="onb-log-row">'+fmtDate(l.data)+' — '+esc(l.kpiNome)+': <strong>'+esc(l.valor)+'</strong></div>';
@@ -6426,8 +6583,11 @@
         '<div class="onb-add-row">' +
           '<select id="onbNovaUsabilidadeStatus"><option value="utilizando">Utilizando</option><option value="nao_utilizando">Não utilizando</option></select>' +
           '<input type="text" id="onbNovaUsabilidadeNota" placeholder="Nota (opcional)">' +
+          '<input type="file" id="onbNovaUsabilidadeArquivo" accept="image/*" style="max-width:180px;">' +
           '<button type="button" class="btn btn-sm" id="btnAddOnbUsabilidade">+ Registrar</button>' +
-        '</div></div>' +
+        '</div>' +
+        (offline ? '<div class="hint" style="margin-top:4px;">Pré-visualização local: não é possível anexar print agora (precisa estar conectado ao banco de dados real).</div>' : '') +
+      '</div>' +
       '<div class="field"><label>Evolução dos KPIs</label>' + kpiLog +
         '<div class="onb-add-row">' +
           '<select id="onbNovoKpiNome">'+ (opcoesKpi || '<option value="">Cadastre indicadores na Fase 3</option>') +'</select>' +
@@ -6435,6 +6595,41 @@
           '<button type="button" class="btn btn-sm" id="btnAddOnbKpiLog">+ Registrar</button>' +
         '</div></div>' +
     '</div>';
+  }
+
+  // CR-08 (Change Request 14/09/2026): sobe o print (se um arquivo foi
+  // selecionado) para o bucket "onboarding-anexos" do Supabase Storage
+  // antes de gravar o registro — a equipe combinou que o CSM sempre anexa
+  // o print da análise de usabilidade, e o campo antes só aceitava
+  // status/nota, sem suporte a imagem.
+  async function registrarEvolucaoUsabilidade(){
+    var status = document.getElementById('onbNovaUsabilidadeStatus').value;
+    var nota = document.getElementById('onbNovaUsabilidadeNota').value.trim();
+    var arquivoEl = document.getElementById('onbNovaUsabilidadeArquivo');
+    var arquivo = arquivoEl && arquivoEl.files && arquivoEl.files[0];
+    var registro = {data: todayISO(), status: status, nota: nota};
+
+    if(arquivo){
+      if(offline || !db){
+        alert('Não é possível anexar print na pré-visualização local — o registro será salvo sem o print. Conecte ao banco de dados real (RADAR_CS_SUPABASE) para anexar imagens.');
+      }else{
+        try{
+          var storage = await claude.use('storage');
+          if(!storage) throw new Error('Storage indisponível');
+          var caminho = onboardingEdit.clienteId + '/' + Date.now() + '-' + arquivo.name.replace(/[^a-zA-Z0-9_.-]/g,'_');
+          var up = await storage.from('onboarding-anexos').upload(caminho, arquivo);
+          if(up.error) throw up.error;
+          var pub = storage.from('onboarding-anexos').getPublicUrl(caminho);
+          registro.anexoUrl = pub && pub.data ? pub.data.publicUrl : null;
+        }catch(e){
+          alert('Não foi possível anexar o print agora (' + detalheErro(e) + '). O registro será salvo sem o print — tente anexar de novo depois.');
+        }
+      }
+    }
+
+    onboardingEdit.evolucaoUsabilidade = onboardingEdit.evolucaoUsabilidade || [];
+    onboardingEdit.evolucaoUsabilidade.push(registro);
+    renderOnboardingFormBody();
   }
 
   function renderOnbFase5(onb){
@@ -6446,8 +6641,9 @@
       '</div>' +
       '<div class="field"><label>Funcionalidades Combinadas na Reunião de Alinhamento</label><textarea data-onb-field="funcionalidadesCombinadas">'+esc(onb.funcionalidadesCombinadas||'')+'</textarea></div>' +
       '<div class="field"><label>KPIs — Construindo o Sucesso (retomada)</label><textarea data-onb-field="kpisFinal">'+esc(onb.kpisFinal||'')+'</textarea></div>' +
-      '<div class="field"><label>Análise de Usabilidade do Colaborador</label><textarea data-onb-field="analiseUsabilidadeColaborador">'+esc(onb.analiseUsabilidadeColaborador||'')+'</textarea></div>' +
-      '<div class="field"><label>Análise de Usabilidade Atual</label><textarea data-onb-field="analiseUsabilidadeAtual">'+esc(onb.analiseUsabilidadeAtual||'')+'</textarea></div>' +
+      '<div class="field"><label>Observações da Reunião de Finalização</label><textarea data-onb-field="observacoesReuniaoFinalizacao">'+esc(onb.observacoesReuniaoFinalizacao||'')+'</textarea></div>' +
+      '<div class="field"><label>Nota do Processo de Onboarding</label><textarea data-onb-field="notaProcessoOnboarding">'+esc(onb.notaProcessoOnboarding||'')+'</textarea></div>' +
+      '<div class="field"><label>Nota referente aos Treinamentos</label><textarea data-onb-field="notaTreinamentos">'+esc(onb.notaTreinamentos||'')+'</textarea></div>' +
     '</div>';
   }
 
@@ -6533,6 +6729,32 @@
     var proxima = ONBOARDING_FASES[idx+1];
     var extra = { faseAtual: proxima.key, faseEntrouEm: todayISO() };
     if(proxima.key === 'concluido') extra.concluidoEm = new Date().toISOString();
+    // CR-06/CR-07 (Change Request 14/09/2026): ao entrar em "Construindo o
+    // Sucesso", pré-preenche a expectativa de dias com o que já foi
+    // combinado na fase anterior, e a data de vencimento com +60 dias a
+    // partir do início do onboarding — só quando o campo ainda está vazio,
+    // continuam editáveis depois.
+    if(proxima.key === 'construindo'){
+      if(!onboardingEdit.expectativaDiasConstruindo && onboardingEdit.prazoFinalizarConstruindo){
+        extra.expectativaDiasConstruindo = onboardingEdit.prazoFinalizarConstruindo;
+      }
+      if(!onboardingEdit.vencimentoConstruindo && onboardingEdit.dataInicio){
+        extra.vencimentoConstruindo = addDays(onboardingEdit.dataInicio, 60);
+      }
+    }
+    // CR-09 (Change Request 14/09/2026): ao entrar no "Momento WOW", puxa
+    // automaticamente o que já foi registrado na fase "Planejando o
+    // Sucesso" (requisitos essenciais marcados + funcionalidades além das
+    // essenciais), evitando reescrever tudo de novo.
+    if(proxima.key === 'wow' && !onboardingEdit.funcionalidadesCombinadas){
+      var reqMarcados = ONBOARDING_REQUISITOS_ESSENCIAIS.filter(function(it){
+        return !!getDeepField(onboardingEdit, 'requisitosEssenciais.'+it.key);
+      }).map(function(it){ return it.label; });
+      var partesFunc = [];
+      if(reqMarcados.length) partesFunc.push('Requisitos essenciais implantados: ' + reqMarcados.join(', ') + '.');
+      if(onboardingEdit.excedendoExpectativas) partesFunc.push('Funcionalidades adicionais: ' + onboardingEdit.excedendoExpectativas);
+      if(partesFunc.length) extra.funcionalidadesCombinadas = partesFunc.join(' ');
+    }
     try{
       await persistirOnboarding(onboardingEdit, extra);
       if(proxima.key === 'concluido'){
@@ -6544,8 +6766,7 @@
         }
         closeOverlay('overlayOnboarding');
       }else{
-        onboardingEdit.faseAtual = proxima.key;
-        onboardingEdit.faseEntrouEm = extra.faseEntrouEm;
+        Object.assign(onboardingEdit, extra);
         renderOnboardingFormBody();
       }
     }catch(e){
@@ -7383,6 +7604,7 @@
       cancelarAgendamento(agendaDetalheId);
       closeOverlay('overlayAgendaDetalhe');
     });
+    document.getElementById('btnSalvarAgendaDetalhe').addEventListener('click', salvarAgendaDetalhe);
     document.getElementById('agCsmSelect').addEventListener('change', function(e){
       agendaSelecionadoCsmId = e.target.value;
       renderAgenda();
@@ -7410,6 +7632,19 @@
       if(field && e.target.tagName === 'SELECT'){ setDeepField(onboardingEdit, field, e.target.value); }
     });
     document.getElementById('onbFormBody').addEventListener('click', function(e){
+      if(e.target.closest('#btnAgendarOnbAtividade')){
+        agendarAtividadeOnboarding();
+        return;
+      }
+      var marcarTodas = e.target.closest('[data-onb-marcar-todas]');
+      if(marcarTodas){
+        var path = marcarTodas.getAttribute('data-onb-marcar-todas');
+        var itens = ONBOARDING_CHECKLIST_ITENS_POR_PATH[path] || [];
+        var todasMarcadas = itens.every(function(it){ return !!getDeepField(onboardingEdit, path+'.'+it.key); });
+        itens.forEach(function(it){ setDeepField(onboardingEdit, path+'.'+it.key, !todasMarcadas); });
+        renderOnboardingFormBody();
+        return;
+      }
       if(e.target.closest('#btnAddOnbKpi')){
         onboardingEdit.kpisAcompanhamento = onboardingEdit.kpisAcompanhamento || [];
         onboardingEdit.kpisAcompanhamento.push({nome:'', valorAtual:''});
@@ -7423,11 +7658,7 @@
         return;
       }
       if(e.target.closest('#btnAddOnbUsabilidade')){
-        var status = document.getElementById('onbNovaUsabilidadeStatus').value;
-        var nota = document.getElementById('onbNovaUsabilidadeNota').value.trim();
-        onboardingEdit.evolucaoUsabilidade = onboardingEdit.evolucaoUsabilidade || [];
-        onboardingEdit.evolucaoUsabilidade.push({data: todayISO(), status: status, nota: nota});
-        renderOnboardingFormBody();
+        registrarEvolucaoUsabilidade();
         return;
       }
       if(e.target.closest('#btnAddOnbKpiLog')){
