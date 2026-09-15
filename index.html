@@ -206,6 +206,8 @@
   .btn-ghost:hover{ background:var(--surface-2); }
   .btn-sm{ padding:5px 9px; font-size:12px; border-radius:7px; }
   .btn-danger{ color:var(--critical-ink); }
+  .btn-danger-fill{ background:var(--critical); border-color:var(--critical); color:#ffffff; }
+  .btn-danger-fill:hover{ background:var(--critical-ink); border-color:var(--critical-ink); }
 
   .content{ padding:14px 32px 56px; max-width:1280px; }
 
@@ -329,6 +331,10 @@
     padding:6vh 16px; z-index:50; overflow-y:auto;
   }
   .overlay.open{ display:flex; }
+  /* Fica sempre acima de qualquer outro modal já aberto por trás dela —
+     é comum confirmar uma ação (excluir, reatribuir) que parte de dentro
+     de outro modal já aberto (ex.: excluir cliente dentro do cadastro). */
+  #overlayConfirmarAcao{ z-index:90; }
   .modal{
     background:var(--surface); border-radius:16px; width:100%; max-width:520px; box-shadow:0 30px 60px -20px rgba(0,0,0,0.35);
     border:1px solid var(--border);
@@ -609,17 +615,48 @@
   }
   .playbook-card ol{ margin:2px 0 0; padding-left:18px; font-size:12.5px; color:var(--ink-2); display:flex; flex-direction:column; gap:3px; }
 
+  /* ---------- Menu mobile ---------- */
+  .mobile-menu-btn{
+    display:none; position:fixed; top:14px; left:14px; z-index:80;
+    width:38px; height:38px; border-radius:10px; border:none;
+    background:var(--sidebar-bg); color:#fff; align-items:center; justify-content:center;
+    box-shadow:var(--shadow); cursor:pointer; padding:0;
+  }
+  .mobile-menu-btn svg{ width:19px; height:19px; }
+  .mobile-backdrop{
+    display:none; position:fixed; inset:0; background:rgba(10,14,15,0.44); z-index:65;
+  }
+  .mobile-backdrop.show{ display:block; }
+
   @media (max-width:880px){
-    .sidebar{ display:none; }
+    .sidebar{
+      position:fixed; top:0; left:0; height:100vh; z-index:70;
+      transform:translateX(-100%);
+      transition:transform .22s ease;
+    }
+    .sidebar.mobile-open{ transform:translateX(0); box-shadow:0 10px 40px rgba(0,0,0,0.35); }
+    .mobile-menu-btn{ display:flex; }
     .content{ padding:12px 16px 40px; }
-    .topbar{ padding:16px 16px 8px; }
+    .topbar{ padding:16px 16px 8px 60px; }
     .grid-stats{ grid-template-columns:repeat(2,1fr); }
+  }
+  @media (max-width:600px){
+    .field-row{ grid-template-columns:1fr; }
+    .grid-stats{ grid-template-columns:1fr 1fr; }
+    .modal{ max-width:100% !important; }
+  }
+  @media (max-width:420px){
+    .grid-stats{ grid-template-columns:1fr; }
   }
 </style>
 </head>
 <body>
 
 <div class="app">
+  <button class="mobile-menu-btn" id="btnAbrirMenuMobile" type="button" aria-label="Abrir menu" aria-expanded="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+  </button>
+  <div class="mobile-backdrop" id="mobileBackdrop"></div>
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-mark">
@@ -660,6 +697,11 @@
       <button class="nav-item" data-view="renovacao" data-role-gate="admin-renov">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.7V12a9 9 0 0 1 15-6.7l3 2.8"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.3V12a9 9 0 0 1-15 6.7l-3-2.8"/></svg>
         Renovação
+      </button>
+      <button class="nav-item" data-view="reclamacoesRA">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 8v4M12 16h.01"/></svg>
+        Reclamações RA
+        <span class="nav-badge" id="navReclamacoesRABadge" style="display:none;">0</span>
       </button>
       <button class="nav-item" data-view="relatorios" data-role-gate="admin-coord">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>
@@ -967,12 +1009,12 @@
           </div>
           <div class="card-body pad-top">
             <div class="field" id="agCsmSelectWrap" data-role-gate="admin" style="display:none; max-width:320px;">
-              <label>CSM</label>
+              <label for="agCsmSelect">CSM</label>
               <select id="agCsmSelect"></select>
             </div>
             <div id="agDiasGrid" class="agenda-dias-grid"></div>
             <div class="field-row" style="margin-top:12px; grid-template-columns:1fr 1fr 1fr;">
-              <div class="field"><label>Duração de cada horário</label>
+              <div class="field"><label for="agDuracao">Duração de cada horário</label>
                 <select id="agDuracao">
                   <option value="15">15 minutos</option>
                   <option value="30">30 minutos</option>
@@ -980,8 +1022,8 @@
                   <option value="60">60 minutos</option>
                 </select>
               </div>
-              <div class="field"><label>Mostrar horários até quantos dias à frente</label><input id="agJanela" type="number" min="1" max="60" step="1"></div>
-              <div class="field"><label>WhatsApp para confirmação (com DDI+DDD)</label><input id="agTelefone" type="text" placeholder="Ex: 5511999998888"></div>
+              <div class="field"><label for="agJanela">Mostrar horários até quantos dias à frente</label><input id="agJanela" type="number" min="1" max="60" step="1"></div>
+              <div class="field"><label for="agTelefone">WhatsApp para confirmação (com DDI+DDD)</label><input id="agTelefone" type="text" placeholder="Ex: 5511999998888"></div>
             </div>
             <div style="margin-top:10px;">
               <button class="btn btn-sm btn-accent" id="btnSalvarAgenda">Salvar disponibilidade</button>
@@ -1009,9 +1051,9 @@
                 <button type="button" class="btn btn-sm" data-agenda-modo="mes">Mês</button>
               </div>
               <div class="agenda-cal-nav">
-                <button type="button" class="icon-btn" id="btnAgendaAnterior" title="Anterior">‹</button>
+                <button type="button" class="icon-btn" id="btnAgendaAnterior" title="Anterior" aria-label="Período anterior">‹</button>
                 <button type="button" class="btn btn-sm" id="btnAgendaHoje">Hoje</button>
-                <button type="button" class="icon-btn" id="btnAgendaProximo" title="Próximo">›</button>
+                <button type="button" class="icon-btn" id="btnAgendaProximo" title="Próximo" aria-label="Próximo período">›</button>
                 <span id="agendaPeriodoLabel" style="margin-left:8px; font-weight:700; font-size:13px;"></span>
               </div>
             </div>
@@ -1098,6 +1140,48 @@
         <div class="card">
           <div class="card-head"><div><h2>Vencidas sem renovação</h2><div class="hint">Já venceu e não está marcada como renovada — fila mais crítica.</div></div></div>
           <div class="card-body pad-top" id="renovFilaVencida"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-reclamacoesRA">
+      <div class="topbar">
+        <div>
+          <h1>Reclamações RA</h1>
+          <div class="subtitle">Clientes que abriram reclamação no Reclame Aqui e ainda não deram nota — acompanhe até conseguir a avaliação.</div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-sm" id="btnImportarRA">Importar planilha</button>
+          <button class="btn btn-sm btn-accent" id="btnNovoCasoRA">+ Novo caso</button>
+        </div>
+      </div>
+      <div class="content">
+        <div class="grid-stats">
+          <div class="stat">
+            <div class="label">Casos em aberto</div>
+            <div class="value num" id="raStatAbertos">–</div>
+          </div>
+          <div class="stat">
+            <div class="label">Aguardando nota</div>
+            <div class="value num" id="raStatAguardandoNota">–</div>
+          </div>
+          <div class="stat">
+            <div class="label">Nota média recebida</div>
+            <div class="value num" id="raStatNotaMedia">–</div>
+          </div>
+          <div class="stat">
+            <div class="label">Dias médios até a nota</div>
+            <div class="value num" id="raStatDiasMedio">–</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Funil de acompanhamento</h2><div class="hint">Aberto → Em contato → Resolvido, aguardando nota → Nota recebida.</div></div>
+          </div>
+          <div class="card-body pad-top">
+            <div id="raKanban" class="kanban-board"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -1261,9 +1345,9 @@
           </div>
           <div class="card-body pad-top">
             <div class="field-row" style="grid-template-columns:1fr 1fr 1fr;">
-              <div class="field"><label>Curva A a partir de (R$)</label><input id="cfgCurvaLimiteA" type="number" min="0" step="100"></div>
-              <div class="field"><label>Curva B a partir de (R$)</label><input id="cfgCurvaLimiteB" type="number" min="0" step="100"></div>
-              <div class="field"><label>Curva C a partir de (R$)</label><input id="cfgCurvaLimiteC" type="number" min="0" step="100"></div>
+              <div class="field"><label for="cfgCurvaLimiteA">Curva A a partir de (R$)</label><input id="cfgCurvaLimiteA" type="number" min="0" step="100"></div>
+              <div class="field"><label for="cfgCurvaLimiteB">Curva B a partir de (R$)</label><input id="cfgCurvaLimiteB" type="number" min="0" step="100"></div>
+              <div class="field"><label for="cfgCurvaLimiteC">Curva C a partir de (R$)</label><input id="cfgCurvaLimiteC" type="number" min="0" step="100"></div>
             </div>
             <div class="hint" style="margin-top:2px;">Abaixo do valor da Curva C, o cliente entra automaticamente como Curva D. Vale para clientes importados por planilha; a curva de um cliente já cadastrado também pode ser ajustada manualmente no cadastro dele.</div>
             <div style="margin-top:10px;">
@@ -1278,7 +1362,7 @@
             <div><h2>Cobertura da carteira</h2><div class="hint">Prazo esperado para todo cliente receber pelo menos um contato — usado para calcular a meta diária de cada CSM e o indicador de cobertura no Painel e em Relatórios.</div></div>
           </div>
           <div class="card-body pad-top">
-            <div class="field" style="max-width:320px;"><label>Prazo para rodar a carteira completa (dias)</label><input id="cfgPrazoCarteira" type="number" min="1" step="1"></div>
+            <div class="field" style="max-width:320px;"><label for="cfgPrazoCarteira">Prazo para rodar a carteira completa (dias)</label><input id="cfgPrazoCarteira" type="number" min="1" step="1"></div>
             <div style="margin-top:10px;">
               <button class="btn btn-sm btn-accent" id="btnSalvarPrazoConfig">Salvar prazo</button>
             </div>
@@ -1288,35 +1372,48 @@
 
         <div class="card">
           <div class="card-head">
+            <div><h2>Cobrança de nota — Reclamações RA</h2><div class="hint">Prazo sem nenhum contato registrado até um caso de reclamação no Reclame Aqui voltar a aparecer como pendência no Painel do Dia.</div></div>
+          </div>
+          <div class="card-body pad-top">
+            <div class="field" style="max-width:320px;"><label for="cfgPrazoCobrancaRA">Prazo de cobrança (dias)</label><input id="cfgPrazoCobrancaRA" type="number" min="1" step="1"></div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-sm btn-accent" id="btnSalvarPrazoCobrancaRA">Salvar prazo</button>
+            </div>
+            <div class="gate-error" id="prazoCobrancaRAError"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
             <div><h2>Pesos de priorização (Priority Score)</h2><div class="hint">Cada fator soma pontos ao score que ordena a fila do Painel. Ajuste os pesos se quiser recalibrar o que conta mais na hora de decidir quem atender primeiro.</div></div>
           </div>
           <div class="card-body pad-top">
             <div class="field-row" style="grid-template-columns:repeat(4,1fr);">
-              <div class="field"><label>Curva A</label><input id="cfgPesoCurvaA" type="number" min="0" step="1"></div>
-              <div class="field"><label>Curva B</label><input id="cfgPesoCurvaB" type="number" min="0" step="1"></div>
-              <div class="field"><label>Curva C</label><input id="cfgPesoCurvaC" type="number" min="0" step="1"></div>
-              <div class="field"><label>Curva D</label><input id="cfgPesoCurvaD" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoCurvaA">Curva A</label><input id="cfgPesoCurvaA" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoCurvaB">Curva B</label><input id="cfgPesoCurvaB" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoCurvaC">Curva C</label><input id="cfgPesoCurvaC" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoCurvaD">Curva D</label><input id="cfgPesoCurvaD" type="number" min="0" step="1"></div>
             </div>
             <div class="field-row" style="grid-template-columns:repeat(3,1fr); margin-top:8px;">
-              <div class="field"><label>Risco baixo</label><input id="cfgPesoRiscoBaixo" type="number" min="0" step="1"></div>
-              <div class="field"><label>Risco médio</label><input id="cfgPesoRiscoMedio" type="number" min="0" step="1"></div>
-              <div class="field"><label>Risco alto</label><input id="cfgPesoRiscoAlto" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoRiscoBaixo">Risco baixo</label><input id="cfgPesoRiscoBaixo" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoRiscoMedio">Risco médio</label><input id="cfgPesoRiscoMedio" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoRiscoAlto">Risco alto</label><input id="cfgPesoRiscoAlto" type="number" min="0" step="1"></div>
             </div>
             <div class="field-row" style="grid-template-columns:repeat(3,1fr); margin-top:8px;">
-              <div class="field"><label>Cliente nunca contactado</label><input id="cfgPesoFrio" type="number" min="0" step="1"></div>
-              <div class="field"><label>Cada dia de atraso (contato)</label><input id="cfgPesoAtrasoPorDia" type="number" min="0" step="0.1"></div>
-              <div class="field"><label>Licença vencida</label><input id="cfgPesoLicencaVencida" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoFrio">Cliente nunca contactado</label><input id="cfgPesoFrio" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoAtrasoPorDia">Cada dia de atraso (contato)</label><input id="cfgPesoAtrasoPorDia" type="number" min="0" step="0.1"></div>
+              <div class="field"><label for="cfgPesoLicencaVencida">Licença vencida</label><input id="cfgPesoLicencaVencida" type="number" min="0" step="1"></div>
             </div>
             <div class="field-row" style="grid-template-columns:repeat(3,1fr); margin-top:8px;">
-              <div class="field"><label>Renovação próxima (≤60d)</label><input id="cfgPesoRenovacaoProxima" type="number" min="0" step="1"></div>
-              <div class="field"><label>NPS detrator (≤6)</label><input id="cfgPesoNpsDetrator" type="number" min="0" step="1"></div>
-              <div class="field"><label>Ação em aberto</label><input id="cfgPesoAcaoAberta" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoRenovacaoProxima">Renovação próxima (≤60d)</label><input id="cfgPesoRenovacaoProxima" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoNpsDetrator">NPS detrator (≤6)</label><input id="cfgPesoNpsDetrator" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoAcaoAberta">Ação em aberto</label><input id="cfgPesoAcaoAberta" type="number" min="0" step="1"></div>
             </div>
             <div class="field-row" style="grid-template-columns:repeat(4,1fr); margin-top:8px;">
-              <div class="field"><label>Etapa: Risco</label><input id="cfgPesoEtapaRisco" type="number" min="0" step="1"></div>
-              <div class="field"><label>Alerta manual</label><input id="cfgPesoAlertaManual" type="number" min="0" step="1"></div>
-              <div class="field"><label>Onboarding sem agendamento</label><input id="cfgPesoOnboardingSemAgendamento" type="number" min="0" step="1"></div>
-              <div class="field"><label>Fase de onboarding vencida</label><input id="cfgPesoFaseOnboardingVencida" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoEtapaRisco">Etapa: Risco</label><input id="cfgPesoEtapaRisco" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoAlertaManual">Alerta manual</label><input id="cfgPesoAlertaManual" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoOnboardingSemAgendamento">Onboarding sem agendamento</label><input id="cfgPesoOnboardingSemAgendamento" type="number" min="0" step="1"></div>
+              <div class="field"><label for="cfgPesoFaseOnboardingVencida">Fase de onboarding vencida</label><input id="cfgPesoFaseOnboardingVencida" type="number" min="0" step="1"></div>
             </div>
             <div style="margin-top:10px;">
               <button class="btn btn-sm btn-accent" id="btnSalvarPesosScore">Salvar pesos</button>
@@ -1331,7 +1428,7 @@
             <div><h2>Mensagem do WhatsApp</h2><div class="hint">Texto sugerido que já vem preenchido ao abrir o WhatsApp a partir de uma atividade — o CSM pode editar à vontade antes de enviar.</div></div>
           </div>
           <div class="card-body pad-top">
-            <div class="field"><label>Nome da empresa (aparece como "Sou [seu nome] da [empresa]")</label><input id="cfgWaEmpresa" type="text" placeholder="Ex.: Aplicativo.Net"></div>
+            <div class="field"><label for="cfgWaEmpresa">Nome da empresa (aparece como "Sou [seu nome] da [empresa]")</label><input id="cfgWaEmpresa" type="text" placeholder="Ex.: Aplicativo.Net"></div>
             <div class="hint" style="margin-top:8px;">Prévia: <span id="cfgWaPreview"></span></div>
             <div style="margin-top:10px;">
               <button class="btn btn-sm btn-accent" id="btnSalvarWaConfig">Salvar</button>
@@ -1366,17 +1463,17 @@
 
     <div id="gateLoginForm" class="gate-login-form" style="display:none;">
       <div class="field"><label id="gateNomeLabel">Nome</label><input id="gateNomeInput" type="text" placeholder="Digite seu nome" autocomplete="username"></div>
-      <div class="field" style="margin-top:10px;"><label>Senha</label><input id="gateSenhaInput" type="password" placeholder="Digite sua senha" autocomplete="current-password"></div>
+      <div class="field" style="margin-top:10px;"><label for="gateSenhaInput">Senha</label><input id="gateSenhaInput" type="password" placeholder="Digite sua senha" autocomplete="current-password"></div>
       <button class="btn btn-accent" id="btnGateEntrar" style="width:100%; justify-content:center; margin-top:14px;">Entrar</button>
       <div class="gate-error" id="gateLoginError"></div>
     </div>
 
     <div id="gateAdminSetup" class="gate-admin-setup" style="display:none;">
-      <div class="field"><label>Nenhum usuário cadastrado ainda — configure o primeiro acesso (administrador)</label><input id="gateAdminNome" type="text" placeholder="Seu nome"></div>
-      <div class="field" id="gateAdminEmailWrap" style="margin-top:8px; display:none;"><label>E-mail</label><input id="gateAdminEmail" type="email" placeholder="seuemail@empresa.com" autocomplete="username"></div>
+      <div class="field"><label for="gateAdminNome">Nenhum usuário cadastrado ainda — configure o primeiro acesso (administrador)</label><input id="gateAdminNome" type="text" placeholder="Seu nome"></div>
+      <div class="field" id="gateAdminEmailWrap" style="margin-top:8px; display:none;"><label for="gateAdminEmail">E-mail</label><input id="gateAdminEmail" type="email" placeholder="seuemail@empresa.com" autocomplete="username"></div>
       <div class="field-row" style="margin-top:8px;">
-        <div class="field"><label>Senha</label><input id="gateAdminSenha" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
-        <div class="field"><label>Confirmar senha</label><input id="gateAdminSenhaConfirm" type="password" autocomplete="new-password"></div>
+        <div class="field"><label for="gateAdminSenha">Senha</label><input id="gateAdminSenha" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
+        <div class="field"><label for="gateAdminSenhaConfirm">Confirmar senha</label><input id="gateAdminSenhaConfirm" type="password" autocomplete="new-password"></div>
       </div>
       <button class="btn btn-accent" id="btnGateAdminCriar" style="width:100%; justify-content:center; margin-top:8px;">Criar acesso de administrador</button>
       <div class="gate-error" id="gateError"></div>
@@ -1391,38 +1488,39 @@
   <div class="modal" style="max-width:640px;">
     <div class="modal-head">
       <h3 id="modalClienteTitulo">Novo cliente</h3>
-      <button class="icon-btn" data-close="overlayCliente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayCliente" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="ciAlertaBanner" style="display:none;"></div>
       <div id="ciLinkAgendamento" style="display:none; margin-bottom:14px;"></div>
+      <div class="gate-error" id="clienteError"></div>
 
       <div class="field-row">
-        <div class="field"><label>ID do cliente</label><input id="ciId" type="text" placeholder="Ex: C015"></div>
-        <div class="field"><label>Curva</label>
+        <div class="field"><label for="ciId">ID do cliente</label><input id="ciId" type="text" placeholder="Ex: C015"></div>
+        <div class="field"><label for="ciCurva">Curva</label>
           <select id="ciCurva"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select>
         </div>
       </div>
-      <div class="field"><label>Nome do cliente / clínica</label><input id="ciNome" type="text" placeholder="Razão social"></div>
+      <div class="field"><label for="ciNome">Nome do cliente / clínica</label><input id="ciNome" type="text" placeholder="Razão social"></div>
       <div class="field-row">
-        <div class="field"><label>Contato</label><input id="ciContato" type="text" placeholder="Nome do contato"></div>
-        <div class="field"><label>Telefone (WhatsApp)</label><input id="ciTelefone" type="text" placeholder="DDI+DDD+número, ex: 5511999998888"></div>
+        <div class="field"><label for="ciContato">Contato</label><input id="ciContato" type="text" placeholder="Nome do contato"></div>
+        <div class="field"><label for="ciTelefone">Telefone (WhatsApp)</label><input id="ciTelefone" type="text" placeholder="DDI+DDD+número, ex: 5511999998888"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>CSM responsável</label><select id="ciCsm"></select></div>
-        <div class="field"><label>Vencimento da licença</label><input id="ciVencimento" type="date"></div>
+        <div class="field"><label for="ciCsm">CSM responsável</label><select id="ciCsm"></select></div>
+        <div class="field"><label for="ciVencimento">Vencimento da licença</label><input id="ciVencimento" type="date"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>ARR / valor de contrato (opcional)</label><input id="ciArr" type="number" min="0" step="100" placeholder="0"></div>
-        <div class="field"><label>Próximo contato previsto (opcional)</label><input id="ciProximoImportado" type="date"></div>
+        <div class="field"><label for="ciArr">ARR / valor de contrato (opcional)</label><input id="ciArr" type="number" min="0" step="100" placeholder="0"></div>
+        <div class="field"><label for="ciProximoImportado">Próximo contato previsto (opcional)</label><input id="ciProximoImportado" type="date"></div>
       </div>
 
       <div class="hist-section-head"><h4>Identificação (plano de sucesso)</h4></div>
       <div class="field-row">
-        <div class="field"><label>Segmento</label>
+        <div class="field"><label for="ciSegmento">Segmento</label>
           <select id="ciSegmento"><option value="">—</option><option value="medica">Médica</option><option value="odontologica">Odontológica</option></select>
         </div>
-        <div class="field"><label>Etapa atual</label>
+        <div class="field"><label for="ciEtapa">Etapa atual</label>
           <select id="ciEtapa">
             <option value="implantacao">Implantação</option>
             <option value="adocao">Adoção</option>
@@ -1434,28 +1532,28 @@
         </div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Responsável na clínica</label><input id="ciResponsavelClinica" type="text" placeholder="Nome"></div>
-        <div class="field"><label>Data de início</label><input id="ciDataInicio" type="date"></div>
+        <div class="field"><label for="ciResponsavelClinica">Responsável na clínica</label><input id="ciResponsavelClinica" type="text" placeholder="Nome"></div>
+        <div class="field"><label for="ciDataInicio">Data de início</label><input id="ciDataInicio" type="date"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Tempo de contrato</label><input id="ciTempoContrato" type="text" placeholder="Ex: 12 meses"></div>
-        <div class="field"><label>Sistema anterior</label><input id="ciSistemaAnterior" type="text" placeholder="Se houver"></div>
+        <div class="field"><label for="ciTempoContrato">Tempo de contrato</label><input id="ciTempoContrato" type="text" placeholder="Ex: 12 meses"></div>
+        <div class="field"><label for="ciSistemaAnterior">Sistema anterior</label><input id="ciSistemaAnterior" type="text" placeholder="Se houver"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Quantidade de usuários</label><input id="ciQtdUsuarios" type="number" min="0" step="1" placeholder="0"></div>
-        <div class="field"><label>Unidades atendidas</label><input id="ciUnidadesAtendidas" type="number" min="0" step="1" placeholder="0"></div>
+        <div class="field"><label for="ciQtdUsuarios">Quantidade de usuários</label><input id="ciQtdUsuarios" type="number" min="0" step="1" placeholder="0"></div>
+        <div class="field"><label for="ciUnidadesAtendidas">Unidades atendidas</label><input id="ciUnidadesAtendidas" type="number" min="0" step="1" placeholder="0"></div>
       </div>
 
       <div class="hist-section-head"><h4>Dados de faturamento (planilha)</h4></div>
       <div class="field-row">
-        <div class="field"><label>Solução</label><input id="ciSolucao" type="text" placeholder="Código/nome da solução"></div>
-        <div class="field"><label>Licença</label><input id="ciLicenca" type="text" placeholder="Ex: 12 Salas"></div>
+        <div class="field"><label for="ciSolucao">Solução</label><input id="ciSolucao" type="text" placeholder="Código/nome da solução"></div>
+        <div class="field"><label for="ciLicenca">Licença</label><input id="ciLicenca" type="text" placeholder="Ex: 12 Salas"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>SMS</label><input id="ciSms" type="text" placeholder="Opcional"></div>
-        <div class="field"><label>Responsável financeiro</label><input id="ciRespFinanceiro" type="text" placeholder="Nome"></div>
+        <div class="field"><label for="ciSms">SMS</label><input id="ciSms" type="text" placeholder="Opcional"></div>
+        <div class="field"><label for="ciRespFinanceiro">Responsável financeiro</label><input id="ciRespFinanceiro" type="text" placeholder="Nome"></div>
       </div>
-      <div class="field"><label>Data de referência (última planilha importada)</label><input id="ciDataReferenciaImportacao" type="date"></div>
+      <div class="field"><label for="ciDataReferenciaImportacao">Data de referência (última planilha importada)</label><input id="ciDataReferenciaImportacao" type="date"></div>
 
       <div class="field">
         <label>Tags</label>
@@ -1486,7 +1584,7 @@
   <div class="modal" style="max-width:640px;">
     <div class="modal-head">
       <h3>Importar carteira de planilha</h3>
-      <button class="icon-btn" data-close="overlayImportar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayImportar" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="import-steps"><div class="import-step" id="impStep1"></div><div class="import-step" id="impStep2"></div><div class="import-step" id="impStep3"></div></div>
@@ -1514,7 +1612,7 @@
           </table>
         </div>
         <div class="field" style="margin-top:12px;">
-          <label>Se o ID já existir na carteira</label>
+          <label for="impModoDuplicado">Se o ID já existir na carteira</label>
           <select id="impModoDuplicado">
             <option value="atualizar">Atualizar o cliente existente</option>
             <option value="pular">Pular (manter o que já está cadastrado)</option>
@@ -1536,30 +1634,117 @@
   </div>
 </div>
 
+<!-- ===================== MODAL: importar reclamações RA em lote ===================== -->
+<div class="overlay" id="overlayImportarRA">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <h3>Importar reclamações RA</h3>
+      <button class="icon-btn" data-close="overlayImportarRA" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="import-steps"><div class="import-step" id="impRaStep1"></div><div class="import-step" id="impRaStep2"></div><div class="import-step" id="impRaStep3"></div></div>
+
+      <div id="impRaPasso1">
+        <label class="import-drop" for="impRaFileInput">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin:0 auto 8px;"><path d="M12 15V3m0 12l-4-4m4 4l4-4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+          <div class="t1">Clique para escolher o arquivo</div>
+          <div class="t2">.xlsx, .xls ou .csv — cabeçalhos das colunas na primeira linha</div>
+        </label>
+        <input type="file" id="impRaFileInput" accept=".xlsx,.xls,.csv" style="display:none;">
+        <div style="text-align:center; margin-top:10px;">
+          <button type="button" class="btn btn-sm btn-ghost" id="btnBaixarModeloRA">Baixar modelo de planilha (.csv)</button>
+        </div>
+        <div class="gate-error" id="impRaErroArquivo"></div>
+      </div>
+
+      <div id="impRaPasso2" style="display:none;">
+        <div class="card-head hint" style="padding:0 0 10px;">Confira se cada campo está ligado à coluna certa da sua planilha (<span id="impRaLinhasCount"></span> linha(s) detectada(s)).</div>
+        <div id="impRaMapeamento"></div>
+        <div class="card-head hint" style="padding:10px 0;">Casamento com o cliente cadastrado (por nome) — linhas que não bateram com nenhum cliente precisam ser resolvidas manualmente antes de importar.</div>
+        <div class="import-preview-wrap">
+          <table>
+            <thead><tr><th>Nome na planilha</th><th>Nº reclamação</th><th>Data abertura</th><th>Cliente no Radar CS</th></tr></thead>
+            <tbody id="impRaPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="impRaPasso3" style="display:none;">
+        <div id="impRaProgressoTexto" style="font-size:13px; font-weight:600;"></div>
+        <div class="import-progress-track"><div class="import-progress-fill" id="impRaProgressoFill"></div></div>
+        <div class="import-summary" id="impRaResumo" style="display:none; margin-top:14px;"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn btn-ghost btn-sm" id="btnImportarRATrocarArquivo" style="display:none; margin-right:auto;">‹ Escolher outro arquivo</button>
+      <button class="btn" data-close="overlayImportarRA">Fechar</button>
+      <button class="btn btn-accent" id="btnImportarRAConfirmar" style="display:none;">Importar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: novo caso de reclamação RA ===================== -->
+<div class="overlay" id="overlayNovoCasoRA">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Novo caso — Reclamação RA</h3>
+      <button class="icon-btn" data-close="overlayNovoCasoRA" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label for="ncRaCliente">Cliente</label><select id="ncRaCliente"></select></div>
+      <div class="field-row">
+        <div class="field"><label for="ncRaNumero">Número da reclamação (opcional)</label><input type="text" id="ncRaNumero" placeholder="Nº do protocolo no RA"></div>
+        <div class="field"><label for="ncRaDataAbertura">Data de abertura</label><input type="date" id="ncRaDataAbertura"></div>
+      </div>
+      <div class="field"><label for="ncRaResumo">Resumo da reclamação</label><textarea id="ncRaResumo" placeholder="O que o cliente reclamou"></textarea></div>
+      <div class="gate-error" id="ncRaError"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="overlayNovoCasoRA">Cancelar</button>
+      <button class="btn btn-accent" id="btnConfirmarNovoCasoRA">Criar caso</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: detalhe do caso de reclamação RA ===================== -->
+<div class="overlay" id="overlayCasoRA">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Reclamação RA — <span id="raCasoTituloCliente"></span></h3>
+      <button class="icon-btn" data-close="overlayCasoRA" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body" id="raCasoCorpo"></div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="btnExcluirCasoRA" style="margin-right:auto;">Excluir caso</button>
+      <button class="btn" data-close="overlayCasoRA">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MODAL: registrar contato ===================== -->
 <div class="overlay" id="overlayContato">
   <div class="modal">
     <div class="modal-head">
       <h3>Registrar contato — <span id="contatoClienteNome"></span></h3>
-      <button class="icon-btn" data-close="overlayContato"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayContato" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="field-row">
-        <div class="field"><label>Data do contato</label><input id="coData" type="date"></div>
-        <div class="field"><label>CSM</label><input id="coCsm" type="text" list="listaCsmsDatalist"></div>
+        <div class="field"><label for="coData">Data do contato</label><input id="coData" type="date"></div>
+        <div class="field"><label for="coCsm">CSM</label><input id="coCsm" type="text" list="listaCsmsDatalist"></div>
       </div>
-      <div class="field"><label>Observação</label><textarea id="coObs" placeholder="O que foi conversado, contexto, sentimento do cliente..."></textarea></div>
-      <div class="field"><label>Plano de ação</label><textarea id="coPlano" placeholder="Próximo passo combinado (deixe em branco se não houver)"></textarea></div>
+      <div class="field"><label for="coObs">Observação</label><textarea id="coObs" placeholder="O que foi conversado, contexto, sentimento do cliente..."></textarea></div>
+      <div class="field"><label for="coPlano">Plano de ação</label><textarea id="coPlano" placeholder="Próximo passo combinado (deixe em branco se não houver)"></textarea></div>
       <div class="field-row">
-        <div class="field"><label>Status</label>
+        <div class="field"><label for="coStatus">Status</label>
           <select id="coStatus"><option value="aberto">Aberto</option><option value="fechado">Fechado</option></select>
         </div>
-        <div class="field"><label>Risco de churn</label>
+        <div class="field"><label for="coRisco">Risco de churn</label>
           <select id="coRisco"><option value="baixo">Baixo</option><option value="medio">Médio</option><option value="alto">Alto</option></select>
         </div>
       </div>
       <div class="field-row" id="coMotivoRiscoWrap" style="display:none;">
-        <div class="field"><label>Motivo do risco</label>
+        <div class="field"><label for="coMotivoRisco">Motivo do risco</label>
           <select id="coMotivoRisco">
             <option value="">Selecione...</option>
             <option value="produto">Produto</option>
@@ -1573,15 +1758,15 @@
             <option value="outro">Outro</option>
           </select>
         </div>
-        <div class="field" id="coMotivoRiscoOutroWrap" style="display:none;"><label>Detalhe do motivo</label><input id="coMotivoRiscoOutro" type="text" placeholder="Descreva brevemente"></div>
+        <div class="field" id="coMotivoRiscoOutroWrap" style="display:none;"><label for="coMotivoRiscoOutro">Detalhe do motivo</label><input id="coMotivoRiscoOutro" type="text" placeholder="Descreva brevemente"></div>
       </div>
       <div class="gate-error" id="coMotivoRiscoError"></div>
       <div class="field-row">
-        <div class="field"><label>NPS (0–10, opcional)</label><input id="coNps" type="number" min="0" max="10" step="1" placeholder="—"></div>
-        <div class="field"><label>Próximo contato</label><input id="coProximo" type="date"></div>
+        <div class="field"><label for="coNps">NPS (0–10, opcional)</label><input id="coNps" type="number" min="0" max="10" step="1" placeholder="—"></div>
+        <div class="field"><label for="coProximo">Próximo contato</label><input id="coProximo" type="date"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Motivo principal (opcional)</label>
+        <div class="field"><label for="coMotivoContato">Motivo principal (opcional)</label>
           <select id="coMotivoContato">
             <option value="">—</option>
             <option value="uso">Uso</option>
@@ -1596,7 +1781,7 @@
             <option value="outro">Outro</option>
           </select>
         </div>
-        <div class="field"><label>Sentimento da conversa (opcional)</label>
+        <div class="field"><label for="coSentimento">Sentimento da conversa (opcional)</label>
           <select id="coSentimento">
             <option value="">—</option>
             <option value="positivo">Positivo</option>
@@ -1618,7 +1803,7 @@
   <div class="modal" style="max-width:600px;">
     <div class="modal-head">
       <h3 id="historicoTitulo">Histórico do cliente</h3>
-      <button class="icon-btn" data-close="overlayHistorico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayHistorico" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div id="historicoResumo" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;"></div>
@@ -1644,25 +1829,25 @@
   <div class="modal">
     <div class="modal-head">
       <h3 id="modalUsuarioTitulo">Novo usuário</h3>
-      <button class="icon-btn" data-close="overlayUsuario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayUsuario" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="field"><label>Nome</label><input id="uiNome" type="text" placeholder="Nome completo"></div>
+      <div class="field"><label for="uiNome">Nome</label><input id="uiNome" type="text" placeholder="Nome completo"></div>
       <div class="field-row">
-        <div class="field"><label>Perfil de acesso</label>
+        <div class="field"><label for="uiPerfil">Perfil de acesso</label>
           <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="renovacao">Especialista de renovação (ambiente próprio)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
         </div>
-        <div class="field" id="uiCsmVinculadoWrap"><label>Carteira vinculada</label><input id="uiCsmVinculado" type="text" placeholder="Nome do CSM na carteira" list="listaCsmsDatalist"></div>
+        <div class="field" id="uiCsmVinculadoWrap"><label for="uiCsmVinculado">Carteira vinculada</label><input id="uiCsmVinculado" type="text" placeholder="Nome do CSM na carteira" list="listaCsmsDatalist"></div>
       </div>
       <div class="field" id="uiEquipeWrap" style="display:none;">
         <label>CSMs desta equipe</label>
         <div id="uiEquipePicker" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
         <div class="hint" style="margin-top:4px;">O Coordenador enxerga a soma da carteira de todos os CSMs marcados aqui (Painel, Carteira e Relatórios), sem acesso a Configurações.</div>
       </div>
-      <div class="field" id="uiEmailWrap" style="display:none;"><label>E-mail</label><input id="uiEmail" type="email" placeholder="pessoa@empresa.com" autocomplete="username"></div>
+      <div class="field" id="uiEmailWrap" style="display:none;"><label for="uiEmail">E-mail</label><input id="uiEmail" type="email" placeholder="pessoa@empresa.com" autocomplete="username"></div>
       <div class="field-row" id="uiSenhaFieldsWrap">
         <div class="field"><label id="uiSenhaLabel">Senha</label><input id="uiSenha" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
-        <div class="field"><label>Confirmar senha</label><input id="uiSenhaConfirm" type="password" autocomplete="new-password"></div>
+        <div class="field"><label for="uiSenhaConfirm">Confirmar senha</label><input id="uiSenhaConfirm" type="password" autocomplete="new-password"></div>
       </div>
       <div id="uiResetSenhaEmailWrap" style="display:none;">
         <button class="btn" id="btnResetSenhaEmailUsuario" type="button" style="width:100%; justify-content:center;">Enviar link de redefinição de senha por e-mail</button>
@@ -1682,13 +1867,13 @@
   <div class="modal">
     <div class="modal-head">
       <h3>Alterar senha</h3>
-      <button class="icon-btn" data-close="overlaySenha"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlaySenha" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="field" id="spAtualWrap"><label>Senha atual</label><input id="spAtual" type="password" autocomplete="current-password"></div>
+      <div class="field" id="spAtualWrap"><label for="spAtual">Senha atual</label><input id="spAtual" type="password" autocomplete="current-password"></div>
       <div class="field-row">
-        <div class="field"><label>Nova senha</label><input id="spNova" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
-        <div class="field"><label>Confirmar nova senha</label><input id="spConfirmar" type="password" autocomplete="new-password"></div>
+        <div class="field"><label for="spNova">Nova senha</label><input id="spNova" type="password" placeholder="Mínimo 4 caracteres" autocomplete="new-password"></div>
+        <div class="field"><label for="spConfirmar">Confirmar nova senha</label><input id="spConfirmar" type="password" autocomplete="new-password"></div>
       </div>
       <div class="gate-error" id="spError"></div>
     </div>
@@ -1699,16 +1884,36 @@
   </div>
 </div>
 
+<!-- Confirmação de ações (excluir, cancelar, etc.) no visual do próprio
+     sistema, em vez do confirm() nativo do navegador — reaproveitada por
+     qualquer ação que hoje pediria uma confirmação (item 2 da spec de
+     usabilidade). Aberta/preenchida por confirmarAcao(mensagem, onConfirmar, opts). -->
+<div class="overlay" id="overlayConfirmarAcao">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <h3>Confirmar ação</h3>
+      <button class="icon-btn" data-close="overlayConfirmarAcao" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <div id="confirmarAcaoTexto" style="font-size:13.5px; color:var(--ink-2); line-height:1.5;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="overlayConfirmarAcao">Cancelar</button>
+      <button class="btn btn-danger-fill" id="btnConfirmarAcaoOk">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Reatribuição de CSM em massa — mexe só no campo csm dos clientes
      selecionados na Carteira (e no onboarding em andamento deles). -->
 <div class="overlay" id="overlayReatribuirCsm">
   <div class="modal">
     <div class="modal-head">
       <h3>Reatribuir CSM</h3>
-      <button class="icon-btn" data-close="overlayReatribuirCsm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayReatribuirCsm" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="field"><label>Novo CSM responsável</label><select id="rmCsmDestino"></select></div>
+      <div class="field"><label for="rmCsmDestino">Novo CSM responsável</label><select id="rmCsmDestino"></select></div>
       <div class="hint" style="margin-top:10px; margin-bottom:6px;" id="rmContagemTexto"></div>
       <div id="rmListaClientes" style="max-height:220px; overflow:auto; border:1px solid var(--border); border-radius:8px; padding:8px;"></div>
       <div class="gate-error" id="rmError"></div>
@@ -1728,14 +1933,14 @@
   <div class="modal">
     <div class="modal-head">
       <h3>Novo agendamento</h3>
-      <button class="icon-btn" data-close="overlayAgendaManual"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayAgendaManual" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="hint" id="amHorarioTexto" style="margin-bottom:10px;"></div>
-      <div class="field"><label>Cliente</label><select id="amCliente"></select></div>
+      <div class="field"><label for="amCliente">Cliente</label><select id="amCliente"></select></div>
       <div class="field-row">
-        <div class="field"><label>Nome do contato</label><input id="amContatoNome" type="text" placeholder="Quem vai participar"></div>
-        <div class="field"><label>WhatsApp (opcional)</label><input id="amContatoTelefone" type="text" placeholder="DDI+DDD+número"></div>
+        <div class="field"><label for="amContatoNome">Nome do contato</label><input id="amContatoNome" type="text" placeholder="Quem vai participar"></div>
+        <div class="field"><label for="amContatoTelefone">WhatsApp (opcional)</label><input id="amContatoTelefone" type="text" placeholder="DDI+DDD+número"></div>
       </div>
       <div class="gate-error" id="amError"></div>
     </div>
@@ -1753,7 +1958,7 @@
   <div class="modal">
     <div class="modal-head">
       <h3>Agendamento</h3>
-      <button class="icon-btn" data-close="overlayAgendaDetalhe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayAgendaDetalhe" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body" id="adCorpo"></div>
     <div class="gate-error" id="adError" style="margin:0 20px;"></div>
@@ -1766,24 +1971,24 @@
 </div>
 
 <!-- Confirmação de "salvo com sucesso", reaproveitada por várias telas. -->
-<div class="toast-sucesso" id="toastSucesso"></div>
+<div class="toast-sucesso" id="toastSucesso" role="status" aria-live="polite"></div>
 
 <!-- ===================== MODAL: novo/editar plano de ação ===================== -->
 <div class="overlay" id="overlayPlano">
   <div class="modal" style="max-width:640px;">
     <div class="modal-head">
       <h3 id="modalPlanoTitulo">Novo plano de ação</h3>
-      <button class="icon-btn" data-close="overlayPlano"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayPlano" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="field"><label>Cliente</label><span class="chip" id="planoClienteChip">—</span></div>
       <div class="field-row">
-        <div class="field"><label>Título do plano</label><input id="piTitulo" type="text" placeholder="Ex.: Mitigação de risco de churn"></div>
-        <div class="field"><label>Aplicar playbook (opcional)</label><select id="piPlaybookSelect"><option value="">Nenhum — criar do zero</option></select></div>
+        <div class="field"><label for="piTitulo">Título do plano</label><input id="piTitulo" type="text" placeholder="Ex.: Mitigação de risco de churn"></div>
+        <div class="field"><label for="piPlaybookSelect">Aplicar playbook (opcional)</label><select id="piPlaybookSelect"><option value="">Nenhum — criar do zero</option></select></div>
       </div>
 
       <div class="hist-section-head"><h4>Sucesso esperado</h4></div>
-      <div class="field"><label>Objetivo principal do cliente</label><textarea id="piObjetivo" placeholder="O que o cliente deseja alcançar utilizando o sistema?"></textarea></div>
+      <div class="field"><label for="piObjetivo">Objetivo principal do cliente</label><textarea id="piObjetivo" placeholder="O que o cliente deseja alcançar utilizando o sistema?"></textarea></div>
       <div class="field">
         <label>Critérios de sucesso</label>
         <div id="piCriteriosList"></div>
@@ -1792,37 +1997,37 @@
 
       <div class="hist-section-head"><h4>Diagnóstico e classificação inicial</h4></div>
       <div class="field-row">
-        <div class="field"><label>Complexidade</label>
+        <div class="field"><label for="piComplexidade">Complexidade</label>
           <select id="piComplexidade"><option value="">—</option><option value="baixa">Baixa</option><option value="media">Média</option><option value="alta">Alta</option></select>
         </div>
-        <div class="field"><label>Engajamento</label>
+        <div class="field"><label for="piEngajamento">Engajamento</label>
           <select id="piEngajamento"><option value="">—</option><option value="alto">Alto</option><option value="medio">Médio</option><option value="baixo">Baixo</option></select>
         </div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Conhecimento da ferramenta</label>
+        <div class="field"><label for="piConhecimento">Conhecimento da ferramenta</label>
           <select id="piConhecimento"><option value="">—</option><option value="alto">Alto</option><option value="medio">Médio</option><option value="baixo">Baixo</option></select>
         </div>
-        <div class="field"><label>Risco inicial</label>
+        <div class="field"><label for="piRiscoInicial">Risco inicial</label>
           <select id="piRiscoInicial"><option value="">—</option><option value="baixo">Baixo</option><option value="moderado">Moderado</option><option value="alto">Alto</option></select>
         </div>
       </div>
-      <div class="field"><label>Notas do diagnóstico (opcional)</label><textarea id="piDiagnosticoNotas" placeholder="Maior dor operacional, resistência da equipe, módulos contratados x usados..."></textarea></div>
+      <div class="field"><label for="piDiagnosticoNotas">Notas do diagnóstico (opcional)</label><textarea id="piDiagnosticoNotas" placeholder="Maior dor operacional, resistência da equipe, módulos contratados x usados..."></textarea></div>
 
       <div id="piRecuperacaoBloco" style="display:none;">
         <div class="hist-section-head"><h4>Plano de recuperação de risco</h4></div>
         <div id="piRecuperacaoAlerta"></div>
         <div class="field-row">
-          <div class="field"><label>Motivo do risco</label><input id="piMotivoRisco" type="text" placeholder="Ex.: insatisfação com suporte"></div>
-          <div class="field"><label>Impacto para a clínica</label><input id="piImpactoRisco" type="text" placeholder="Ex.: operação comprometida"></div>
+          <div class="field"><label for="piMotivoRisco">Motivo do risco</label><input id="piMotivoRisco" type="text" placeholder="Ex.: insatisfação com suporte"></div>
+          <div class="field"><label for="piImpactoRisco">Impacto para a clínica</label><input id="piImpactoRisco" type="text" placeholder="Ex.: operação comprometida"></div>
         </div>
         <div class="field-row">
-          <div class="field"><label>Frequência de acompanhamento</label>
+          <div class="field"><label for="piFrequenciaAcompanhamento">Frequência de acompanhamento</label>
             <select id="piFrequenciaAcompanhamento"><option value="">—</option><option value="diario">Diário</option><option value="semanal">Semanal</option></select>
           </div>
-          <div class="field"><label>Próxima revisão</label><input id="piProximaRevisao" type="date"></div>
+          <div class="field"><label for="piProximaRevisao">Próxima revisão</label><input id="piProximaRevisao" type="date"></div>
         </div>
-        <div class="field"><label>O risco foi reduzido?</label>
+        <div class="field"><label for="piRiscoReduzido">O risco foi reduzido?</label>
           <select id="piRiscoReduzido"><option value="">—</option><option value="sim">Sim</option><option value="parcial">Parcialmente</option><option value="nao">Não</option></select>
         </div>
       </div>
@@ -1847,12 +2052,12 @@
   <div class="modal" style="max-width:640px;">
     <div class="modal-head">
       <h3 id="modalPlaybookTitulo">Novo playbook</h3>
-      <button class="icon-btn" data-close="overlayPlaybook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayPlaybook" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
       <div class="field-row">
-        <div class="field"><label>Nome do playbook</label><input id="pbNome" type="text" placeholder="Ex.: Onboarding 30-60-90"></div>
-        <div class="field"><label>Categoria</label>
+        <div class="field"><label for="pbNome">Nome do playbook</label><input id="pbNome" type="text" placeholder="Ex.: Onboarding 30-60-90"></div>
+        <div class="field"><label for="pbCategoria">Categoria</label>
           <select id="pbCategoria">
             <option value="onboarding">Onboarding</option>
             <option value="risco">Risco de churn</option>
@@ -1862,7 +2067,7 @@
           </select>
         </div>
       </div>
-      <div class="field"><label>Descrição</label><textarea id="pbDescricao" placeholder="Quando usar este playbook..."></textarea></div>
+      <div class="field"><label for="pbDescricao">Descrição</label><textarea id="pbDescricao" placeholder="Quando usar este playbook..."></textarea></div>
       <div class="field">
         <label>Atividades do playbook</label>
         <div id="pbAtividadesList"></div>
@@ -1883,10 +2088,10 @@
   <div class="modal">
     <div class="modal-head">
       <h3 id="modalTagTitulo">Nova tag</h3>
-      <button class="icon-btn" data-close="overlayTag"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayTag" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="field"><label>Nome da tag</label><input id="tgNome" type="text" placeholder="Ex.: Multi-unidade"></div>
+      <div class="field"><label for="tgNome">Nome da tag</label><input id="tgNome" type="text" placeholder="Ex.: Multi-unidade"></div>
       <div class="field">
         <label>Cor</label>
         <div class="tag-picker" id="tgCorPicker"></div>
@@ -1905,10 +2110,10 @@
   <div class="modal">
     <div class="modal-head">
       <h3>Iniciar onboarding</h3>
-      <button class="icon-btn" data-close="overlayIniciarOnboarding"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayIniciarOnboarding" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
-      <div class="field"><label>Cliente (em etapa Implantação, sem onboarding iniciado ainda)</label>
+      <div class="field"><label for="iniciarOnbCliente">Cliente (em etapa Implantação, sem onboarding iniciado ainda)</label>
         <select id="iniciarOnbCliente"></select>
       </div>
       <div class="gate-error" id="iniciarOnbError"></div>
@@ -1924,11 +2129,12 @@
   <div class="modal" style="max-width:700px;">
     <div class="modal-head">
       <h3 id="onbModalTitulo">Onboarding</h3>
-      <button class="icon-btn" data-close="overlayOnboarding"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      <button class="icon-btn" data-close="overlayOnboarding" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body" id="onbFormBody"></div>
     <div class="modal-foot">
       <button class="btn btn-danger" id="btnExcluirOnboarding" style="margin-right:auto;">Cancelar onboarding</button>
+      <button class="btn" id="btnVoltarFaseOnboarding" style="display:none;">Voltar para fase anterior</button>
       <button class="btn" data-close="overlayOnboarding">Fechar</button>
       <button class="btn" id="btnSalvarOnboarding">Salvar alterações</button>
       <button class="btn btn-accent" id="btnAvancarFaseOnboarding">Avançar de fase</button>
@@ -1972,7 +2178,8 @@
       meta: 'meta',
       agendas: 'agendas',
       agendamentos: 'agendamentos',
-      onboardings: 'onboardings'
+      onboardings: 'onboardings',
+      reclamacoesRA: 'reclamacoes_ra'
     };
 
     function novoIdPadrao(){
@@ -2173,11 +2380,14 @@
   // de renovação em 60 dias) dentro de renderPainel() — nomes diferentes
   // evitam qualquer confusão entre os dois.
   var renovacoesData = []; // {id, clienteId, clienteNome, csm, status, historicoStatus:[{status,data}], valorNegociado, observacoes, atualizadoEm}
+  var reclamacoesRA = []; // {id, clienteId, clienteNome, csm, numeroReclamacao, dataAbertura, resumo, status, historico:[{data,autor,observacao}], ultimoContatoEm, notaRecebida}
   var pendingOnboardingClienteId = null; // cliente cujo painel de onboarding está aberto no momento
   var curvaConfig = { limiteA:8000, limiteB:5000, limiteC:2000 }; // calibrável em Configurações
   var waConfig = { empresa:'' }; // nome da empresa usado na mensagem padrão do WhatsApp, calibrável em Configurações
   var PRAZO_CARTEIRA_PADRAO = 90;
   var prazoConfig = { dias: PRAZO_CARTEIRA_PADRAO }; // "rodar a carteira" — calibrável em Configurações
+  var PRAZO_COBRANCA_RA_PADRAO = 3;
+  var raConfig = { prazoCobranca: PRAZO_COBRANCA_RA_PADRAO }; // dias sem contato até o caso de RA virar pendência de novo — calibrável em Configurações
   // Pesos usados por computeStats() para montar o Priority Score — os
   // valores abaixo são os mesmos que já estavam fixos no código antes
   // desta virar uma configuração; calibrável em Configurações.
@@ -2201,6 +2411,12 @@
   var dataPronta = false;
   var setupCompleto = false; // true assim que o primeiro admin já foi criado neste Supabase (evita expor a tabela "usuarios" a quem ainda não fez login só para saber se o app já tem gente cadastrada)
   var dadosLogadosCarregados = false; // evita assinar as coleções protegidas mais de uma vez na mesma sessão do navegador
+  // Item 6 da spec de usabilidade: distinguir "ainda carregando" de
+  // "carteira realmente vazia" — sem isso, o Painel mostrava por um
+  // instante as mesmas mensagens de "nenhum cliente"/"nenhuma renovação"
+  // que mostraria se não houvesse dado nenhum, enquanto a primeira leitura
+  // do Supabase ainda não tinha voltado.
+  var clientesCarregados = false;
   // Modo "página pública de agendamento": ativado quando a URL tem
   // ?agendar=<idDoCliente>. Nesse modo a tela de login/app normal fica
   // escondida e é mostrada só a página de agendamento do cliente, sem
@@ -2221,6 +2437,10 @@
   var impHeaders = [];
   var impDataRows = [];
   var impMapping = {};
+  var impRaHeaders = [];
+  var impRaDataRows = [];
+  var impRaMapping = {};
+  var impRaResolucoes = []; // paralelo a impRaDataRows: clienteId escolhido (ou '' pra pular a linha)
   var pendingPlanoClienteId = null;
   var pendingPlanoEditId = null;
   var planoAtividadesEdit = [];
@@ -2254,6 +2474,13 @@
   var RENOVACAO_STATUS_ORDEM = ['aberto','antecipacao','proposta','titulo_gerado','renovado','churn'];
   var RENOVACAO_STATUS_COR = { aberto:'pill-neutral', antecipacao:'pill-warning', proposta:'pill-warning', titulo_gerado:'pill-warning', renovado:'pill-good', churn:'pill-critical' };
   var RENOVACAO_FILA_LABEL = { vencendo:'Vencendo este mês', antecipacao:'Antecipação (mês seguinte)', vencida:'Vencidas sem renovação' };
+  // Reclamações no Reclame Aqui (RA) sem nota — processo pra CSM
+  // acompanhar até conseguir a avaliação do cliente. Um documento por
+  // reclamação (não por cliente — um mesmo cliente pode ter mais de uma
+  // reclamação ao longo do tempo, cada uma independente).
+  var RA_STATUS_LABEL = { aberto:'Aberto', em_contato:'Em contato', resolvido_aguardando_nota:'Resolvido, aguardando nota', nota_recebida:'Nota recebida' };
+  var RA_STATUS_ORDEM = ['aberto','em_contato','resolvido_aguardando_nota','nota_recebida'];
+  var RA_STATUS_COR = { aberto:'pill-critical', em_contato:'pill-warning', resolvido_aguardando_nota:'pill-warning', nota_recebida:'pill-good' };
   var STATUS_LABEL = { aberto:'Aberto', fechado:'Fechado' };
   var PLAYBOOK_CATEGORIA_LABEL = { onboarding:'Onboarding', risco:'Risco de churn', renovacao:'Renovação', expansao:'Expansão', outro:'Outro' };
   var ETAPA_LABEL = { implantacao:'Implantação', adocao:'Adoção', engajamento:'Engajamento', expansao:'Expansão', renovacao:'Renovação', risco:'Risco' };
@@ -2450,6 +2677,18 @@
     el.classList.add('show');
     clearTimeout(toastSucessoTimer);
     toastSucessoTimer = setTimeout(function(){ el.classList.remove('show'); }, 3200);
+  }
+
+  // Confirmação de ação no visual do próprio sistema, substituindo o
+  // confirm() nativo do navegador (item 2 da spec de usabilidade).
+  // Uso: confirmarAcao('Excluir isso?', function(){ ...ação... }, {textoConfirmar:'Excluir'});
+  var confirmarAcaoPendente = null;
+  function confirmarAcao(mensagem, onConfirmar, opts){
+    opts = opts || {};
+    document.getElementById('confirmarAcaoTexto').textContent = mensagem;
+    document.getElementById('btnConfirmarAcaoOk').textContent = opts.textoConfirmar || 'Confirmar';
+    confirmarAcaoPendente = onConfirmar;
+    openOverlay('overlayConfirmarAcao');
   }
   function parseISO(s){
     var p = s.split('-');
@@ -2936,6 +3175,23 @@
       try{ await downloads.save({filename:'modelo-importacao-radar-cs.csv', data:'﻿'+csv}); }catch(e){}
     }
   }
+
+  // Item 5 da spec de usabilidade: o importador de Reclamações RA não
+  // tinha um modelo de planilha pra baixar, diferente do importador de
+  // carteira — quem fosse importar pela primeira vez tinha que adivinhar
+  // o formato esperado.
+  async function baixarModeloImportacaoRA(){
+    var header = ['Nome do Cliente','Número da reclamação','Data de abertura','Resumo'];
+    var hoje = todayISO().split('-').reverse().join('/');
+    var ex1 = ['Clínica Exemplo Ltda', 'RA-000123', hoje, 'Cliente reclamou de demora no suporte técnico.'];
+    var ex2 = ['Outra Clínica S.A.', '', hoje, 'Cliente reclamou de cobrança indevida na fatura.'];
+    var csv = [header, ex1, ex2].map(function(r){ return r.map(csvEscape).join(';'); }).join('\n');
+    var downloads = null;
+    try{ downloads = await claude.use('downloads'); }catch(e){}
+    if(downloads){
+      try{ await downloads.save({filename:'modelo-importacao-reclamacoes-ra.csv', data:'﻿'+csv}); }catch(e){}
+    }
+  }
   function initials(nome){
     var parts = String(nome||'').trim().split(/\s+/).filter(Boolean);
     if(!parts.length) return '?';
@@ -3145,6 +3401,8 @@
     agendamentos = [];
     onboardings = [];
     renovacoesData = [];
+    reclamacoesRA = [];
+    clientesCarregados = true;
   }
 
   // ---------------------------------------------------------------
@@ -3169,6 +3427,7 @@
       curvaConfig = Object.assign({limiteA:8000, limiteB:5000, limiteC:2000}, d.curvaConfig||{});
       waConfig = Object.assign({empresa:''}, d.waConfig||{});
       prazoConfig = Object.assign({dias: PRAZO_CARTEIRA_PADRAO}, d.prazoConfig||{});
+      raConfig = Object.assign({prazoCobranca: PRAZO_COBRANCA_RA_PADRAO}, d.raConfig||{});
       pesosScore = Object.assign({}, PESOS_SCORE_PADRAO, d.pesosScore||{});
       setupCompleto = !!d.setupCompleto;
     }).catch(function(){ setupCompleto = false; });
@@ -3198,8 +3457,9 @@
   function subscribeData(){
     db.collection('clientes').onSnapshot(function(snap){
       clientes = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      clientesCarregados = true;
       renderAll();
-    }, function(){ /* silencioso: onSnapshot cai para refresh periódico */ });
+    }, function(){ clientesCarregados = true; /* silencioso: onSnapshot cai para refresh periódico */ });
 
     db.collection('contatos').onSnapshot(function(snap){
       contatos = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
@@ -3232,7 +3492,13 @@
       curvaConfig = Object.assign({limiteA:8000, limiteB:5000, limiteC:2000}, d.curvaConfig||{});
       waConfig = Object.assign({empresa:''}, d.waConfig||{});
       prazoConfig = Object.assign({dias: PRAZO_CARTEIRA_PADRAO}, d.prazoConfig||{});
+      raConfig = Object.assign({prazoCobranca: PRAZO_COBRANCA_RA_PADRAO}, d.raConfig||{});
       pesosScore = Object.assign({}, PESOS_SCORE_PADRAO, d.pesosScore||{});
+      renderAll();
+    }, function(){});
+
+    db.collection('reclamacoesRA').onSnapshot(function(snap){
+      reclamacoesRA = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderAll();
     }, function(){});
 
@@ -3722,6 +3988,241 @@
   }
 
   // ---------------------------------------------------------------
+  // Reclamações no Reclame Aqui (RA) sem nota
+  // ---------------------------------------------------------------
+  // Mesmo modelo de visibilidade de Carteira/Painel: CSM vê só os
+  // próprios clientes, Coordenador vê a equipe, Admin vê tudo.
+  function reclamacoesRAEscopo(){
+    var escopo = escopoVisivelCsmNomes();
+    return reclamacoesRA.filter(function(r){ return noEscopo(r.csm, escopo); });
+  }
+
+  function casoRADiasSemContato(caso){
+    var referencia = caso.ultimoContatoEm || caso.dataAbertura;
+    return referencia ? diasDesde(referencia) : 0;
+  }
+
+  function casoRAAtrasado(caso){
+    if(caso.status === 'nota_recebida') return false;
+    var prazo = (raConfig && raConfig.prazoCobranca) || PRAZO_COBRANCA_RA_PADRAO;
+    var referencia = caso.ultimoContatoEm || caso.dataAbertura;
+    if(!referencia) return false;
+    return diasDesde(referencia) >= prazo;
+  }
+
+  function raCasoCardHtml(caso){
+    var atrasado = casoRAAtrasado(caso);
+    return '<div class="kanban-card" data-abrir-caso-ra="'+esc(caso.id)+'" style="cursor:pointer;">' +
+      '<div class="nm">'+esc(caso.clienteNome)+'</div>' +
+      '<div class="hint">'+esc(caso.csm||'—')+(caso.numeroReclamacao?' · Nº '+esc(caso.numeroReclamacao):'')+'</div>' +
+      '<div class="hint">Aberta em '+fmtDate(caso.dataAbertura)+'</div>' +
+      (atrasado ? '<span class="pill pill-critical"><span class="pill-dot"></span>Sem contato há '+casoRADiasSemContato(caso)+'d</span>' : '') +
+      (caso.status === 'nota_recebida' && caso.notaRecebida != null ? '<span class="pill pill-good"><span class="pill-dot"></span>Nota '+esc(caso.notaRecebida)+'</span>' : '') +
+    '</div>';
+  }
+
+  function renderReclamacoesRA(){
+    if(!document.getElementById('raKanban')) return;
+    var casos = reclamacoesRAEscopo();
+    var porStatus = {};
+    RA_STATUS_ORDEM.forEach(function(st){ porStatus[st] = []; });
+    casos.forEach(function(c){ (porStatus[c.status] || porStatus.aberto).push(c); });
+
+    document.getElementById('raStatAbertos').textContent = porStatus.aberto.length;
+    document.getElementById('raStatAguardandoNota').textContent = porStatus.resolvido_aguardando_nota.length;
+
+    var comNota = casos.filter(function(c){ return c.status === 'nota_recebida' && c.notaRecebida != null; });
+    var notaMedia = comNota.length ? (comNota.reduce(function(a,c){ return a+Number(c.notaRecebida); },0) / comNota.length) : null;
+    document.getElementById('raStatNotaMedia').textContent = notaMedia==null ? '—' : notaMedia.toFixed(1);
+
+    var diasAteNota = comNota.filter(function(c){ return c.notaRecebidaEm && c.dataAbertura; })
+      .map(function(c){ return diffDays(c.notaRecebidaEm, c.dataAbertura); });
+    var diasMedio = diasAteNota.length ? Math.round(diasAteNota.reduce(function(a,b){ return a+b; },0) / diasAteNota.length) : null;
+    document.getElementById('raStatDiasMedio').textContent = diasMedio==null ? '—' : diasMedio;
+
+    var kEl = document.getElementById('raKanban');
+    kEl.innerHTML = RA_STATUS_ORDEM.map(function(st){
+      var itens = porStatus[st];
+      return '<div class="kanban-col">' +
+        '<div class="kanban-col-head"><span>'+esc(RA_STATUS_LABEL[st])+'</span><span>'+itens.length+'</span></div>' +
+        (itens.length ? itens.map(raCasoCardHtml).join('') : '<div class="kanban-empty">Nenhum caso.</div>') +
+      '</div>';
+    }).join('');
+
+    var badge = document.getElementById('navReclamacoesRABadge');
+    if(badge){
+      var atrasados = casos.filter(casoRAAtrasado).length;
+      badge.style.display = atrasados ? '' : 'none';
+      badge.textContent = atrasados;
+    }
+  }
+
+  function clientesParaNovoCasoRA(){
+    var escopo = escopoVisivelCsmNomes();
+    return clientes.filter(function(c){ return noEscopo(c.csm, escopo); })
+      .slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+  }
+
+  function abrirNovoCasoRA(){
+    var sel = document.getElementById('ncRaCliente');
+    sel.innerHTML = '<option value="">Selecione o cliente...</option>' + clientesParaNovoCasoRA().map(function(c){
+      return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>';
+    }).join('');
+    document.getElementById('ncRaNumero').value = '';
+    document.getElementById('ncRaDataAbertura').value = todayISO();
+    document.getElementById('ncRaResumo').value = '';
+    document.getElementById('ncRaError').classList.remove('show');
+    openOverlay('overlayNovoCasoRA');
+  }
+
+  async function confirmarNovoCasoRA(){
+    var errEl = document.getElementById('ncRaError');
+    errEl.classList.remove('show');
+    var clienteId = document.getElementById('ncRaCliente').value;
+    var dataAbertura = document.getElementById('ncRaDataAbertura').value;
+    if(!clienteId || !dataAbertura){
+      errEl.textContent = 'Escolha o cliente e a data de abertura.';
+      errEl.classList.add('show');
+      return;
+    }
+    var cliente = clientes.filter(function(c){ return c.id === clienteId; })[0];
+    if(!cliente) return;
+    var body = {
+      clienteId: clienteId, clienteNome: cliente.nome, csm: cliente.csm || '',
+      numeroReclamacao: document.getElementById('ncRaNumero').value.trim(),
+      dataAbertura: dataAbertura, resumo: document.getElementById('ncRaResumo').value.trim(),
+      status: 'aberto', historico: [], ultimoContatoEm: null,
+      notaRecebida: null, notaRecebidaEm: null
+    };
+    try{
+      var id = novoId('ra');
+      if(db && !offline){
+        await db.collection('reclamacoesRA').doc(id).set(body);
+      }else{
+        reclamacoesRA.push(Object.assign({id:id}, body));
+        renderAll();
+      }
+      closeOverlay('overlayNovoCasoRA');
+      mostrarToastSucesso('Caso criado com sucesso.');
+    }catch(e){
+      errEl.textContent = 'Não foi possível criar agora: ' + detalheErro(e);
+      errEl.classList.add('show');
+    }
+  }
+
+  var casoRAAbertoId = null;
+
+  function renderCasoRACorpo(caso){
+    var historico = (caso.historico||[]).slice().reverse().map(function(h){
+      return '<div class="onb-log-row">'+fmtDate(h.data)+' — <strong>'+esc(h.autor||'—')+'</strong>'+(h.observacao?': '+esc(h.observacao):'')+'</div>';
+    }).join('') || '<div class="empty-note" style="padding:6px 0; font-size:12px;">Nenhum contato registrado ainda.</div>';
+
+    return '<div class="field-row">' +
+        '<div class="field"><label>Cliente</label><div>'+esc(caso.clienteNome)+'</div></div>' +
+        '<div class="field"><label>CSM responsável</label><div>'+esc(caso.csm||'—')+'</div></div>' +
+      '</div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Número da reclamação</label><input type="text" data-ra-field="numeroReclamacao" value="'+esc(caso.numeroReclamacao||'')+'"></div>' +
+        '<div class="field"><label>Data de abertura</label><input type="date" data-ra-field="dataAbertura" value="'+esc(caso.dataAbertura||'')+'"></div>' +
+      '</div>' +
+      '<div class="field"><label>Resumo da reclamação</label><textarea data-ra-field="resumo">'+esc(caso.resumo||'')+'</textarea></div>' +
+      '<div class="field"><label>Status</label>' +
+        '<select id="raCasoStatusSelect">' +
+          RA_STATUS_ORDEM.map(function(st){ return '<option value="'+st+'"'+(caso.status===st?' selected':'')+'>'+esc(RA_STATUS_LABEL[st])+'</option>'; }).join('') +
+        '</select>' +
+      '</div>' +
+      (caso.status === 'nota_recebida' ?
+        '<div class="field"><label for="raCasoNotaValor">Nota recebida (0 a 10)</label><input type="number" min="0" max="10" step="1" id="raCasoNotaValor" value="'+esc(caso.notaRecebida!=null?caso.notaRecebida:'')+'"></div>'
+        : '<div class="field" id="raCasoNotaPendente" style="display:none;"><label for="raCasoNotaValor">Nota recebida (0 a 10)</label><input type="number" min="0" max="10" step="1" id="raCasoNotaValor"><div class="gate-error" id="raCasoNotaError"></div><button type="button" class="btn btn-sm" id="btnConfirmarNotaRA" style="margin-top:6px;">Confirmar nota e concluir</button></div>'
+      ) +
+      '<div class="field"><label>Histórico de contatos</label>' + historico +
+        '<div class="onb-add-row">' +
+          '<input type="text" id="raNovoContatoObs" placeholder="O que foi combinado/tentado neste contato">' +
+          '<button type="button" class="btn btn-sm" id="btnRegistrarContatoRA">+ Registrar contato</button>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function abrirCasoRA(id){
+    var caso = reclamacoesRA.filter(function(r){ return r.id === id; })[0];
+    if(!caso) return;
+    casoRAAbertoId = id;
+    document.getElementById('raCasoTituloCliente').textContent = caso.clienteNome;
+    document.getElementById('raCasoCorpo').innerHTML = renderCasoRACorpo(caso);
+    openOverlay('overlayCasoRA');
+  }
+
+  async function persistirCasoRA(id, patch){
+    if(db && !offline){
+      await db.collection('reclamacoesRA').doc(id).update(patch);
+    }else{
+      var idx = reclamacoesRA.findIndex(function(r){ return r.id === id; });
+      if(idx>-1){ Object.assign(reclamacoesRA[idx], patch); renderAll(); }
+    }
+  }
+
+  async function salvarCampoCasoRA(campo, valor){
+    if(!casoRAAbertoId) return;
+    var patch = {}; patch[campo] = valor;
+    await persistirCasoRA(casoRAAbertoId, patch);
+    mostrarToastSucesso('Alteração salva.');
+  }
+
+  // Mudar pra "Nota recebida" exige preencher a nota primeiro — as demais
+  // transições do funil são livres e salvam na hora.
+  async function mudarStatusCasoRA(novoStatus){
+    if(!casoRAAbertoId) return;
+    if(novoStatus === 'nota_recebida'){
+      var pendente = document.getElementById('raCasoNotaPendente');
+      if(pendente) pendente.style.display = '';
+      return;
+    }
+    await persistirCasoRA(casoRAAbertoId, {status: novoStatus});
+    abrirCasoRA(casoRAAbertoId);
+  }
+
+  async function confirmarNotaCasoRA(){
+    if(!casoRAAbertoId) return;
+    var el = document.getElementById('raCasoNotaValor');
+    var errEl = document.getElementById('raCasoNotaError');
+    var nota = Number(el.value);
+    if(!el.value || !isFinite(nota) || nota < 0 || nota > 10){
+      if(errEl){ errEl.textContent = 'Informe uma nota de 0 a 10.'; errEl.classList.add('show'); }
+      return;
+    }
+    if(errEl) errEl.classList.remove('show');
+    await persistirCasoRA(casoRAAbertoId, {status: 'nota_recebida', notaRecebida: nota, notaRecebidaEm: todayISO()});
+    mostrarToastSucesso('Nota registrada — caso concluído.');
+    abrirCasoRA(casoRAAbertoId);
+  }
+
+  async function registrarContatoCasoRA(){
+    if(!casoRAAbertoId) return;
+    var obsEl = document.getElementById('raNovoContatoObs');
+    var observacao = obsEl.value.trim();
+    var caso = reclamacoesRA.filter(function(r){ return r.id === casoRAAbertoId; })[0];
+    if(!caso) return;
+    var historico = (caso.historico||[]).concat([{data: todayISO(), autor: currentUser?currentUser.nome:'', observacao: observacao}]);
+    await persistirCasoRA(casoRAAbertoId, {historico: historico, ultimoContatoEm: todayISO()});
+    mostrarToastSucesso('Contato registrado.');
+    abrirCasoRA(casoRAAbertoId);
+  }
+
+  function excluirCasoRA(){
+    if(!casoRAAbertoId) return;
+    confirmarAcao('Excluir este caso de reclamação? Essa ação não pode ser desfeita.', async function(){
+      var id = casoRAAbertoId;
+      if(db && !offline){
+        await db.collection('reclamacoesRA').doc(id).delete();
+      }else{
+        reclamacoesRA = reclamacoesRA.filter(function(r){ return r.id !== id; });
+        renderAll();
+      }
+      closeOverlay('overlayCasoRA');
+    }, {textoConfirmar: 'Excluir caso'});
+  }
+
+  // ---------------------------------------------------------------
   // Planos de ação (multi-atividade) e playbooks
   // ---------------------------------------------------------------
   function planosDoCliente(clienteId){
@@ -4120,7 +4621,7 @@
     // O especialista de renovação tem um ambiente próprio e exclusivo
     // (seção 3 da spec): nada de Painel do CSM, Carteira, Onboarding,
     // Alertas, Playbooks ou Agenda no menu dele.
-    ['painel','carteira','onboarding','alertas','playbooks','agenda'].forEach(function(v){
+    ['painel','carteira','onboarding','alertas','playbooks','agenda','reclamacoesRA'].forEach(function(v){
       var el = document.querySelector('.nav-item[data-view="'+v+'"]');
       if(el) el.style.display = renov ? 'none' : '';
     });
@@ -4244,6 +4745,18 @@
     document.getElementById('painelData').textContent = dataFmt.charAt(0).toUpperCase()+dataFmt.slice(1);
     renderPainelEscopoControl();
 
+    // Item 6 da spec de usabilidade: enquanto a primeira leitura da
+    // carteira ainda não voltou do Supabase, mostrar "Carregando…" em vez
+    // das mesmas mensagens que apareceriam se a carteira estivesse vazia
+    // de verdade.
+    if(!clientesCarregados){
+      document.getElementById('painelMetaHoje').innerHTML = 'Carregando…';
+      ['filaHoje','radarRenovacao','acoesAbertas','atividadesPlano'].forEach(function(elId){
+        document.getElementById(elId).innerHTML = '<div class="empty-note">Carregando…</div>';
+      });
+      return;
+    }
+
     var escopoCsm = activeCsmFilterForPanel();
     var stats = allStats().filter(function(s){ return noEscopo(s.cliente.csm, escopoCsm); });
 
@@ -4272,7 +4785,16 @@
     var prazoCarteiraAtual = (prazoConfig && prazoConfig.dias) || PRAZO_CARTEIRA_PADRAO;
     var metaHojeEl = document.getElementById('painelMetaHoje');
     if(!stats.length){
-      metaHojeEl.innerHTML = 'Nenhum cliente nesta carteira ainda.';
+      // Item 9 da spec de usabilidade: orientar os primeiros passos em vez
+      // de só dizer "vazio" — mas só quando a carteira estiver realmente
+      // vazia (não apenas vazia dentro do escopo desta pessoa).
+      if(!clientes.length){
+        metaHojeEl.innerHTML = 'Nenhum cliente cadastrado ainda. Para começar, ' +
+          '<a href="#" data-onboarding-novo-cliente="1">cadastre o primeiro cliente</a> ou ' +
+          '<a href="#" data-onboarding-importar="1">importe sua carteira de uma planilha</a>.';
+      }else{
+        metaHojeEl.innerHTML = 'Nenhum cliente atribuído a você nesta carteira ainda.';
+      }
     }else{
       var metaHoje = Math.ceil(stats.length / prazoCarteiraAtual);
       metaHojeEl.innerHTML = '<strong>Meta de hoje: contatar '+metaHoje+' cliente'+(metaHoje===1?'':'s')+' único'+(metaHoje===1?'':'s')+'</strong> para manter o ritmo de cobrir toda a carteira em '+prazoCarteiraAtual+' dias.';
@@ -4280,9 +4802,10 @@
     renderCoberturaBloco(stats, 'painelCoberturaPct', 'painelCoberturaBarra', 'painelCoberturaLegenda');
 
     // fila de prioridade
-    var fila = stats.filter(function(s){ return s.precisaContato; })
-      .sort(function(a,b){ return b.score - a.score; })
-      .slice(0, 14);
+    var filaCompleta = stats.filter(function(s){ return s.precisaContato; })
+      .sort(function(a,b){ return b.score - a.score; });
+    var LIMITE_FILA_HOJE = 14;
+    var fila = filaCompleta.slice(0, LIMITE_FILA_HOJE);
 
     var filaEl = document.getElementById('filaHoje');
     if(!fila.length){
@@ -4309,6 +4832,14 @@
           '</div>' +
         '</div>';
       }).join('');
+      // Item 3 da spec de usabilidade: avisar quando a lista foi cortada,
+      // em vez de simplesmente esconder o resto sem dizer nada.
+      if(filaCompleta.length > LIMITE_FILA_HOJE){
+        filaEl.innerHTML += '<div class="empty-note" style="padding:12px 0 2px;">' +
+          '+ '+(filaCompleta.length - LIMITE_FILA_HOJE)+' cliente'+((filaCompleta.length - LIMITE_FILA_HOJE)===1?'':'s')+' pendente'+((filaCompleta.length - LIMITE_FILA_HOJE)===1?'':'s')+' não exibido'+((filaCompleta.length - LIMITE_FILA_HOJE)===1?'':'s')+' aqui — ' +
+          '<a href="#" data-ver-todos-fila="1">ver todos na Carteira</a>' +
+        '</div>';
+      }
     }
 
     // radar de renovação
@@ -4351,7 +4882,9 @@
     }
 
     // atividades pendentes dos planos de ação (estruturados, multi-atividade)
-    var pendentesAt = atividadesPendentesEscopo(escopoCsm).slice(0, 12);
+    var pendentesAtCompleto = atividadesPendentesEscopo(escopoCsm);
+    var LIMITE_ATIVIDADES_PLANO = 12;
+    var pendentesAt = pendentesAtCompleto.slice(0, LIMITE_ATIVIDADES_PLANO);
     var atEl = document.getElementById('atividadesPlano');
     if(!pendentesAt.length){
       atEl.innerHTML = '<div class="empty-note">Nenhuma atividade pendente nos planos de ação.</div>';
@@ -4371,6 +4904,11 @@
           '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(x.clienteId)+'">Ver</button></div>' +
         '</div>';
       }).join('');
+      // Item 3 da spec de usabilidade: avisar quando a lista foi cortada.
+      if(pendentesAtCompleto.length > LIMITE_ATIVIDADES_PLANO){
+        var restantesAt = pendentesAtCompleto.length - LIMITE_ATIVIDADES_PLANO;
+        atEl.innerHTML += '<div class="empty-note" style="padding:12px 0 2px;">+ '+restantesAt+' atividade'+(restantesAt===1?'':'s')+' pendente'+(restantesAt===1?'':'s')+' não exibida'+(restantesAt===1?'':'s')+' aqui — confira pelos planos de ação de cada cliente na Carteira.</div>';
+      }
     }
   }
 
@@ -4421,7 +4959,13 @@
 
     var body = document.getElementById('tabelaCarteira');
     if(!stats.length){
-      body.innerHTML = '<tr><td colspan="11"><div class="empty-note">Nenhum cliente encontrado com os filtros atuais.</div></td></tr>';
+      // Item 9 da spec de usabilidade: se a carteira está genuinamente
+      // vazia (não é só o filtro que não bateu com nada), orienta os
+      // primeiros passos em vez de só dizer "nenhum cliente encontrado".
+      var msgVazio = (!clientes.length && !filtros.busca && filtros.csm==='todos' && filtros.curva==='todas' && filtros.saude==='todas' && filtros.cadencia==='todos')
+        ? 'Nenhum cliente cadastrado ainda. <a href="#" data-onboarding-novo-cliente="1">Cadastre o primeiro cliente</a> ou <a href="#" data-onboarding-importar="1">importe sua carteira de uma planilha</a>.'
+        : 'Nenhum cliente encontrado com os filtros atuais.';
+      body.innerHTML = '<tr><td colspan="11"><div class="empty-note">'+msgVazio+'</div></td></tr>';
       atualizarBarraSelecaoCarteira();
       return;
     }
@@ -4452,7 +4996,7 @@
         '<td><div style="display:flex; gap:4px; justify-content:flex-end;">' +
           '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Histórico</button>' +
           '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Contato</button>' +
-          '<button class="icon-btn" data-open-editar="'+esc(c.id)+'" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>' +
+          '<button class="icon-btn" data-open-editar="'+esc(c.id)+'" title="Editar" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>' +
         '</div></td>' +
       '</tr>';
     }).join('');
@@ -4503,41 +5047,41 @@
     openOverlay('overlayReatribuirCsm');
   }
 
-  async function confirmarReatribuicaoMassa(){
+  function confirmarReatribuicaoMassa(){
     var errEl = document.getElementById('rmError');
     errEl.classList.remove('show');
     var novoCsm = document.getElementById('rmCsmDestino').value;
     if(!novoCsm){ errEl.textContent = 'Selecione o CSM de destino.'; errEl.classList.add('show'); return; }
     var ids = Object.keys(carteiraSelecionados);
     if(!ids.length) return;
-    if(!confirm('Isso vai mover '+ids.length+(ids.length===1?' cliente':' clientes')+' para '+novoCsm+'. Confirmar?')) return;
-
-    var novoCsmId = resolverCsmIdPorNome(novoCsm);
-    try{
-      for(var i=0;i<ids.length;i++){
-        var id = ids[i];
-        if(db && !offline){
-          await db.collection('clientes').doc(id).update({csm: novoCsm, csmId: novoCsmId});
-          // Só toca no onboarding se já existir um em andamento para este
-          // cliente — não cria um onboarding "do nada" só por causa da
-          // reatribuição.
-          if(onboardings.some(function(o){ return o.id===id; })){
-            await db.collection('onboardings').doc(id).update({csm: novoCsm});
+    confirmarAcao('Isso vai mover '+ids.length+(ids.length===1?' cliente':' clientes')+' para '+novoCsm+'. Confirmar?', async function(){
+      var novoCsmId = resolverCsmIdPorNome(novoCsm);
+      try{
+        for(var i=0;i<ids.length;i++){
+          var id = ids[i];
+          if(db && !offline){
+            await db.collection('clientes').doc(id).update({csm: novoCsm, csmId: novoCsmId});
+            // Só toca no onboarding se já existir um em andamento para este
+            // cliente — não cria um onboarding "do nada" só por causa da
+            // reatribuição.
+            if(onboardings.some(function(o){ return o.id===id; })){
+              await db.collection('onboardings').doc(id).update({csm: novoCsm});
+            }
+          }else{
+            var idxC = clientes.findIndex(function(c){return c.id===id;});
+            if(idxC>-1){ clientes[idxC].csm = novoCsm; clientes[idxC].csmId = novoCsmId; }
+            var idxO = onboardings.findIndex(function(o){return o.id===id;});
+            if(idxO>-1) onboardings[idxO].csm = novoCsm;
           }
-        }else{
-          var idxC = clientes.findIndex(function(c){return c.id===id;});
-          if(idxC>-1){ clientes[idxC].csm = novoCsm; clientes[idxC].csmId = novoCsmId; }
-          var idxO = onboardings.findIndex(function(o){return o.id===id;});
-          if(idxO>-1) onboardings[idxO].csm = novoCsm;
         }
+        carteiraSelecionados = {};
+        closeOverlay('overlayReatribuirCsm');
+        if(!db || offline) renderAll();
+      }catch(e){
+        errEl.textContent = 'Não foi possível reatribuir agora. Confira sua conexão e tente novamente.';
+        errEl.classList.add('show');
       }
-      carteiraSelecionados = {};
-      closeOverlay('overlayReatribuirCsm');
-      if(!db || offline) renderAll();
-    }catch(e){
-      errEl.textContent = 'Não foi possível reatribuir agora. Confira sua conexão e tente novamente.';
-      errEl.classList.add('show');
-    }
+    }, {textoConfirmar: 'Reatribuir'});
   }
 
   // ---------------------------------------------------------------
@@ -4849,6 +5393,7 @@
     renderAlertas();
     renderOnboarding();
     renderAgenda();
+    renderReclamacoesRA();
     if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); renderRenovacao(); backfillClientesCsmId(); }
     else if(isCoordenador()){ renderRelatorios(); }
     else if(isRenovacao()){ renderRenovacao(); }
@@ -5048,12 +5593,14 @@
     renderCiAlertaBanner(null);
     document.getElementById('ciLinkAgendamento').style.display = 'none';
     document.getElementById('btnExcluirCliente').style.display = 'none';
+    document.getElementById('clienteError').classList.remove('show');
     openOverlay('overlayCliente');
   }
 
   function abrirEditarCliente(id){
     var c = clientes.filter(function(x){return x.id===id;})[0];
     if(!c) return;
+    document.getElementById('clienteError').classList.remove('show');
     pendingClienteEditId = id;
     document.getElementById('modalClienteTitulo').textContent = 'Editar cliente';
     document.getElementById('ciId').value = c.id;
@@ -5104,9 +5651,14 @@
   }
 
   async function salvarCliente(){
+    var errElCliente = document.getElementById('clienteError');
+    if(errElCliente) errElCliente.classList.remove('show');
     var id = document.getElementById('ciId').value.trim();
     var nome = document.getElementById('ciNome').value.trim();
-    if(!id || !nome){ alert('Preencha ao menos ID e nome do cliente.'); return; }
+    if(!id || !nome){
+      if(errElCliente){ errElCliente.textContent = 'Preencha ao menos ID e nome do cliente.'; errElCliente.classList.add('show'); }
+      return;
+    }
     var alertaAtivo = document.getElementById('ciAlertaAtivo').checked;
     var clienteAntes = clientes.filter(function(x){return x.id===id;})[0];
     var body = {
@@ -5163,17 +5715,18 @@
     closeOverlay('overlayCliente');
   }
 
-  async function excluirCliente(){
+  function excluirCliente(){
     if(!pendingClienteEditId) return;
-    if(!confirm('Excluir este cliente da carteira? O histórico de contatos permanece registrado.')) return;
-    var id = pendingClienteEditId;
-    if(db && !offline){
-      await db.collection('clientes').doc(id).delete();
-    }else{
-      clientes = clientes.filter(function(c){return c.id!==id;});
-      renderAll();
-    }
-    closeOverlay('overlayCliente');
+    confirmarAcao('Excluir este cliente da carteira? O histórico de contatos permanece registrado.', async function(){
+      var id = pendingClienteEditId;
+      if(db && !offline){
+        await db.collection('clientes').doc(id).delete();
+      }else{
+        clientes = clientes.filter(function(c){return c.id!==id;});
+        renderAll();
+      }
+      closeOverlay('overlayCliente');
+    }, {textoConfirmar: 'Excluir cliente'});
   }
 
   function abrirContato(clienteId){
@@ -5514,7 +6067,7 @@
       }).join('');
       return '<div class="at-edit-row">' +
         (clientePlanoEdit.telefone ? '<span style="position:absolute; top:6px; right:34px;">'+waButton(clientePlanoEdit)+'</span>' : '') +
-        '<button type="button" class="icon-btn at-remove" data-remove-atividade="'+idx+'" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
+        '<button type="button" class="icon-btn at-remove" data-remove-atividade="'+idx+'" title="Remover" aria-label="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
         '<input type="text" placeholder="Título da atividade (o quê)" data-at-field="titulo" data-at-idx="'+idx+'" value="'+esc(a.titulo||'')+'" style="font-weight:600; margin-bottom:6px;">' +
         '<input type="text" placeholder="Causa raiz / problema identificado (opcional)" data-at-field="causa" data-at-idx="'+idx+'" value="'+esc(a.causa||'')+'" style="margin-bottom:6px;">' +
         '<div class="at-edit-grid">' +
@@ -5570,7 +6123,7 @@
       return '<div class="at-edit-row" style="padding:8px 10px;">' +
         '<div style="display:flex; gap:6px; align-items:flex-start;">' +
           '<input type="text" placeholder="O que define sucesso para o cliente" data-crit-field="descricao" data-crit-idx="'+idx+'" value="'+esc(cr.descricao||'')+'" style="flex:1;">' +
-          '<button type="button" class="icon-btn at-remove" data-remove-criterio="'+idx+'" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
+          '<button type="button" class="icon-btn at-remove" data-remove-criterio="'+idx+'" title="Remover" aria-label="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
         '</div>' +
         '<div class="at-edit-grid" style="margin-top:6px;">' +
           '<input type="date" data-crit-field="prazo" data-crit-idx="'+idx+'" value="'+esc(cr.prazo||'')+'">' +
@@ -5667,17 +6220,18 @@
     closeOverlay('overlayPlano');
   }
 
-  async function excluirPlano(){
+  function excluirPlano(){
     if(!pendingPlanoEditId) return;
-    if(!confirm('Excluir este plano de ação? Essa ação não pode ser desfeita.')) return;
-    var id = pendingPlanoEditId;
-    if(db && !offline){
-      await db.collection('planosAcao').doc(id).delete();
-    }else{
-      planos = planos.filter(function(p){return p.id!==id;});
-      renderAll();
-    }
-    closeOverlay('overlayPlano');
+    confirmarAcao('Excluir este plano de ação? Essa ação não pode ser desfeita.', async function(){
+      var id = pendingPlanoEditId;
+      if(db && !offline){
+        await db.collection('planosAcao').doc(id).delete();
+      }else{
+        planos = planos.filter(function(p){return p.id!==id;});
+        renderAll();
+      }
+      closeOverlay('overlayPlano');
+    }, {textoConfirmar: 'Excluir plano'});
   }
 
   async function toggleAtividade(planoId, idx){
@@ -5724,7 +6278,7 @@
             '<div style="font-weight:700; font-size:14px;">'+esc(p.nome)+'</div>' +
             '<span class="chip" style="margin-top:6px;">'+esc(PLAYBOOK_CATEGORIA_LABEL[p.categoria]||'Outro')+'</span>' +
           '</div>' +
-          (admin ? '<button class="icon-btn" data-open-editar-playbook="'+esc(p.id)+'" title="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>' : '') +
+          (admin ? '<button class="icon-btn" data-open-editar-playbook="'+esc(p.id)+'" title="Editar" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>' : '') +
         '</div>' +
         (p.descricao ? '<div style="font-size:12.5px; color:var(--ink-2);">'+esc(p.descricao)+'</div>' : '') +
         '<div class="atividade-meta">'+qtd+' atividade'+(qtd===1?'':'s')+'</div>' +
@@ -6066,15 +6620,15 @@
     document.getElementById('adCorpo').innerHTML =
       '<div class="field"><label>Cliente</label><div>'+esc(a.clienteNome||'—')+'</div></div>' +
       '<div class="field-row">' +
-        '<div class="field"><label>Data</label><input type="date" id="adData" value="'+esc(a.data||'')+'"></div>' +
+        '<div class="field"><label for="adData">Data</label><input type="date" id="adData" value="'+esc(a.data||'')+'"></div>' +
         '<div class="field-row" style="flex:1;">' +
-          '<div class="field"><label>Início</label><input type="time" id="adHoraInicio" value="'+esc(a.horaInicio||'')+'"></div>' +
-          '<div class="field"><label>Fim</label><input type="time" id="adHoraFim" value="'+esc(a.horaFim||'')+'"></div>' +
+          '<div class="field"><label for="adHoraInicio">Início</label><input type="time" id="adHoraInicio" value="'+esc(a.horaInicio||'')+'"></div>' +
+          '<div class="field"><label for="adHoraFim">Fim</label><input type="time" id="adHoraFim" value="'+esc(a.horaFim||'')+'"></div>' +
         '</div>' +
       '</div>' +
       '<div class="field-row">' +
-        '<div class="field"><label>Nome do contato</label><input type="text" id="adContatoNome" value="'+esc(a.contatoNome||'')+'"></div>' +
-        '<div class="field"><label>WhatsApp do contato</label><input type="text" id="adContatoTelefone" value="'+esc(a.contatoTelefone?fmtTelefoneExibicao(a.contatoTelefone):'')+'"></div>' +
+        '<div class="field"><label for="adContatoNome">Nome do contato</label><input type="text" id="adContatoNome" value="'+esc(a.contatoNome||'')+'"></div>' +
+        '<div class="field"><label for="adContatoTelefone">WhatsApp do contato</label><input type="text" id="adContatoTelefone" value="'+esc(a.contatoTelefone?fmtTelefoneExibicao(a.contatoTelefone):'')+'"></div>' +
       '</div>' +
       '<div class="field"><label>Origem</label><div>'+(a.origem==='cliente'?'Agendado pelo próprio cliente (link)':'Agendamento manual (CSM)')+'</div></div>';
     openOverlay('overlayAgendaDetalhe');
@@ -6153,14 +6707,16 @@
     }
   }
 
-  async function cancelarAgendamento(id){
-    if(!confirm('Cancelar este agendamento?')) return;
-    if(db && !offline){
-      await db.collection('agendamentos').doc(id).update({status:'cancelado'});
-    }else{
-      var idx = agendamentos.findIndex(function(a){return a.id===id;});
-      if(idx>-1){ agendamentos[idx].status = 'cancelado'; renderAll(); }
-    }
+  function cancelarAgendamento(id, aoConcluir){
+    confirmarAcao('Cancelar este agendamento?', async function(){
+      if(db && !offline){
+        await db.collection('agendamentos').doc(id).update({status:'cancelado'});
+      }else{
+        var idx = agendamentos.findIndex(function(a){return a.id===id;});
+        if(idx>-1){ agendamentos[idx].status = 'cancelado'; renderAll(); }
+      }
+      if(aoConcluir) aoConcluir();
+    }, {textoConfirmar: 'Cancelar agendamento'});
   }
 
   function copiarTexto(texto, btnEl){
@@ -6234,8 +6790,8 @@
           }).join('') + '</div></div>';
       }).join('') + '</div>';
 
-      html += '<div class="field" style="margin-top:6px;"><label>Seu nome</label><input id="pbCliNome" type="text" value="'+esc((cliente.contato||'').split(' — ')[0]||'')+'"></div>' +
-        '<div class="field"><label>Seu WhatsApp (opcional)</label><input id="pbCliTelefone" type="text" value="'+esc(cliente.telefone ? fmtTelefoneExibicao(cliente.telefone) : '')+'" placeholder="DDI+DDD+número"></div>' +
+      html += '<div class="field" style="margin-top:6px;"><label for="pbCliNome">Seu nome</label><input id="pbCliNome" type="text" value="'+esc((cliente.contato||'').split(' — ')[0]||'')+'"></div>' +
+        '<div class="field"><label for="pbCliTelefone">Seu WhatsApp (opcional)</label><input id="pbCliTelefone" type="text" value="'+esc(cliente.telefone ? fmtTelefoneExibicao(cliente.telefone) : '')+'" placeholder="DDI+DDD+número"></div>' +
         '<button type="button" class="btn btn-accent" id="btnConfirmarAgendamento"'+(pbSlotSelecionado?'':' disabled')+'>Confirmar agendamento</button>' +
         '<div class="gate-error" id="pbError"></div>';
     }
@@ -6297,6 +6853,10 @@
   // Onboarding estruturado — quadro por fase + painel de detalhes
   // ---------------------------------------------------------------
   var onboardingEdit = null;
+  // Item 4 da spec de usabilidade: por padrão mostra só a fase atual do
+  // onboarding (em vez de empilhar todas as fases já visitadas) — este
+  // estado controla se as fases anteriores estão expandidas para consulta.
+  var onbMostrarAnteriores = false;
 
   function setDeepField(obj, path, value){
     var partes = path.split('.');
@@ -6392,6 +6952,7 @@
     if(!existente || !cliente) return;
     onboardingEdit = JSON.parse(JSON.stringify(existente));
     pendingOnboardingClienteId = clienteId;
+    onbMostrarAnteriores = false;
     document.getElementById('onbModalTitulo').textContent = 'Onboarding — ' + existente.clienteNome;
     renderOnboardingFormBody();
     openOverlay('overlayOnboarding');
@@ -6451,7 +7012,7 @@
     var kpiRows = (onb.kpisAcompanhamento||[]).map(function(k, idx){
       return '<div class="onb-kpi-row"><input type="text" placeholder="Indicador" data-onb-kpi-field="nome" data-onb-kpi-idx="'+idx+'" value="'+esc(k.nome||'')+'">' +
         '<input type="text" placeholder="Valor atual" data-onb-kpi-field="valorAtual" data-onb-kpi-idx="'+idx+'" value="'+esc(k.valorAtual||'')+'">' +
-        '<button type="button" class="icon-btn" data-onb-kpi-remove="'+idx+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
+        '<button type="button" class="icon-btn" data-onb-kpi-remove="'+idx+'" aria-label="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
     }).join('');
     var todosRequisitos = ONBOARDING_REQUISITOS_ESSENCIAIS.every(function(it){ return !!getDeepField(onb,'requisitosEssenciais.'+it.key); });
     return '<div class="onb-fase-section">' +
@@ -6499,6 +7060,7 @@
         '<input type="date" id="onbAtividadeVencimento" min="'+esc(todayISO())+'">' +
         '<button type="button" class="btn btn-sm" id="btnAgendarOnbAtividade">+ Agendar atividade</button>' +
       '</div>' +
+      '<div class="gate-error" id="onbAtividadeError"></div>' +
     '</div>';
   }
 
@@ -6507,10 +7069,12 @@
     if(!onb) return;
     var obsEl = document.getElementById('onbAtividadeObs');
     var vencEl = document.getElementById('onbAtividadeVencimento');
+    var errEl = document.getElementById('onbAtividadeError');
     var observacao = obsEl.value.trim();
     var vencimento = vencEl.value;
+    if(errEl) errEl.classList.remove('show');
     if(!observacao || !vencimento){
-      alert('Preencha a observação e a data de vencimento da atividade.');
+      if(errEl){ errEl.textContent = 'Preencha a observação e a data de vencimento da atividade.'; errEl.classList.add('show'); }
       return;
     }
     var cliente = clientes.filter(function(c){ return c.id === onb.clienteId; })[0] || {};
@@ -6554,7 +7118,7 @@
       vencEl.value = '';
       mostrarToastSucesso('Atividade agendada — vai aparecer no Painel do Dia em ' + fmtDate(vencimento) + '.');
     }catch(e){
-      alert('Não foi possível agendar a atividade agora. Confira sua conexão e tente novamente.');
+      if(errEl){ errEl.textContent = 'Não foi possível agendar a atividade agora. Confira sua conexão e tente novamente.'; errEl.classList.add('show'); }
     }
   }
 
@@ -6649,14 +7213,37 @@
 
   var ONBOARDING_SECTION_RENDERERS = [renderOnbFase1, renderOnbFase2, renderOnbFase3, renderOnbFase4, renderOnbFase5];
 
+  // Item 4 da spec de usabilidade: indicador de progresso no topo do
+  // onboarding, no mesmo estilo de barras já usado no importador de
+  // planilha — mostra em que fase das 5 o cliente está, de relance.
+  function renderOnbProgresso(onb){
+    var idxAtual = ONBOARDING_FASES.map(function(f){ return f.key; }).indexOf(onb.faseAtual);
+    if(onb.faseAtual === 'concluido') idxAtual = 5;
+    return '<div class="hint" style="margin-bottom:4px;">' +
+        (onb.faseAtual === 'concluido' ? 'Onboarding concluído' : 'Fase '+(idxAtual+1)+' de 5 — '+esc(ONBOARDING_FASE_LABEL[onb.faseAtual]||'')) +
+      '</div>' +
+      '<div class="import-steps" style="margin-bottom:16px;">' +
+        ONBOARDING_FASES.slice(0,5).map(function(f, i){ return '<div class="import-step'+(i<=idxAtual?' done':'')+'" title="'+esc(f.label)+'"></div>'; }).join('') +
+      '</div>';
+  }
+
   function renderOnboardingFormBody(){
     var onb = onboardingEdit;
     var chaves = ONBOARDING_FASES.map(function(f){ return f.key; });
     var idxAtual = chaves.indexOf(onb.faseAtual);
     if(onb.faseAtual === 'concluido') idxAtual = 4;
-    var html = '';
+    var html = renderOnbProgresso(onb);
+    // Por padrão mostra só a fase atual (evita empilhar todas as fases já
+    // visitadas, o que deixava o formulário cada vez mais longo) — com a
+    // opção de expandir as anteriores para consulta, sem perder o acesso
+    // a elas.
+    if(idxAtual > 0){
+      html += '<div style="text-align:right; margin:-6px 0 10px;">' +
+        '<a href="#" data-onb-toggle-anteriores="1">'+(onbMostrarAnteriores ? 'Ocultar fases anteriores' : 'Ver fases anteriores ('+idxAtual+')')+'</a>' +
+      '</div>';
+    }
     for(var i=0;i<5;i++){
-      if(i <= idxAtual) html += ONBOARDING_SECTION_RENDERERS[i](onb);
+      if(i === idxAtual || (i < idxAtual && onbMostrarAnteriores)) html += ONBOARDING_SECTION_RENDERERS[i](onb);
     }
     if(idxAtual < 4){
       html += '<div class="hint" style="text-align:center; padding:10px 0;">As próximas fases aparecem aqui conforme o onboarding avança.</div>';
@@ -6668,6 +7255,7 @@
   function atualizarRodapeOnboarding(){
     var onb = onboardingEdit;
     var btn = document.getElementById('btnAvancarFaseOnboarding');
+    var btnVoltar = document.getElementById('btnVoltarFaseOnboarding');
     if(onb.faseAtual === 'concluido'){
       btn.style.display = 'none';
     }else{
@@ -6677,6 +7265,35 @@
       var proxima = ONBOARDING_FASES[idx+1];
       btn.textContent = proxima.key === 'concluido' ? 'Concluir onboarding' : 'Avançar para "'+proxima.label+'"';
     }
+    // Item 4 da spec de usabilidade: antes não tinha como voltar de fase
+    // depois de avançar por engano. Fica disponível para as fases 2 a 5
+    // (não faz sentido voltar da fase 1, e voltar de "Concluído" mexeria
+    // também na etapa do cadastro do cliente, que fica fora deste botão).
+    if(btnVoltar){
+      var chaves2 = ONBOARDING_FASES.map(function(f){ return f.key; });
+      var idxAtual2 = chaves2.indexOf(onb.faseAtual);
+      btnVoltar.style.display = (idxAtual2 > 0 && onb.faseAtual !== 'concluido') ? '' : 'none';
+    }
+  }
+
+  function voltarFaseOnboarding(){
+    var onb = onboardingEdit;
+    if(!onb) return;
+    var chaves = ONBOARDING_FASES.map(function(f){ return f.key; });
+    var idxAtual = chaves.indexOf(onb.faseAtual);
+    if(idxAtual <= 0) return;
+    var faseAnterior = ONBOARDING_FASES[idxAtual-1];
+    confirmarAcao('Voltar para a fase "'+faseAnterior.label+'"? Os dados já preenchidos não são apagados, mas o onboarding volta a contar essa fase como em andamento.', async function(){
+      var extra = {faseAtual: faseAnterior.key, faseEntrouEm: todayISO()};
+      try{
+        await persistirOnboarding(onb, extra);
+        Object.assign(onb, extra);
+        renderOnboardingFormBody();
+        mostrarToastSucesso('Onboarding voltou para a fase "'+faseAnterior.label+'".');
+      }catch(e){
+        alert('Não foi possível voltar de fase agora. Confira a configuração do Supabase e sua conexão.');
+      }
+    }, {textoConfirmar: 'Voltar de fase'});
   }
 
   function validarAvancoOnboarding(onb){
@@ -6774,16 +7391,17 @@
     }
   }
 
-  async function excluirOnboarding(){
+  function excluirOnboarding(){
     if(!pendingOnboardingClienteId) return;
-    if(!confirm('Cancelar (excluir) o registro de onboarding deste cliente? Isso não afeta o cadastro do cliente em si.')) return;
-    if(db && !offline){
-      await db.collection('onboardings').doc(pendingOnboardingClienteId).delete();
-    }else{
-      var idx = onboardings.findIndex(function(o){ return o.id === pendingOnboardingClienteId; });
-      if(idx>-1){ onboardings.splice(idx,1); renderAll(); }
-    }
-    closeOverlay('overlayOnboarding');
+    confirmarAcao('Cancelar (excluir) o registro de onboarding deste cliente? Isso não afeta o cadastro do cliente em si.', async function(){
+      if(db && !offline){
+        await db.collection('onboardings').doc(pendingOnboardingClienteId).delete();
+      }else{
+        var idx = onboardings.findIndex(function(o){ return o.id === pendingOnboardingClienteId; });
+        if(idx>-1){ onboardings.splice(idx,1); renderAll(); }
+      }
+      closeOverlay('overlayOnboarding');
+    }, {textoConfirmar: 'Cancelar onboarding'});
   }
 
   function abrirNovoPlaybook(){
@@ -6822,7 +7440,7 @@
     }
     el.innerHTML = playbookAtividadesEdit.map(function(a, idx){
       return '<div class="at-edit-row">' +
-        '<button type="button" class="icon-btn at-remove" data-remove-atividade="'+idx+'" title="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
+        '<button type="button" class="icon-btn at-remove" data-remove-atividade="'+idx+'" title="Remover" aria-label="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' +
         '<input type="text" placeholder="Título da atividade" data-at-field="titulo" data-at-idx="'+idx+'" value="'+esc(a.titulo||'')+'" style="font-weight:600; margin-bottom:6px;">' +
         '<div class="at-edit-grid">' +
           '<input type="text" placeholder="Responsável sugerido" data-at-field="responsavelSugerido" data-at-idx="'+idx+'" value="'+esc(a.responsavelSugerido||'')+'">' +
@@ -6877,17 +7495,18 @@
     closeOverlay('overlayPlaybook');
   }
 
-  async function excluirPlaybook(){
+  function excluirPlaybook(){
     if(!pendingPlaybookEditId) return;
-    if(!confirm('Excluir este playbook? Planos já criados a partir dele não serão afetados.')) return;
-    var id = pendingPlaybookEditId;
-    if(db && !offline){
-      await db.collection('playbooks').doc(id).delete();
-    }else{
-      playbooks = playbooks.filter(function(p){return p.id!==id;});
-      renderAll();
-    }
-    closeOverlay('overlayPlaybook');
+    confirmarAcao('Excluir este playbook? Planos já criados a partir dele não serão afetados.', async function(){
+      var id = pendingPlaybookEditId;
+      if(db && !offline){
+        await db.collection('playbooks').doc(id).delete();
+      }else{
+        playbooks = playbooks.filter(function(p){return p.id!==id;});
+        renderAll();
+      }
+      closeOverlay('overlayPlaybook');
+    }, {textoConfirmar: 'Excluir playbook'});
   }
 
   // ---------------------------------------------------------------
@@ -6953,17 +7572,18 @@
     closeOverlay('overlayTag');
   }
 
-  async function excluirTag(){
+  function excluirTag(){
     if(!pendingTagEditId) return;
-    if(!confirm('Excluir esta tag? Ela será removida da lista de seleção, mas clientes/atividades que já a usam mantêm a referência antiga.')) return;
-    var id = pendingTagEditId;
-    if(db && !offline){
-      await db.collection('tags').doc(id).delete();
-    }else{
-      tags = tags.filter(function(t){return t.id!==id;});
-      renderAll();
-    }
-    closeOverlay('overlayTag');
+    confirmarAcao('Excluir esta tag? Ela será removida da lista de seleção, mas clientes/atividades que já a usam mantêm a referência antiga.', async function(){
+      var id = pendingTagEditId;
+      if(db && !offline){
+        await db.collection('tags').doc(id).delete();
+      }else{
+        tags = tags.filter(function(t){return t.id!==id;});
+        renderAll();
+      }
+      closeOverlay('overlayTag');
+    }, {textoConfirmar: 'Excluir tag'});
   }
 
   function renderTags(){
@@ -7031,6 +7651,36 @@
         await db.doc('meta/status').update({prazoConfig: novoConfig});
       }else{
         prazoConfig = novoConfig;
+        renderAll();
+      }
+      mostrarToastSucesso('Prazo salvo com sucesso.');
+    }catch(e){
+      errEl.textContent = 'Não foi possível salvar: ' + detalheErro(e);
+      errEl.classList.add('show');
+    }
+  }
+
+  function renderPrazoCobrancaRAInputs(){
+    var el = document.getElementById('cfgPrazoCobrancaRA');
+    if(!el || document.activeElement === el) return;
+    el.value = (raConfig && raConfig.prazoCobranca) || PRAZO_COBRANCA_RA_PADRAO;
+  }
+
+  async function salvarPrazoCobrancaRA(){
+    var dias = Number(document.getElementById('cfgPrazoCobrancaRA').value);
+    var errEl = document.getElementById('prazoCobrancaRAError');
+    if(!isFinite(dias) || dias <= 0){
+      errEl.textContent = 'Informe um número de dias maior que zero.';
+      errEl.classList.add('show');
+      return;
+    }
+    errEl.classList.remove('show');
+    var novoConfig = {prazoCobranca: Math.round(dias)};
+    try{
+      if(db && !offline){
+        await db.doc('meta/status').update({raConfig: novoConfig});
+      }else{
+        raConfig = novoConfig;
         renderAll();
       }
       mostrarToastSucesso('Prazo salvo com sucesso.');
@@ -7122,6 +7772,7 @@
     renderTags();
     renderCurvaConfigInputs();
     renderPrazoConfigInputs();
+    renderPrazoCobrancaRAInputs();
     renderPesosScoreInputs();
     renderWaConfigInputs();
     var body = document.getElementById('tabelaUsuarios');
@@ -7329,33 +7980,37 @@
     }
   }
 
-  async function excluirUsuario(){
+  function excluirUsuario(){
     if(!pendingUsuarioEditId) return;
+    var errEl = document.getElementById('usuarioError');
+    errEl.classList.remove('show');
     if(pendingUsuarioEditId === currentUserId){
-      alert('Você não pode excluir o próprio usuário enquanto estiver com a sessão aberta. Peça a outro administrador.');
+      errEl.textContent = 'Você não pode excluir o próprio usuário enquanto estiver com a sessão aberta. Peça a outro administrador.';
+      errEl.classList.add('show');
       return;
     }
     var admins = usuarios.filter(function(u){ return u.perfil==='admin'; });
     var alvo = usuarios.filter(function(u){ return u.id===pendingUsuarioEditId; })[0];
     if(alvo && alvo.perfil==='admin' && admins.length<=1){
-      alert('Este é o único administrador cadastrado. Cadastre outro admin antes de excluir este usuário.');
+      errEl.textContent = 'Este é o único administrador cadastrado. Cadastre outro admin antes de excluir este usuário.';
+      errEl.classList.add('show');
       return;
     }
     var avisoOnline = (db && !offline) ? ' (a conta de login continua existindo no Supabase Auth — para apagá-la de vez, use Authentication > Users no painel do Supabase)' : '';
-    if(!confirm('Excluir este usuário? A pessoa deixará de conseguir entrar no Radar CS' + avisoOnline + '.')) return;
-    var errEl = document.getElementById('usuarioError');
-    try{
-      if(db && !offline){
-        await db.collection('usuarios').doc(pendingUsuarioEditId).delete();
-      }else{
-        usuarios = usuarios.filter(function(u){ return u.id!==pendingUsuarioEditId; });
-        renderAll();
+    confirmarAcao('Excluir este usuário? A pessoa deixará de conseguir entrar no Radar CS' + avisoOnline + '.', async function(){
+      try{
+        if(db && !offline){
+          await db.collection('usuarios').doc(pendingUsuarioEditId).delete();
+        }else{
+          usuarios = usuarios.filter(function(u){ return u.id!==pendingUsuarioEditId; });
+          renderAll();
+        }
+        closeOverlay('overlayUsuario');
+      }catch(e){
+        errEl.textContent = 'Não foi possível excluir agora. Confira a configuração do Supabase e sua conexão, e tente novamente.';
+        errEl.classList.add('show');
       }
-      closeOverlay('overlayUsuario');
-    }catch(e){
-      errEl.textContent = 'Não foi possível excluir agora. Confira a configuração do Supabase e sua conexão, e tente novamente.';
-      errEl.classList.add('show');
-    }
+    }, {textoConfirmar: 'Excluir usuário'});
   }
 
   // ---------------------------------------------------------------
@@ -7419,8 +8074,30 @@
   // Event wiring
   // ---------------------------------------------------------------
   function wireEvents(){
+    // Menu mobile: a barra lateral vira um painel deslizante em telas
+    // estreitas (item 1 da spec de usabilidade) — sem isso o menu inteiro
+    // desaparecia sem nenhum jeito de navegar.
+    function fecharMenuMobile(){
+      document.querySelector('.sidebar').classList.remove('mobile-open');
+      document.getElementById('mobileBackdrop').classList.remove('show');
+      document.getElementById('btnAbrirMenuMobile').setAttribute('aria-expanded', 'false');
+    }
+    document.getElementById('btnAbrirMenuMobile').addEventListener('click', function(){
+      var aberto = document.querySelector('.sidebar').classList.toggle('mobile-open');
+      document.getElementById('mobileBackdrop').classList.toggle('show', aberto);
+      this.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+    });
+    document.getElementById('mobileBackdrop').addEventListener('click', fecharMenuMobile);
+
+    document.getElementById('btnConfirmarAcaoOk').addEventListener('click', function(){
+      var fn = confirmarAcaoPendente;
+      confirmarAcaoPendente = null;
+      closeOverlay('overlayConfirmarAcao');
+      if(fn) fn();
+    });
+
     document.querySelectorAll('.nav-item[data-view]').forEach(function(b){
-      b.addEventListener('click', function(){ switchView(b.getAttribute('data-view')); });
+      b.addEventListener('click', function(){ switchView(b.getAttribute('data-view')); fecharMenuMobile(); });
     });
 
     document.getElementById('btnTrocarUsuario').addEventListener('click', trocarUsuario);
@@ -7455,6 +8132,7 @@
     document.getElementById('btnImportarPlanilha').addEventListener('click', abrirImportar);
     document.getElementById('impFileInput').addEventListener('change', onArquivoSelecionado);
     document.getElementById('btnBaixarModelo').addEventListener('click', baixarModeloImportacao);
+    document.getElementById('btnBaixarModeloRA').addEventListener('click', baixarModeloImportacaoRA);
     document.getElementById('btnImportarTrocarArquivo').addEventListener('click', function(){ goToImportStep(1); });
     document.getElementById('btnImportarConfirmar').addEventListener('click', executarImportacao);
     document.getElementById('btnSalvarContato').addEventListener('click', salvarContato);
@@ -7541,6 +8219,7 @@
     document.getElementById('btnSalvarCurvaConfig').addEventListener('click', salvarCurvaConfig);
     document.getElementById('btnSalvarWaConfig').addEventListener('click', salvarWaConfig);
     document.getElementById('btnSalvarPrazoConfig').addEventListener('click', salvarPrazoConfig);
+    document.getElementById('btnSalvarPrazoCobrancaRA').addEventListener('click', salvarPrazoCobrancaRA);
     document.getElementById('btnSalvarPesosScore').addEventListener('click', salvarPesosScore);
     document.getElementById('btnRestaurarPesosScore').addEventListener('click', restaurarPesosScorePadrao);
     document.getElementById('cfgWaEmpresa').addEventListener('input', renderWaConfigInputs);
@@ -7601,8 +8280,7 @@
     document.getElementById('btnConfirmarAgendaManual').addEventListener('click', confirmarAgendaManual);
     document.getElementById('btnCancelarAgendaDetalhe').addEventListener('click', function(){
       if(!agendaDetalheId) return;
-      cancelarAgendamento(agendaDetalheId);
-      closeOverlay('overlayAgendaDetalhe');
+      cancelarAgendamento(agendaDetalheId, function(){ closeOverlay('overlayAgendaDetalhe'); });
     });
     document.getElementById('btnSalvarAgendaDetalhe').addEventListener('click', salvarAgendaDetalhe);
     document.getElementById('agCsmSelect').addEventListener('change', function(e){
@@ -7614,7 +8292,21 @@
     document.getElementById('btnConfirmarIniciarOnboarding').addEventListener('click', confirmarIniciarOnboarding);
     document.getElementById('btnSalvarOnboarding').addEventListener('click', salvarOnboarding);
     document.getElementById('btnAvancarFaseOnboarding').addEventListener('click', avancarFaseOnboarding);
+    document.getElementById('btnVoltarFaseOnboarding').addEventListener('click', voltarFaseOnboarding);
     document.getElementById('btnExcluirOnboarding').addEventListener('click', excluirOnboarding);
+
+    document.getElementById('btnNovoCasoRA').addEventListener('click', abrirNovoCasoRA);
+    document.getElementById('btnConfirmarNovoCasoRA').addEventListener('click', confirmarNovoCasoRA);
+    document.getElementById('btnExcluirCasoRA').addEventListener('click', excluirCasoRA);
+    document.getElementById('raCasoCorpo').addEventListener('change', function(e){
+      var campo = e.target.getAttribute('data-ra-field');
+      if(campo){ salvarCampoCasoRA(campo, e.target.value); return; }
+      if(e.target.id === 'raCasoStatusSelect'){ mudarStatusCasoRA(e.target.value); }
+    });
+    document.getElementById('raCasoCorpo').addEventListener('click', function(e){
+      if(e.target.closest('#btnRegistrarContatoRA')){ registrarContatoCasoRA(); return; }
+      if(e.target.closest('#btnConfirmarNotaRA')){ confirmarNotaCasoRA(); return; }
+    });
 
     document.getElementById('onbFormBody').addEventListener('input', function(e){
       var field = e.target.getAttribute('data-onb-field');
@@ -7632,6 +8324,12 @@
       if(field && e.target.tagName === 'SELECT'){ setDeepField(onboardingEdit, field, e.target.value); }
     });
     document.getElementById('onbFormBody').addEventListener('click', function(e){
+      if(e.target.closest('[data-onb-toggle-anteriores]')){
+        e.preventDefault();
+        onbMostrarAnteriores = !onbMostrarAnteriores;
+        renderOnboardingFormBody();
+        return;
+      }
       if(e.target.closest('#btnAgendarOnbAtividade')){
         agendarAtividadeOnboarding();
         return;
@@ -7694,6 +8392,25 @@
         renderAll();
         return;
       }
+      if(e.target.closest('[data-ver-todos-fila]')){
+        e.preventDefault();
+        filtros.cadencia = 'atrasado';
+        document.getElementById('fCadencia').value = 'atrasado';
+        switchView('carteira');
+        renderAll();
+        return;
+      }
+      if(e.target.closest('[data-onboarding-novo-cliente]')){
+        e.preventDefault();
+        abrirNovoCliente();
+        return;
+      }
+      if(e.target.closest('[data-onboarding-importar]')){
+        e.preventDefault();
+        switchView('carteira');
+        abrirImportar();
+        return;
+      }
       var openContato = e.target.closest('[data-open-contato]');
       if(openContato){ e.preventDefault(); abrirContato(openContato.getAttribute('data-open-contato')); return; }
       var openHist = e.target.closest('[data-open-historico]');
@@ -7719,12 +8436,19 @@
       if(cancelarAg){ e.preventDefault(); cancelarAgendamento(cancelarAg.getAttribute('data-cancelar-agendamento')); return; }
       var abrirOnb = e.target.closest('[data-abrir-onboarding]');
       if(abrirOnb){ e.preventDefault(); abrirOnboarding(abrirOnb.getAttribute('data-abrir-onboarding')); return; }
+      var abrirCasoRAEl = e.target.closest('[data-abrir-caso-ra]');
+      if(abrirCasoRAEl){ e.preventDefault(); abrirCasoRA(abrirCasoRAEl.getAttribute('data-abrir-caso-ra')); return; }
       var toggleAtivo = e.target.closest('[data-toggle-ativo-cliente]');
       if(toggleAtivo){
         e.preventDefault();
         var idAt = toggleAtivo.getAttribute('data-toggle-ativo-cliente');
         var novoVal = toggleAtivo.getAttribute('data-novo-valor') === '1';
-        if(!novoVal && !confirm('Marcar este cliente como inativo? Ele sai da Carteira, do Painel e das filas de renovação (o histórico continua acessível).')) return;
+        if(!novoVal){
+          confirmarAcao('Marcar este cliente como inativo? Ele sai da Carteira, do Painel e das filas de renovação (o histórico continua acessível).', function(){
+            toggleClienteAtivo(idAt, novoVal);
+          }, {textoConfirmar: 'Marcar inativo'});
+          return;
+        }
         toggleClienteAtivo(idAt, novoVal);
         return;
       }
