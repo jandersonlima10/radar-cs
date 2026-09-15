@@ -408,14 +408,16 @@
   .booking-card h1{ font-size:20px; margin:0 0 4px; }
   .booking-card .hint{ margin-bottom:18px; }
   .onb-board{ display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; align-items:flex-start; }
-  .onb-col{ flex:0 0 240px; background:var(--surface-2); border-radius:14px; padding:10px; min-height:80px; }
+  .onb-col{ flex:0 0 240px; background:var(--surface-2); border-radius:14px; padding:10px; min-height:80px; transition:background .15s ease, outline .15s ease; }
+  .onb-col.drag-over{ background:var(--surface-3); outline:2px dashed var(--accent); outline-offset:-2px; }
   .onb-col-head{ display:flex; align-items:center; justify-content:space-between; padding:2px 4px 8px; font-size:12.5px; font-weight:700; color:var(--ink-2); }
   .onb-col-head .cnt{ background:var(--surface-3); border-radius:99px; padding:1px 8px; font-size:11px; }
   .onb-card{
     background:var(--surface); border:1px solid var(--border); border-radius:11px; padding:10px 11px; margin-bottom:8px;
-    cursor:pointer; box-shadow:var(--shadow);
+    cursor:grab; box-shadow:var(--shadow);
   }
   .onb-card:hover{ border-color:var(--accent); }
+  .onb-card.dragging{ opacity:0.45; }
   .onb-card .nm{ font-weight:700; font-size:13px; }
   .onb-card .meta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
   .onb-card .meta.crit{ color:var(--critical-ink); font-weight:600; }
@@ -511,9 +513,11 @@
   .user-card .role-pill-renov{ background:rgba(255,255,255,0.2); color:#ffffff; }
 
   .kanban-board{ display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; }
-  .kanban-col{ flex:0 0 230px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; max-height:560px; overflow-y:auto; }
+  .kanban-col{ flex:0 0 230px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; max-height:560px; overflow-y:auto; transition:background .15s ease, outline .15s ease; }
+  .kanban-col.drag-over{ background:var(--surface-3); outline:2px dashed var(--accent); outline-offset:-2px; }
   .kanban-col-head{ display:flex; align-items:center; justify-content:space-between; font-size:12.5px; font-weight:700; color:var(--ink-2); padding:2px 2px 4px; position:sticky; top:0; background:var(--surface-2); }
-  .kanban-card{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:12.5px; display:flex; flex-direction:column; gap:5px; }
+  .kanban-card{ background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px 10px; font-size:12.5px; display:flex; flex-direction:column; gap:5px; cursor:grab; }
+  .kanban-card.dragging{ opacity:0.45; }
   .kanban-card .nm{ font-weight:700; font-size:13px; }
   .kanban-card select{ font-size:11.5px; padding:3px 5px; }
   .kanban-empty{ font-size:12px; color:var(--muted); padding:6px 2px; }
@@ -3947,22 +3951,22 @@
 
     function contratoChip(c){
       var assinado = contratoAssinado(c);
-      return '<button type="button" class="pill '+(assinado?'pill-good':'pill-neutral')+'" data-toggle-contrato-assinado="'+esc(c.id)+'" data-novo-valor="'+(assinado?'0':'1')+'" title="Clique para marcar como '+(assinado?'não assinado':'assinado')+'" style="border:none; cursor:pointer;"><span class="pill-dot"></span>'+(assinado?'Assinado':'Não assinado')+'</button>';
+      return '<button type="button" class="pill '+(assinado?'pill-good':'pill-neutral')+'" data-toggle-contrato-assinado="'+esc(c.id)+'" data-novo-valor="'+(assinado?'0':'1')+'" draggable="false" title="Clique para marcar como '+(assinado?'não assinado':'assinado')+'" style="border:none; cursor:pointer;"><span class="pill-dot"></span>'+(assinado?'Assinado':'Não assinado')+'</button>';
     }
 
     var kEl = document.getElementById('renovFunilKanban');
     kEl.innerHTML = RENOVACAO_STATUS_ORDEM.map(function(st){
       var itens = porStatus[st];
-      return '<div class="kanban-col">' +
+      return '<div class="kanban-col" data-drop-renov="'+st+'">' +
         '<div class="kanban-col-head"><span>'+esc(RENOVACAO_STATUS_LABEL[st])+'</span><span>'+itens.length+'</span></div>' +
         (itens.length ? itens.map(function(x){
           var c = x.cliente, s = x.stats;
-          return '<div class="kanban-card">' +
-            '<div class="nm"><span class="curva curva-'+c.curva+'">'+c.curva+'</span> <a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a></div>' +
+          return '<div class="kanban-card" draggable="true" data-drag-renov="'+esc(c.id)+'">' +
+            '<div class="nm"><span class="curva curva-'+c.curva+'">'+c.curva+'</span> <a href="#" data-open-historico="'+esc(c.id)+'" draggable="false" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a></div>' +
             '<div class="hint">'+esc(c.csm||'—')+' · '+fmtDate(c.vencimento)+(c.arr?' · '+fmtMoney(c.arr):'')+'</div>' +
             healthPill(s.health) +
             contratoChip(c) +
-            '<select data-mudar-status-renovacao="'+esc(c.id)+'">' +
+            '<select data-mudar-status-renovacao="'+esc(c.id)+'" draggable="false">' +
               RENOVACAO_STATUS_ORDEM.map(function(st2){ return '<option value="'+st2+'"'+(st===st2?' selected':'')+'>'+esc(RENOVACAO_STATUS_LABEL[st2])+'</option>'; }).join('') +
             '</select>' +
           '</div>';
@@ -4012,7 +4016,7 @@
 
   function raCasoCardHtml(caso){
     var atrasado = casoRAAtrasado(caso);
-    return '<div class="kanban-card" data-abrir-caso-ra="'+esc(caso.id)+'" style="cursor:pointer;">' +
+    return '<div class="kanban-card" data-abrir-caso-ra="'+esc(caso.id)+'" draggable="true" data-drag-ra="'+esc(caso.id)+'" style="cursor:grab;">' +
       '<div class="nm">'+esc(caso.clienteNome)+'</div>' +
       '<div class="hint">'+esc(caso.csm||'—')+(caso.numeroReclamacao?' · Nº '+esc(caso.numeroReclamacao):'')+'</div>' +
       '<div class="hint">Aberta em '+fmtDate(caso.dataAbertura)+'</div>' +
@@ -4043,7 +4047,7 @@
     var kEl = document.getElementById('raKanban');
     kEl.innerHTML = RA_STATUS_ORDEM.map(function(st){
       var itens = porStatus[st];
-      return '<div class="kanban-col">' +
+      return '<div class="kanban-col" data-drop-ra="'+st+'">' +
         '<div class="kanban-col-head"><span>'+esc(RA_STATUS_LABEL[st])+'</span><span>'+itens.length+'</span></div>' +
         (itens.length ? itens.map(raCasoCardHtml).join('') : '<div class="kanban-empty">Nenhum caso.</div>') +
       '</div>';
@@ -4179,6 +4183,27 @@
     }
     await persistirCasoRA(casoRAAbertoId, {status: novoStatus});
     abrirCasoRA(casoRAAbertoId);
+  }
+
+  // Mesma regra de mudarStatusCasoRA, mas para o arraste do card no quadro
+  // (o modal do caso ainda não está aberto nesse momento, então não dá pra
+  // depender de casoRAAbertoId). "Nota recebida" continua exigindo que o
+  // caso seja aberto para preencher a nota — arrastar até essa coluna só
+  // abre o caso já com o campo de nota visível, sem mudar o status sozinho.
+  function moverCasoRADrag(casoId, novoStatus){
+    var caso = reclamacoesRA.filter(function(r){ return r.id === casoId; })[0];
+    if(!caso || RA_STATUS_ORDEM.indexOf(novoStatus) === -1 || caso.status === novoStatus) return;
+    if(novoStatus === 'nota_recebida'){
+      abrirCasoRA(casoId);
+      var pendente = document.getElementById('raCasoNotaPendente');
+      if(pendente) pendente.style.display = '';
+      return;
+    }
+    persistirCasoRA(casoId, {status: novoStatus}).then(function(){
+      mostrarToastSucesso('Caso movido para "'+(RA_STATUS_LABEL[novoStatus]||novoStatus)+'".');
+    }).catch(function(){
+      alert('Não foi possível mover o caso agora. Confira a configuração do Supabase e sua conexão.');
+    });
   }
 
   async function confirmarNotaCasoRA(){
@@ -6891,12 +6916,12 @@
       var cards = doColuna.map(function(o){
         var vencidoTxt = onboardingFaseVencida(o);
         var dias = diasDesde(o.faseEntrouEm || o.dataInicio);
-        return '<div class="onb-card" data-abrir-onboarding="'+esc(o.clienteId)+'">' +
+        return '<div class="onb-card" data-abrir-onboarding="'+esc(o.clienteId)+'" draggable="true" data-drag-onb="'+esc(o.clienteId)+'">' +
           '<div class="nm">'+esc(o.clienteNome)+'</div>' +
           '<div class="meta'+(vencidoTxt?' crit':'')+'">'+(vencidoTxt ? 'Fase vencida' : dias+'d nesta fase')+'</div>' +
         '</div>';
       }).join('') || '<div class="empty-note" style="padding:8px 0; font-size:12px;">Vazio</div>';
-      return '<div class="onb-col"><div class="onb-col-head"><span>'+esc(f.label)+'</span><span class="cnt">'+doColuna.length+'</span></div>'+cards+'</div>';
+      return '<div class="onb-col" data-drop-onb="'+f.key+'"><div class="onb-col-head"><span>'+esc(f.label)+'</span><span class="cnt">'+doColuna.length+'</span></div>'+cards+'</div>';
     }).join('');
   }
 
@@ -7294,6 +7319,34 @@
         alert('Não foi possível voltar de fase agora. Confira a configuração do Supabase e sua conexão.');
       }
     }, {textoConfirmar: 'Voltar de fase'});
+  }
+
+  // Arraste de card no quadro de Onboarding: reaproveita exatamente as
+  // mesmas funções/validações do avançar/voltar de fase por botão (dentro
+  // do modal de detalhe), só que operando "por trás", sem o modal estar
+  // aberto — carrega o registro em onboardingEdit, chama a função de
+  // sempre, e ela mesma persiste e atualiza o quadro (via renderAll()).
+  // Só é permitido mover uma fase por vez, igual ao fluxo pelos botões;
+  // pular direto pra uma fase mais distante continua exigindo abrir o
+  // onboarding e usar os controles de dentro dele.
+  function moverOnboardingDrag(clienteId, faseDestino){
+    var onbRec = onboardingDoCliente(clienteId);
+    if(!onbRec) return;
+    var chaves = ONBOARDING_FASES.map(function(f){ return f.key; });
+    var idxAtual = chaves.indexOf(onbRec.faseAtual);
+    var idxDestino = chaves.indexOf(faseDestino);
+    if(idxAtual === -1 || idxDestino === -1 || idxAtual === idxDestino) return;
+    if(Math.abs(idxDestino - idxAtual) !== 1){
+      alert('Arraste o card uma fase por vez. Para pular direto para outra etapa, abra o onboarding e use os botões de avançar/voltar de fase.');
+      return;
+    }
+    onboardingEdit = JSON.parse(JSON.stringify(onbRec));
+    pendingOnboardingClienteId = clienteId;
+    if(idxDestino === idxAtual + 1){
+      avancarFaseOnboarding();
+    }else{
+      voltarFaseOnboarding();
+    }
   }
 
   function validarAvancoOnboarding(onb){
@@ -8544,6 +8597,90 @@
 
     document.addEventListener('keydown', function(e){
       if(e.key === 'Escape'){ document.querySelectorAll('.overlay.open').forEach(function(ov){ ov.classList.remove('open'); }); }
+    });
+
+    // Arrastar e soltar nos quadros Kanban (Renovação, Reclamações RA e
+    // Onboarding) para mudar de coluna/fase, além do <select>/botões que já
+    // existiam. Um único conjunto de listeners delegados em document.body
+    // cobre os três quadros, já que eles são recriados a cada renderização.
+    var dragKanbanInfo = null; // { tipo:'renov'|'ra'|'onb', id, origem }
+    function limparDestaquesDrag(){
+      document.querySelectorAll('.kanban-col.drag-over, .onb-col.drag-over').forEach(function(el){
+        el.classList.remove('drag-over');
+      });
+    }
+    document.body.addEventListener('dragstart', function(e){
+      var card = e.target.closest('[data-drag-renov]');
+      if(card){
+        dragKanbanInfo = { tipo:'renov', id: card.getAttribute('data-drag-renov'), origem: (card.closest('[data-drop-renov]')||{}).getAttribute ? card.closest('[data-drop-renov]').getAttribute('data-drop-renov') : null };
+        card.classList.add('dragging');
+        if(e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        return;
+      }
+      card = e.target.closest('[data-drag-ra]');
+      if(card){
+        dragKanbanInfo = { tipo:'ra', id: card.getAttribute('data-drag-ra'), origem: card.closest('[data-drop-ra]') ? card.closest('[data-drop-ra]').getAttribute('data-drop-ra') : null };
+        card.classList.add('dragging');
+        if(e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        return;
+      }
+      card = e.target.closest('[data-drag-onb]');
+      if(card){
+        dragKanbanInfo = { tipo:'onb', id: card.getAttribute('data-drag-onb'), origem: card.closest('[data-drop-onb]') ? card.closest('[data-drop-onb]').getAttribute('data-drop-onb') : null };
+        card.classList.add('dragging');
+        if(e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        return;
+      }
+    });
+    document.body.addEventListener('dragend', function(e){
+      var card = e.target.closest('.kanban-card, .onb-card');
+      if(card) card.classList.remove('dragging');
+      dragKanbanInfo = null;
+      limparDestaquesDrag();
+    });
+    document.body.addEventListener('dragover', function(e){
+      if(!dragKanbanInfo) return;
+      var col = e.target.closest('[data-drop-renov], [data-drop-ra], [data-drop-onb]');
+      if(!col) return;
+      e.preventDefault();
+      if(e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if(!col.classList.contains('drag-over')){
+        limparDestaquesDrag();
+        col.classList.add('drag-over');
+      }
+    });
+    document.body.addEventListener('dragleave', function(e){
+      var col = e.target.closest('[data-drop-renov], [data-drop-ra], [data-drop-onb]');
+      if(col && (!e.relatedTarget || !col.contains(e.relatedTarget))) col.classList.remove('drag-over');
+    });
+    document.body.addEventListener('drop', function(e){
+      if(!dragKanbanInfo) return;
+      var info = dragKanbanInfo;
+      dragKanbanInfo = null;
+      var colRenov = e.target.closest('[data-drop-renov]');
+      if(colRenov && info.tipo === 'renov'){
+        e.preventDefault();
+        limparDestaquesDrag();
+        var novoStatusRenov = colRenov.getAttribute('data-drop-renov');
+        if(novoStatusRenov !== info.origem) mudarStatusRenovacao(info.id, novoStatusRenov);
+        return;
+      }
+      var colRa = e.target.closest('[data-drop-ra]');
+      if(colRa && info.tipo === 'ra'){
+        e.preventDefault();
+        limparDestaquesDrag();
+        var novoStatusRa = colRa.getAttribute('data-drop-ra');
+        if(novoStatusRa !== info.origem) moverCasoRADrag(info.id, novoStatusRa);
+        return;
+      }
+      var colOnb = e.target.closest('[data-drop-onb]');
+      if(colOnb && info.tipo === 'onb'){
+        e.preventDefault();
+        limparDestaquesDrag();
+        var novaFaseOnb = colOnb.getAttribute('data-drop-onb');
+        if(novaFaseOnb !== info.origem) moverOnboardingDrag(info.id, novaFaseOnb);
+        return;
+      }
     });
   }
 
