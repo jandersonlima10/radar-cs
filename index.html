@@ -295,6 +295,9 @@
   }
   thead th[data-sort-carteira]:hover{ color:var(--ink-2); }
   thead th .sort-ind{ margin-left:3px; font-size:10px; }
+  #overlayOnboarding .modal-foot{ flex-wrap:wrap; }
+  #overlayOnboarding .modal-foot .btn{ max-width:100%; white-space:normal; }
+  @media(max-width:600px){ #overlayOnboarding .modal-foot .btn{ flex:1 1 calc(50% - 8px); margin-right:0 !important; } #overlayOnboarding .modal-foot #btnAvancarFaseOnboarding{ flex-basis:100%; } }
   .retroativo-aviso{ padding:10px 12px; margin-bottom:12px; border:1px solid var(--warning-fill); border-radius:8px; background:var(--warning-soft); color:var(--warning-ink); font-size:13px; }
   .tag-onboarding{ display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; color:var(--accent-strong); background:var(--accent-soft); border:1px solid var(--accent); border-radius:99px; padding:1px 7px; margin-left:4px; vertical-align:middle; }
   tbody td{ padding:10px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
@@ -1031,6 +1034,10 @@
           <div class="subtitle">Acompanhamento das 5 fases do processo de onboarding, do cadastro ao Momento WOW.</div>
         </div>
         <div class="topbar-actions">
+          <div id="onbFiltroCsmWrap" data-role-gate="admin" style="display:none;">
+            <label for="onbFiltroCsm" class="hint">Filtrar por CSM</label>
+            <select id="onbFiltroCsm" aria-label="Filtrar onboarding por CSM"><option value="">Todos os CSMs</option></select>
+          </div>
           <button class="btn btn-accent" id="btnIniciarOnboarding">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Iniciar onboarding
@@ -1841,6 +1848,12 @@
       </div>
       <div class="field"><label for="coObs">Observação</label><textarea id="coObs" placeholder="O que foi conversado, contexto, sentimento do cliente..."></textarea></div>
       <div class="field"><label for="coPlano">Plano de ação</label><textarea id="coPlano" placeholder="Próximo passo combinado (deixe em branco se não houver)"></textarea></div>
+      <div class="field">
+        <label for="coPlaybook">Vincular playbook de atividades (opcional)</label>
+        <select id="coPlaybook" aria-describedby="coPlaybookHint"><option value="">Sem playbook</option></select>
+        <div class="hint" id="coPlaybookHint" style="margin-top:6px;">Ao salvar, as atividades serão criadas em um novo plano de ação para este cliente. Os prazos partem da data do contato.</div>
+        <div id="coPlaybookPreview" style="margin-top:10px;" aria-live="polite"></div>
+      </div>
       <div class="field-row">
         <div class="field"><label for="coStatus">Status</label>
           <select id="coStatus"><option value="aberto">Aberto</option><option value="fechado">Fechado</option></select>
@@ -2536,12 +2549,19 @@
   var escopoAdminCsm = 'todos'; // filtro do painel quando o perfil é admin
   var painelDiaSelecionado = null; // ISO yyyy-mm-dd; null = hoje (setado no primeiro renderPainel)
   var filaFiltros = { curva:'todas', criticidade:'todas', valorMin:'', ordenar:'prioridade' };
+  var onboardingFiltroCsm = '';
+  var onbAgendaRascunho = null;
+  var onbAgendaSalvando = false;
+  var onbAgendamentosPendentes = {};
   var radarRenovacaoExpandido = false; // conteúdo recolhido por padrão para o CSM
   var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos', cobertura:'todas', mostrarInativos:false };
   var relFiltro = { mes: '', csm: 'todos' };
   var atividadesFiltro = { periodo:'semana', csm:'todos', inicio:'', fim:'' }; // "Atividades realizadas" em Relatórios
   var pendingClienteEditId = null;
   var pendingContatoClienteId = null;
+  var contatoSalvando = false;
+  var contatosGravacoesPendentes = {}; // retentativas da sessão reutilizam os mesmos IDs
+
   var pendingUsuarioEditId = null;
   var gateSelectedUserId = null;
   var impHeaders = [];
@@ -2688,8 +2708,15 @@
   }
 
   // Reunião de alinhamento confirmada (Fase 2) — vem da Agenda, não é
-  // digitada de novo. Considera o agendamento não cancelado mais recente.
+  // digitada de novo. Prioriza o vínculo explícito criado no onboarding.
   function agendamentoAlinhamento(clienteId){
+    var onb = onboardingDoCliente(clienteId);
+    if(onb && onb.agendamentoAlinhamentoId){
+      return agendamentos.filter(function(a){ return a.id === onb.agendamentoAlinhamentoId && a.clienteId === clienteId && a.status !== 'cancelado'; })[0] || null;
+    }
+    var especificos = agendamentos.filter(function(a){ return a.clienteId === clienteId && a.tipo === 'alinhamento_onboarding' && a.status !== 'cancelado'; })
+      .sort(function(a,b){ return (b.data+b.horaInicio).localeCompare(a.data+a.horaInicio); });
+    if(especificos.length) return especificos[0];
     var lista = agendamentos.filter(function(a){ return a.clienteId === clienteId && a.status !== 'cancelado'; })
       .slice().sort(function(a,b){ return (a.data+a.horaInicio) < (b.data+b.horaInicio) ? -1 : 1; });
     return lista.length ? lista[0] : null;
@@ -4557,6 +4584,7 @@
 
   function entrarComo(userId){
     radarRenovacaoExpandido = false;
+    onboardingFiltroCsm = '';
     currentUserId = userId;
     localStorage.setItem('radarcs.userId', userId);
     resolveCurrentUser();
@@ -5848,7 +5876,11 @@
   // Modais
   // ---------------------------------------------------------------
   function openOverlay(id){ document.getElementById(id).classList.add('open'); }
-  function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+  function closeOverlay(id){
+    if(id === 'overlayContato' && contatoSalvando) return;
+    if(id === 'overlayOnboarding' && onbAgendaSalvando) return;
+    document.getElementById(id).classList.remove('open');
+  }
 
   // Monta o banner de alerta exibido dentro do cadastro do cliente (item da
   // pergunta do usuário: aviso precisa aparecer NO cadastro do cliente).
@@ -6034,7 +6066,59 @@
     }, {textoConfirmar: 'Excluir cliente'});
   }
 
+  function atividadesValidasPlaybook(pb){
+    return (pb && pb.atividades || []).filter(function(a){ return a.titulo && a.titulo.trim(); });
+  }
+
+  function prazoAtividadePlaybook(a, dataBase){
+    var dias = a.prazoDias != null && a.prazoDias !== '' ? Number(a.prazoDias) : 14;
+    return addDays(dataBase, Number.isFinite(dias) ? dias : 14);
+  }
+
+  function renderContatoPlaybookPreview(){
+    var pb = playbooks.filter(function(p){ return p.id === document.getElementById('coPlaybook').value; })[0];
+    var el = document.getElementById('coPlaybookPreview');
+    if(!pb){ el.innerHTML = ''; return; }
+    var ats = atividadesValidasPlaybook(pb);
+    var base = document.getElementById('coData').value || todayISO();
+    el.innerHTML = (pb.descricao ? '<div class="hint">'+esc(pb.descricao)+'</div>' : '') +
+      '<div class="hint" style="margin-top:6px;">'+ats.length+(ats.length===1?' atividade será criada:':' atividades serão criadas:')+'</div>' +
+      '<ol style="margin:8px 0 0; padding-left:20px; font-size:13px;">'+ats.map(function(a){
+        return '<li style="margin-bottom:6px;">'+esc(a.titulo)+' <span class="hint">— prazo '+fmtDate(prazoAtividadePlaybook(a, base))+(a.responsavelSugerido?' · '+esc(a.responsavelSugerido):'')+'</span></li>';
+      }).join('')+'</ol>';
+  }
+
+  function atualizarEstadoSalvarContato(){
+    var pendente = contatosGravacoesPendentes[pendingContatoClienteId];
+    document.querySelectorAll('#overlayContato .modal-body input, #overlayContato .modal-body select, #overlayContato .modal-body textarea').forEach(function(el){
+      el.disabled = contatoSalvando || !!pendente || (el.id === 'coCsm' && !isAdmin());
+    });
+    document.querySelectorAll('#overlayContato [data-close]').forEach(function(el){ el.disabled = contatoSalvando; });
+    var btn = document.getElementById('btnSalvarContato');
+    btn.disabled = contatoSalvando;
+    btn.textContent = contatoSalvando ? 'Salvando…' : (pendente ? 'Tentar novamente' : 'Salvar contato');
+  }
+
+  function restaurarContatoPendente(pendente){
+    var b = pendente.body;
+    var campos = {coData:'data',coCsm:'csm',coObs:'observacao',coPlano:'planoAcao',coStatus:'status',coRisco:'risco',coNps:'nps',coProximo:'proximoContato',coMotivoContato:'motivoContato',coSentimento:'sentimento'};
+    Object.keys(campos).forEach(function(id){ var valor = b[campos[id]]; document.getElementById(id).value = valor == null ? '' : valor; });
+    document.getElementById('coMotivoRisco').value = b.motivoRisco ? b.motivoRisco.categoria : '';
+    document.getElementById('coMotivoRiscoOutro').value = b.motivoRisco ? b.motivoRisco.detalhe : '';
+    document.getElementById('coMotivoRiscoOutroWrap').style.display = b.motivoRisco && b.motivoRisco.categoria === 'outro' ? '' : 'none';
+    if(b.playbookId){
+      var sel = document.getElementById('coPlaybook');
+      if(!Array.from(sel.options).some(function(o){return o.value===b.playbookId;})) sel.add(new Option(b.playbookNome, b.playbookId));
+      sel.value = b.playbookId;
+    }
+    atualizarVisibilidadeMotivoRisco();
+    var errEl = document.getElementById('coMotivoRiscoError');
+    errEl.textContent = pendente.contatoSalvo ? 'O contato já foi salvo. Clique em Tentar novamente para concluir a criação das atividades do playbook.' : 'Há um salvamento pendente. Clique em Tentar novamente para concluir sem duplicar o registro.';
+    errEl.classList.add('show');
+  }
+
   function abrirContato(clienteId){
+    if(contatoSalvando) return;
     var c = clientes.filter(function(x){return x.id===clienteId;})[0];
     if(!c) return;
     pendingContatoClienteId = clienteId;
@@ -6055,7 +6139,17 @@
     document.getElementById('coSentimento').value = '';
     var errEl0 = document.getElementById('coMotivoRiscoError');
     if(errEl0) errEl0.classList.remove('show');
+    var selPlaybook = document.getElementById('coPlaybook');
+    selPlaybook.innerHTML = '<option value="">Sem playbook</option>' + playbooks.slice().sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');}).map(function(p){
+      var n = atividadesValidasPlaybook(p).length;
+      return '<option value="'+esc(p.id)+'"'+(n?'':' disabled')+'>'+esc(p.nome)+' ('+n+' atividade'+(n===1?'':'s')+')</option>';
+    }).join('');
+    document.getElementById('coPlaybookHint').textContent = playbooks.length ? 'Ao salvar, as atividades serão criadas em um novo plano de ação para este cliente. Os prazos partem da data do contato.' : 'Nenhum playbook cadastrado. Você pode salvar o contato sem playbook.';
+    var pendente = contatosGravacoesPendentes[clienteId];
     atualizarVisibilidadeMotivoRisco();
+    if(pendente) restaurarContatoPendente(pendente);
+    renderContatoPlaybookPreview();
+    atualizarEstadoSalvarContato();
     openOverlay('overlayContato');
   }
 
@@ -6072,7 +6166,7 @@
   }
 
   async function salvarContato(){
-    if(!pendingContatoClienteId) return;
+    if(!pendingContatoClienteId || contatoSalvando) return;
     var c = clientes.filter(function(x){return x.id===pendingContatoClienteId;})[0];
     if(!c) return;
     var npsRaw = document.getElementById('coNps').value;
@@ -6113,18 +6207,58 @@
       sentimento: document.getElementById('coSentimento').value || null
     };
 
-    try{
-      if(db && !offline){
-        await db.collection('contatos').add(body);
-      }else{
-        contatos.push(Object.assign({id:'local-'+Date.now()}, body));
-        renderAll();
+    var clienteId = c.id;
+    var gravacao = contatosGravacoesPendentes[clienteId];
+    if(!gravacao){
+      var pbId = document.getElementById('coPlaybook').value;
+      var pb = playbooks.filter(function(p){return p.id===pbId;})[0];
+      if(pbId && (!pb || !atividadesValidasPlaybook(pb).length)){
+        errEl.textContent = 'Selecione um playbook com atividades ou escolha Sem playbook.';
+        errEl.classList.add('show'); return;
       }
+      gravacao = {id:novoId('contato'),body:body,contatoSalvo:false,plano:null,planoId:null};
+      if(pb){
+        gravacao.planoId = novoId('plano');
+        body.playbookId = pb.id;
+        body.playbookNome = pb.nome;
+        body.planoAcaoId = gravacao.planoId;
+        gravacao.plano = {
+          clienteId:c.id,clienteNome:c.nome,csm:c.csm || body.csm,titulo:pb.nome,
+          origemPlaybookId:pb.id,origemPlaybookNome:pb.nome,criadoEm:todayISO(),status:'aberto',
+          objetivoPrincipal:body.planoAcao,criteriosSucesso:[],diagnostico:{},recuperacaoRisco:{},
+          atividades:atividadesValidasPlaybook(pb).map(function(a){
+            var prazo = prazoAtividadePlaybook(a,body.data);
+            return {id:novoId('at'),titulo:a.titulo.trim(),descricao:a.descricao||'',causa:'',
+              responsavel:a.responsavelSugerido||c.csm||body.csm,prazo:prazo,proximoAcompanhamento:prazo,
+              status:'nao_iniciada',tags:[],alertaAtivo:false,alertaMotivo:'',concluidoEm:null};
+          })
+        };
+      }
+      contatosGravacoesPendentes[clienteId] = gravacao;
+    }
+    contatoSalvando = true;
+    atualizarEstadoSalvarContato();
+    try{
+      if(!gravacao.contatoSalvo){
+        if(db && !offline) await db.collection('contatos').doc(gravacao.id).set(gravacao.body);
+        else if(!contatos.some(function(h){return h.id===gravacao.id;})) contatos.push(Object.assign({id:gravacao.id},gravacao.body));
+        gravacao.contatoSalvo = true;
+      }
+      if(gravacao.plano){
+        if(db && !offline) await db.collection('planosAcao').doc(gravacao.planoId).set(gravacao.plano);
+        else if(!planos.some(function(p){return p.id===gravacao.planoId;})) planos.push(Object.assign({id:gravacao.planoId},gravacao.plano));
+      }
+      delete contatosGravacoesPendentes[clienteId];
+      contatoSalvando = false;
+      if(!db || offline) renderAll();
       closeOverlay('overlayContato');
-      mostrarToastSucesso('Contato registrado com sucesso.');
+      mostrarToastSucesso(gravacao.plano ? 'Contato registrado e '+gravacao.plano.atividades.length+' atividade(s) do playbook criada(s).' : 'Contato registrado com sucesso.');
     }catch(e){
-      errEl.textContent = 'Não foi possível salvar: ' + detalheErro(e);
+      errEl.textContent = (gravacao.contatoSalvo ? 'O contato foi salvo, mas não foi possível confirmar a criação das atividades. ' : 'Não foi possível confirmar o salvamento do contato. ') + 'Clique em Tentar novamente para concluir sem duplicar registros. '+detalheErro(e);
       errEl.classList.add('show');
+    }finally{
+      contatoSalvando = false;
+      atualizarEstadoSalvarContato();
     }
   }
 
@@ -6178,6 +6312,8 @@
               (h.csm ? '<span class="chip">'+esc(h.csm)+'</span>' : '') +
             '</div>' +
             (h.planoAcao ? '<div class="tl-plan">Plano de ação: '+esc(h.planoAcao)+'</div>' : '') +
+            (h.playbookNome ? '<div class="tl-plan">Playbook: '+esc(h.playbookNome)+
+              (planos.some(function(p){return p.id===h.planoAcaoId;}) ? ' <button type="button" class="btn btn-sm" data-open-editar-plano="'+esc(h.planoAcaoId)+'">Ver atividades</button>' : ' <span class="hint">— plano não disponível</span>')+'</div>' : '') +
           '</div>' +
         '</div>';
       }).join('');
@@ -7235,11 +7371,31 @@
     return alvo;
   }
 
+  function resumoAlinhamentoOnboarding(onb){
+    var ag = agendamentoAlinhamento(onb.clienteId);
+    return ag
+      ? '<div class="meta"><span class="chip c-good">Alinhamento agendado</span></div><div class="meta">'+fmtDate(ag.data)+' às '+esc(ag.horaInicio)+(ag.horaFim?'–'+esc(ag.horaFim):'')+'</div>'
+      : '<div class="meta"><span class="chip c-warn">Alinhamento pendente</span></div>'+(onb.vencimentoContato?'<div class="meta">Prazo da fase: '+fmtDate(onb.vencimentoContato)+'</div>':'');
+  }
+
   function renderOnboarding(){
     if(!currentUser) return;
     var admin = isAdmin();
     var meuNome = meuCsmVinculado() || currentUser.nome;
     var lista = onboardings.filter(function(o){ return o.faseAtual !== 'concluido'; });
+    document.getElementById('onbFiltroCsmWrap').style.display = admin ? '' : 'none';
+    if(admin){
+      var nomes = {};
+      csmUsuarios().forEach(function(u){ var nome = (u.csmVinculado || u.nome || '').trim(); if(nome) nomes[nome.toLowerCase()] = nome; });
+      lista.forEach(function(o){ var nome = (o.csm||'').trim(); if(nome) nomes[nome.toLowerCase()] = nome; });
+      var seletor = document.getElementById('onbFiltroCsm');
+      seletor.innerHTML = '<option value="">Todos os CSMs</option><option value="__sem_csm">Sem CSM atribuído</option>' + Object.keys(nomes).sort(function(a,b){return nomes[a].localeCompare(nomes[b],'pt-BR');}).map(function(k){
+        return '<option value="'+esc(k)+'">'+esc(nomes[k])+'</option>';
+      }).join('');
+      if(onboardingFiltroCsm && onboardingFiltroCsm !== '__sem_csm' && !nomes[onboardingFiltroCsm]) onboardingFiltroCsm = '';
+      seletor.value = onboardingFiltroCsm;
+      if(onboardingFiltroCsm) lista = lista.filter(function(o){return (String(o.csm||'').trim().toLowerCase() || '__sem_csm') === onboardingFiltroCsm;});
+    }
     if(!admin){
       lista = lista.filter(function(o){ return String(o.csm||'').trim().toLowerCase() === String(meuNome||'').trim().toLowerCase(); });
     }
@@ -7251,7 +7407,9 @@
         var dias = diasDesde(o.faseEntrouEm || o.dataInicio);
         return '<div class="onb-card" data-abrir-onboarding="'+esc(o.clienteId)+'" draggable="true" data-drag-onb="'+esc(o.clienteId)+'">' +
           '<div class="nm">'+esc(o.clienteNome)+'</div>' +
-          '<div class="meta'+(vencidoTxt?' crit':'')+'">'+(vencidoTxt ? 'Fase vencida' : dias+'d nesta fase')+'</div>' +
+          '<div class="meta">'+dias+'d nesta fase'+(admin?' · '+esc(o.csm||'Sem CSM'):'')+'</div>' +
+          (vencidoTxt ? '<div class="meta crit">Fase vencida</div>' : '') +
+          (o.faseAtual === 'contato' ? resumoAlinhamentoOnboarding(o) : '') +
         '</div>';
       }).join('') || '<div class="empty-note" style="padding:8px 0; font-size:12px;">Vazio</div>';
       return '<div class="onb-col" data-drop-onb="'+f.key+'"><div class="onb-col-head"><span>'+esc(f.label)+'</span><span class="cnt">'+doColuna.length+'</span></div>'+cards+'</div>';
@@ -7305,11 +7463,20 @@
   }
 
   function abrirOnboarding(clienteId){
+    if(onbAgendaSalvando) return;
     var existente = onboardingDoCliente(clienteId);
     var cliente = clientes.filter(function(c){ return c.id === clienteId; })[0];
     if(!existente || !cliente) return;
     onboardingEdit = JSON.parse(JSON.stringify(existente));
     pendingOnboardingClienteId = clienteId;
+    var ag = agendamentoAlinhamento(clienteId);
+    var pendente = onbAgendamentosPendentes[clienteId];
+    if(pendente) onboardingEdit = JSON.parse(JSON.stringify(pendente.onb));
+    var origem = pendente ? pendente.body : ag;
+    onbAgendaRascunho = {
+      data:origem ? origem.data : todayISO(),horaInicio:origem ? origem.horaInicio : '',horaFim:origem ? origem.horaFim : '',
+      contatoNome:origem ? origem.contatoNome : (cliente.contato||''),contatoTelefone:origem ? origem.contatoTelefone : (cliente.telefone||'')
+    };
     onbMostrarAnteriores = false;
     document.getElementById('onbModalTitulo').textContent = 'Onboarding — ' + existente.clienteNome;
     renderOnboardingFormBody();
@@ -7354,8 +7521,8 @@
   function renderOnbFase2(onb){
     var ag = agendamentoAlinhamento(onb.clienteId);
     var agInfo = ag
-      ? ('Marcada para '+fmtDate(ag.data)+' às '+ag.horaInicio+(reuniaoAlinhamentoJaAconteceu(ag) ? ' (já aconteceu)' : ' (ainda não aconteceu)'))
-      : 'Nenhum horário agendado ainda. Envie o link de agendamento do cliente pela aba Agenda.';
+      ? ('Agendada para '+fmtDate(ag.data)+' às '+ag.horaInicio+(reuniaoAlinhamentoJaAconteceu(ag) ? ' (horário já passou)' : ''))
+      : 'Alinhamento pendente. Agende abaixo, sem sair desta tela.';
     return '<div class="onb-fase-section">' +
       '<h3>Fase 2 — Entrar em Contato</h3>' +
       '<div class="field-row">' +
@@ -7363,7 +7530,104 @@
         '<div class="field"><label>Reunião de alinhamento</label><div class="hint" style="margin-top:8px;">'+esc(agInfo)+'</div></div>' +
       '</div>' +
       '<div class="field"><label>Observações da Fase (tentativas de contato)</label><textarea data-onb-field="observacoesContato">'+esc(onb.observacoesContato||'')+'</textarea></div>' +
+      (onb.faseAtual === 'contato' ? renderOnbAgendaInline(onb, ag) : '') +
     '</div>';
+  }
+
+  function renderOnbAgendaInline(onb, ag){
+    var r = onbAgendaRascunho || {};
+    var pendente = onbAgendamentosPendentes[onb.clienteId];
+    return '<div style="border:1px solid var(--border); border-radius:10px; padding:14px; margin-top:12px;">' +
+      '<h3>'+(ag?'Editar agendamento de alinhamento':'Agendar alinhamento')+'</h3>' +
+      '<div class="hint" style="margin-bottom:10px;">Agenda do CSM: '+esc(onb.csm||'Sem CSM atribuído')+'. Ao agendar, as alterações desta fase também serão salvas.</div>' +
+      '<div class="field-row"><div class="field"><label for="onbAgData">Data</label><input id="onbAgData" data-onb-agenda="data" type="date" value="'+esc(r.data||'')+'"></div>' +
+      '<div class="field"><label for="onbAgInicio">Início</label><input id="onbAgInicio" data-onb-agenda="horaInicio" type="time" value="'+esc(r.horaInicio||'')+'"></div>' +
+      '<div class="field"><label for="onbAgFim">Fim</label><input id="onbAgFim" data-onb-agenda="horaFim" type="time" value="'+esc(r.horaFim||'')+'"></div></div>' +
+      '<div class="field-row"><div class="field"><label for="onbAgNome">Nome do contato</label><input id="onbAgNome" data-onb-agenda="contatoNome" type="text" value="'+esc(r.contatoNome||'')+'"></div>' +
+      '<div class="field"><label for="onbAgTelefone">WhatsApp (opcional)</label><input id="onbAgTelefone" data-onb-agenda="contatoTelefone" type="text" value="'+esc(r.contatoTelefone||'')+'"></div></div>' +
+      '<div class="retroativo-aviso" id="onbAgRetroativo" role="status"'+(horarioJaPassou(r.data,r.horaInicio)?'':' hidden')+'>⚠ Agendamento retroativo: a data e o horário escolhidos já passaram.</div>' +
+      '<div class="gate-error'+(pendente?' show':'')+'" id="onbAgError">'+(pendente?'Há um salvamento pendente. Tente novamente para concluir sem duplicar a reunião.':'')+'</div>' +
+      '<button type="button" class="btn btn-accent" id="btnOnbAgendar">'+(pendente?'Tentar novamente':(ag?'Salvar agendamento':'Agendar alinhamento'))+'</button>' +
+      '</div>';
+  }
+
+  function atualizarOnbAgendaRascunho(e){
+    var campo = e.target.getAttribute('data-onb-agenda');
+    if(!campo) return;
+    if(!onbAgendaRascunho) onbAgendaRascunho = {};
+    onbAgendaRascunho[campo] = e.target.value;
+    var aviso = document.getElementById('onbAgRetroativo');
+    if(aviso) aviso.hidden = !horarioJaPassou(onbAgendaRascunho.data,onbAgendaRascunho.horaInicio);
+  }
+
+  function estadoOnbAgendaSalvando(){
+    var pendente = onbAgendamentosPendentes[pendingOnboardingClienteId];
+    document.querySelectorAll('#overlayOnboarding input, #overlayOnboarding textarea, #overlayOnboarding select, #overlayOnboarding button').forEach(function(el){
+      el.disabled = onbAgendaSalvando || (!!pendente && !el.hasAttribute('data-close') && el.id !== 'btnOnbAgendar');
+    });
+    var btn = document.getElementById('btnOnbAgendar');
+    if(btn && onbAgendaSalvando) btn.textContent = 'Salvando…';
+    else if(btn && pendente) btn.textContent = 'Tentar novamente';
+  }
+
+  async function salvarAlinhamentoOnboarding(){
+    if(onbAgendaSalvando || !onboardingEdit || onboardingEdit.faseAtual !== 'contato') return;
+    var err = document.getElementById('onbAgError');
+    err.classList.remove('show');
+    var clienteId = onboardingEdit.clienteId;
+    var pendente = onbAgendamentosPendentes[clienteId];
+    if(!pendente){
+      var r = onbAgendaRascunho || {};
+      var cliente = clientes.filter(function(c){return c.id===clienteId;})[0];
+      var csmNome = onboardingEdit.csm || (cliente && cliente.csm) || '';
+      var csmId = resolverCsmIdPorNome(csmNome);
+      var atual = agendamentoAlinhamento(clienteId);
+      var problema = '';
+      if(!csmId) problema = 'Vincule o cliente a um CSM cadastrado antes de agendar.';
+      else if(!r.data || !r.horaInicio || !r.horaFim) problema = 'Preencha a data e os horários de início e fim.';
+      else if(r.horaFim <= r.horaInicio) problema = 'O horário de fim deve ser posterior ao início.';
+      else {
+        var disp = agendaDoCsm(csmId) || disponibilidadePadrao();
+        if(!diaDentroDisponibilidade(disp,DIAS_SEMANA[parseISO(r.data).getDay()].key,hhmmParaMinutos(r.horaInicio),hhmmParaMinutos(r.horaFim))) problema = 'Escolha um horário dentro da disponibilidade do CSM na Agenda.';
+        else if(conflitoAgenda(csmId,r.data,r.horaInicio,r.horaFim,atual && atual.id)) problema = 'O CSM já possui outro agendamento nesse horário. Escolha um horário livre.';
+      }
+      if(problema){err.textContent = problema;err.classList.add('show');return;}
+      var id = atual ? atual.id : novoId('ag');
+      var mudou = !atual || r.data !== atual.data || r.horaInicio !== atual.horaInicio;
+      var body = Object.assign({},atual||{},{csmId:csmId,csmNome:csmNome,clienteId:clienteId,clienteNome:onboardingEdit.clienteNome,
+        contatoNome:r.contatoNome||onboardingEdit.clienteNome,contatoTelefone:normalizeTelefone(r.contatoTelefone)||null,
+        data:r.data,horaInicio:r.horaInicio,horaFim:r.horaFim,criadoEm:atual ? atual.criadoEm : new Date().toISOString(),
+        status:'confirmado',origem:atual ? atual.origem : 'csm',tipo:'alinhamento_onboarding',
+        retroativo:mudou ? horarioJaPassou(r.data,r.horaInicio) : agendamentoRetroativo(atual)});
+      delete body.id;
+      var onb = JSON.parse(JSON.stringify(onboardingEdit));
+      onb.agendamentoAlinhamentoId = id;
+      pendente = {id:id,body:body,onb:onb,agendaSalva:false};
+      onbAgendamentosPendentes[clienteId] = pendente;
+    }
+    onbAgendaSalvando = true;
+    estadoOnbAgendaSalvando();
+    try{
+      if(!pendente.agendaSalva){
+        if(db && !offline) await db.collection('agendamentos').doc(pendente.id).set(pendente.body);
+        pendente.agendaSalva = true;
+      }
+      if(db && !offline){ var bodyOnb = Object.assign({},pendente.onb);delete bodyOnb.id;await db.collection('onboardings').doc(clienteId).set(bodyOnb); }
+      var idxAg = agendamentos.findIndex(function(a){return a.id===pendente.id;});
+      var recAg = Object.assign({id:pendente.id},pendente.body);
+      if(idxAg<0) agendamentos.push(recAg); else agendamentos[idxAg] = recAg;
+      var idxOnb = onboardings.findIndex(function(o){return o.clienteId===clienteId;});
+      var recOnb = Object.assign({id:clienteId},pendente.onb);
+      if(idxOnb<0) onboardings.push(recOnb);else onboardings[idxOnb] = recOnb;
+      onboardingEdit = JSON.parse(JSON.stringify(recOnb));
+      delete onbAgendamentosPendentes[clienteId];
+      onbAgendaSalvando = false;
+      renderAll();renderOnboardingFormBody();
+      mostrarToastSucesso('Alinhamento agendado para '+fmtDate(recAg.data)+' às '+recAg.horaInicio+'.');
+    }catch(e){
+      err.textContent = (pendente.agendaSalva?'A reunião foi salva na Agenda, mas o vínculo com o onboarding ainda não foi confirmado. ':'Não foi possível confirmar o agendamento. ')+'Clique em Tentar novamente para concluir sem duplicar. '+detalheErro(e);
+      err.classList.add('show');
+    }finally{onbAgendaSalvando = false;estadoOnbAgendaSalvando();}
   }
 
   function renderOnbFase3(onb){
@@ -7608,6 +7872,7 @@
     }
     document.getElementById('onbFormBody').innerHTML = html;
     atualizarRodapeOnboarding();
+    estadoOnbAgendaSalvando();
   }
 
   function atualizarRodapeOnboarding(){
@@ -7685,7 +7950,7 @@
   function validarAvancoOnboarding(onb){
     if(onb.faseAtual === 'contato'){
       var ag = agendamentoAlinhamento(onb.clienteId);
-      if(!ag) return 'É preciso ter um horário de alinhamento agendado antes de avançar (aba Agenda).';
+      if(!ag) return 'É preciso agendar o alinhamento nesta tela ou na Agenda antes de avançar.';
       if(!reuniaoAlinhamentoJaAconteceu(ag)) return 'A reunião de alinhamento ainda não aconteceu ('+fmtDate(ag.data)+' às '+ag.horaInicio+').';
     }
     if(onb.faseAtual === 'planejando'){
@@ -8545,6 +8810,8 @@
     document.getElementById('btnImportarTrocarArquivo').addEventListener('click', function(){ goToImportStep(1); });
     document.getElementById('btnImportarConfirmar').addEventListener('click', executarImportacao);
     document.getElementById('btnSalvarContato').addEventListener('click', salvarContato);
+    document.getElementById('coPlaybook').addEventListener('change', renderContatoPlaybookPreview);
+    document.getElementById('coData').addEventListener('change', renderContatoPlaybookPreview);
     document.getElementById('btnNovoContatoHistorico').addEventListener('click', function(){
       closeOverlay('overlayHistorico');
       abrirContato(pendingContatoClienteId);
@@ -8699,6 +8966,7 @@
       renderAgenda();
     });
 
+    document.getElementById('onbFiltroCsm').addEventListener('change', function(e){onboardingFiltroCsm=e.target.value;renderOnboarding();});
     document.getElementById('btnIniciarOnboarding').addEventListener('click', abrirIniciarOnboarding);
     document.getElementById('btnConfirmarIniciarOnboarding').addEventListener('click', confirmarIniciarOnboarding);
     document.getElementById('btnSalvarOnboarding').addEventListener('click', salvarOnboarding);
@@ -8719,6 +8987,8 @@
       if(e.target.closest('#btnConfirmarNotaRA')){ confirmarNotaCasoRA(); return; }
     });
 
+    document.getElementById('onbFormBody').addEventListener('input', atualizarOnbAgendaRascunho);
+    document.getElementById('onbFormBody').addEventListener('change', atualizarOnbAgendaRascunho);
     document.getElementById('onbFormBody').addEventListener('input', function(e){
       var field = e.target.getAttribute('data-onb-field');
       if(field && e.target.tagName !== 'SELECT'){ setDeepField(onboardingEdit, field, e.target.value); return; }
@@ -8735,6 +9005,7 @@
       if(field && e.target.tagName === 'SELECT'){ setDeepField(onboardingEdit, field, e.target.value); }
     });
     document.getElementById('onbFormBody').addEventListener('click', function(e){
+      if(e.target.closest('#btnOnbAgendar')){salvarAlinhamentoOnboarding();return;}
       if(e.target.closest('[data-onb-toggle-anteriores]')){
         e.preventDefault();
         onbMostrarAnteriores = !onbMostrarAnteriores;
@@ -8785,7 +9056,7 @@
       b.addEventListener('click', function(){ closeOverlay(b.getAttribute('data-close')); });
     });
     document.querySelectorAll('.overlay').forEach(function(ov){
-      ov.addEventListener('click', function(e){ if(e.target === ov) ov.classList.remove('open'); });
+      ov.addEventListener('click', function(e){ if(e.target === ov) closeOverlay(ov.id); });
     });
 
     document.body.addEventListener('click', function(e){
@@ -8966,7 +9237,7 @@
     });
 
     document.addEventListener('keydown', function(e){
-      if(e.key === 'Escape'){ document.querySelectorAll('.overlay.open').forEach(function(ov){ ov.classList.remove('open'); }); }
+      if(e.key === 'Escape'){ document.querySelectorAll('.overlay.open').forEach(function(ov){ closeOverlay(ov.id); }); }
     });
 
     // Arrastar e soltar nos quadros Kanban (Renovação, Reclamações RA e
