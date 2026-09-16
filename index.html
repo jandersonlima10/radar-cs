@@ -295,6 +295,7 @@
   }
   thead th[data-sort-carteira]:hover{ color:var(--ink-2); }
   thead th .sort-ind{ margin-left:3px; font-size:10px; }
+  .retroativo-aviso{ padding:10px 12px; margin-bottom:12px; border:1px solid var(--warning-fill); border-radius:8px; background:var(--warning-soft); color:var(--warning-ink); font-size:13px; }
   .tag-onboarding{ display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; color:var(--accent-strong); background:var(--accent-soft); border:1px solid var(--accent); border-radius:99px; padding:1px 7px; margin-left:4px; vertical-align:middle; }
   tbody td{ padding:10px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
   tbody tr:last-child td{ border-bottom:none; }
@@ -818,8 +819,15 @@
           </div>
           <div class="card-body pad-top">
             <div id="painelDiaResumo" class="empty-note"></div>
-            <div id="painelDiaAgenda" style="margin-top:12px;"></div>
+            <div id="painelDiaContatos" style="margin-top:12px;"></div>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Agenda do dia</h2><div class="hint" id="painelAgendaHint">Nomes e horários das reuniões agendadas para hoje.</div></div>
+          </div>
+          <div class="card-body pad-top" id="painelDiaAgenda"></div>
         </div>
 
         <div class="card">
@@ -857,19 +865,6 @@
         <div class="card">
           <div class="card-head">
             <div>
-              <h2>Radar de renovação</h2>
-              <div class="hint" id="radarRenovacaoHint">Licenças vencendo nos próximos 60 dias.</div>
-            </div>
-            <div class="topbar-actions">
-              <button type="button" class="btn btn-sm" id="btnRadarRenovacaoExpandir" style="display:none;">Expandir</button>
-            </div>
-          </div>
-          <div class="card-body pad-top" id="radarRenovacao"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div>
               <h2>Ações em aberto</h2>
               <div class="hint">Planos de ação registrados que ainda não foram fechados.</div>
             </div>
@@ -886,6 +881,19 @@
           </div>
           <div class="card-body pad-top" id="atividadesPlano"></div>
         </div>
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Radar de renovação</h2>
+              <div class="hint" id="radarRenovacaoHint">Licenças vencendo nos próximos 60 dias.</div>
+            </div>
+            <div class="topbar-actions">
+              <button type="button" class="btn btn-sm" id="btnRadarRenovacaoExpandir" aria-expanded="false" aria-controls="radarRenovacao" style="display:none;">Expandir</button>
+            </div>
+          </div>
+          <div class="card-body pad-top" id="radarRenovacao" hidden></div>
+        </div>
+
       </div>
     </section>
 
@@ -1139,7 +1147,7 @@
 
         <div class="card">
           <div class="card-head">
-            <div><h2>Calendário</h2><div class="hint">Clique num horário livre (dentro da disponibilidade configurada acima) para criar um agendamento manual — ele ocupa a vaga e ela deixa de aparecer no link público. Clique num agendamento existente para ver detalhes ou cancelar.</div></div>
+            <div><h2>Calendário</h2><div class="hint">Clique num horário livre para agendar, inclusive em datas passadas. Agendamentos retroativos recebem um aviso. Clique numa reunião para editar ou cancelar.</div></div>
           </div>
           <div class="card-body pad-top">
             <div class="agenda-cal-toolbar">
@@ -2035,6 +2043,7 @@
     </div>
     <div class="modal-body">
       <div class="hint" id="amHorarioTexto" style="margin-bottom:10px;"></div>
+      <div class="retroativo-aviso" id="amRetroativoAviso" role="status" hidden>⚠ Agendamento retroativo: a data e o horário escolhidos já passaram.</div>
       <div class="field"><label for="amCliente">Cliente</label><select id="amCliente"></select></div>
       <div class="field-row">
         <div class="field"><label for="amContatoNome">Nome do contato</label><input id="amContatoNome" type="text" placeholder="Quem vai participar"></div>
@@ -2527,7 +2536,7 @@
   var escopoAdminCsm = 'todos'; // filtro do painel quando o perfil é admin
   var painelDiaSelecionado = null; // ISO yyyy-mm-dd; null = hoje (setado no primeiro renderPainel)
   var filaFiltros = { curva:'todas', criticidade:'todas', valorMin:'', ordenar:'prioridade' };
-  var radarRenovacaoExpandido = false; // só usado no perfil CSM (item 4 do pedido de melhorias)
+  var radarRenovacaoExpandido = false; // conteúdo recolhido por padrão para o CSM
   var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos', cobertura:'todas', mostrarInativos:false };
   var relFiltro = { mes: '', csm: 'todos' };
   var atividadesFiltro = { periodo:'semana', csm:'todos', inicio:'', fim:'' }; // "Atividades realizadas" em Relatórios
@@ -4547,6 +4556,7 @@
   function meuCsmVinculado(){ return currentUser ? currentUser.csmVinculado : null; }
 
   function entrarComo(userId){
+    radarRenovacaoExpandido = false;
     currentUserId = userId;
     localStorage.setItem('radarcs.userId', userId);
     resolveCurrentUser();
@@ -4901,16 +4911,29 @@
     document.getElementById('painelData').textContent = dataFmt.charAt(0).toUpperCase()+dataFmt.slice(1);
     renderPainelEscopoControl();
 
+    // Atualiza o recolhimento antes do retorno de carregamento da carteira.
+    var souCsmPainel = !!(currentUser && currentUser.perfil === 'csm');
+    var radarAberto = !!currentUser && (!souCsmPainel || radarRenovacaoExpandido);
+    var radarEl = document.getElementById('radarRenovacao');
+    var btnExpandirRadar = document.getElementById('btnRadarRenovacaoExpandir');
+    var hintRadarEl = document.getElementById('radarRenovacaoHint');
+    radarEl.hidden = !radarAberto;
+    btnExpandirRadar.style.display = souCsmPainel ? '' : 'none';
+    btnExpandirRadar.textContent = radarAberto ? 'Encolher' : 'Expandir';
+    btnExpandirRadar.setAttribute('aria-expanded', String(radarAberto));
+    hintRadarEl.textContent = souCsmPainel
+      ? (radarAberto ? 'Todas as licenças vencendo nos próximos 90 dias.' : 'Clique em Expandir para consultar as renovações.')
+      : 'Licenças vencendo nos próximos 60 dias.';
+
     // Item 6 da spec de usabilidade: enquanto a primeira leitura da
     // carteira ainda não voltou do Supabase, mostrar "Carregando…" em vez
     // das mesmas mensagens que apareceriam se a carteira estivesse vazia
     // de verdade.
     if(!clientesCarregados){
       document.getElementById('painelMetaHoje').innerHTML = 'Carregando…';
-      ['painelDiaResumo','filaHoje','radarRenovacao','acoesAbertas','atividadesPlano'].forEach(function(elId){
+      ['painelDiaResumo','painelDiaContatos','painelDiaAgenda','filaHoje','radarRenovacao','acoesAbertas','atividadesPlano'].forEach(function(elId){
         document.getElementById(elId).innerHTML = '<div class="empty-note">Carregando…</div>';
       });
-      document.getElementById('painelDiaAgenda').innerHTML = '';
       return;
     }
 
@@ -4984,16 +5007,26 @@
         (bateuMeta ? ' — meta do dia batida! 🎉' : ' — faltam '+Math.max(0,metaHojeNum-unicosDoDiaN)+' para bater a meta.') +
         (contatosDoDia.length !== unicosDoDiaN ? ' <span class="hint">('+contatosDoDia.length+' contato'+(contatosDoDia.length===1?'':'s')+' registrado'+(contatosDoDia.length===1?'':'s')+' no total)</span>' : '');
     }
+    var contatosDiaEl = document.getElementById('painelDiaContatos');
+    contatosDiaEl.innerHTML = contatosDoDia.length ? contatosDoDia.map(function(c){
+      return '<div class="queue-row"><div class="queue-main">' +
+        '<div class="queue-name"><a href="#" data-open-historico="'+esc(c.clienteId)+'">'+esc(c.clienteNome||'Cliente')+'</a>'+tagOnboardingCarteiraHtml(c.clienteId)+'</div>' +
+        '<div class="queue-meta">'+esc(c.observacao||'Contato registrado')+' <span class="id">'+esc(c.csm||'')+'</span></div>' +
+        '</div></div>';
+    }).join('') : '<div class="empty-note">Nenhum contato registrado para '+esc(diaLabelCurto)+'.</div>';
+
     var agendaDoDia = agendamentos.filter(function(a){ return a.data === painelDiaSelecionado && a.status !== 'cancelado' && noEscopo(a.csmNome, escopoCsm); })
       .sort(function(a,b){ return (a.horaInicio||'').localeCompare(b.horaInicio||''); });
+    document.getElementById('painelAgendaHint').textContent = agendaDoDia.length+(agendaDoDia.length===1?' reunião':' reuniões')+' agendada'+(agendaDoDia.length===1?'':'s')+' para '+diaLabelCurto+'.';
     var agendaEl = document.getElementById('painelDiaAgenda');
     if(!agendaDoDia.length){
       agendaEl.innerHTML = '<div class="empty-note">Nenhuma reunião agendada para '+esc(diaLabelCurto)+'.</div>';
     }else{
-      agendaEl.innerHTML = '<div class="hint" style="margin-bottom:6px;">Agendado para '+esc(diaLabelCurto)+':</div>' + agendaDoDia.map(function(a){
+      agendaEl.innerHTML = agendaDoDia.map(function(a){
         return '<div class="queue-row">' +
           '<div class="queue-main">' +
-            '<div class="queue-name">'+esc(a.horaInicio||'')+(a.horaFim?'–'+esc(a.horaFim):'')+' · '+esc(a.clienteNome||'')+' <span class="id">'+esc(a.csmNome||'')+'</span></div>' +
+            '<div class="queue-name">'+esc(a.horaInicio||'')+(a.horaFim?'–'+esc(a.horaFim):'')+' · '+esc(a.clienteNome||a.contatoNome||'Cliente')+tagOnboardingCarteiraHtml(a.clienteId)+tagAgendamentoRetroativoHtml(a)+'</div>' +
+            '<div class="queue-meta">'+(a.contatoNome?'Contato: '+esc(a.contatoNome)+' · ':'')+'CSM: '+esc(a.csmNome||'—')+'</div>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -5032,7 +5065,7 @@
             '<div class="queue-name">' +
               '<span class="pill '+prioCls+'" style="margin-right:2px;"><span class="pill-dot"></span>'+s.prioridadeCS+'</span>' +
               '<span class="curva curva-'+s.cliente.curva+'">'+s.cliente.curva+'</span>' +
-              '<a href="#" data-open-historico="'+esc(s.cliente.id)+'" style="color:inherit; text-decoration:none;">'+esc(s.cliente.nome)+'</a>' +
+              '<a href="#" data-open-historico="'+esc(s.cliente.id)+'" style="color:inherit; text-decoration:none;">'+esc(s.cliente.nome)+'</a>'+tagOnboardingCarteiraHtml(s.cliente.id) +
               '<span class="id">'+esc(s.cliente.id)+' · '+esc(s.cliente.csm||'—')+'</span>' +
               waButton(s.cliente) +
             '</div>' +
@@ -5054,35 +5087,11 @@
       }
     }
 
-    // radar de renovação — para o perfil CSM (item 4 do pedido de
-    // melhorias), o card vem encolhido por padrão: só licenças vencendo
-    // nos próximos 90 dias E em risco crítico de churn. Um botão deixa o
-    // CSM expandir pra ver o relatório completo (90 dias, qualquer risco).
-    // Para os demais perfis o comportamento original (60 dias, sem filtro
-    // de risco) continua igual.
-    var souCsmPainel = !!(currentUser && currentUser.perfil === 'csm');
-    var btnExpandirRadar = document.getElementById('btnRadarRenovacaoExpandir');
-    var hintRadarEl = document.getElementById('radarRenovacaoHint');
-    var renovacoes;
-    if(souCsmPainel){
-      btnExpandirRadar.style.display = '';
-      btnExpandirRadar.textContent = radarRenovacaoExpandido ? 'Encolher' : 'Expandir';
-      if(radarRenovacaoExpandido){
-        hintRadarEl.textContent = 'Todas as licenças vencendo nos próximos 90 dias.';
-        renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= 90; });
-      }else{
-        hintRadarEl.textContent = 'Licenças vencendo nos próximos 90 dias em risco crítico de churn.';
-        renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= 90 && s.risco === 'alto'; });
-      }
-    }else{
-      btnExpandirRadar.style.display = 'none';
-      hintRadarEl.textContent = 'Licenças vencendo nos próximos 60 dias.';
-      renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= 60; });
-    }
-    renovacoes = renovacoes.sort(function(a,b){ return a.diasParaVencimento - b.diasParaVencimento; });
-    var radarEl = document.getElementById('radarRenovacao');
+    // CSM: conteúdo oculto até expandir; demais perfis mantêm o prazo de 60 dias.
+    var renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= (souCsmPainel ? 90 : 60); })
+      .sort(function(a,b){ return a.diasParaVencimento - b.diasParaVencimento; });
     if(!renovacoes.length){
-      radarEl.innerHTML = '<div class="empty-note">'+(souCsmPainel && !radarRenovacaoExpandido ? 'Nenhuma licença crítica vencendo nos próximos 90 dias.' : 'Nenhuma renovação nos próximos '+(souCsmPainel?90:60)+' dias.')+'</div>';
+      radarEl.innerHTML = '<div class="empty-note">Nenhuma renovação nos próximos '+(souCsmPainel?90:60)+' dias.</div>';
     }else{
       radarEl.innerHTML = renovacoes.map(function(s){
         var vencida = s.diasParaVencimento < 0;
@@ -5108,7 +5117,7 @@
       acoesEl.innerHTML = abertas.map(function(c){
         return '<div class="queue-row">' +
           '<div class="queue-main">' +
-            '<div class="queue-name">'+esc(c.clienteNome)+' <span class="id">'+esc(c.csm||'')+' · '+fmtDate(c.data)+'</span></div>' +
+            '<div class="queue-name">'+esc(c.clienteNome)+tagOnboardingCarteiraHtml(c.clienteId)+' <span class="id">'+esc(c.csm||'')+' · '+fmtDate(c.data)+'</span></div>' +
             '<div style="font-size:12.5px; color:var(--ink-2); margin-top:4px;">'+esc(c.planoAcao || c.observacao || '')+'</div>' +
           '</div>' +
           '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(c.clienteId)+'">Ver</button></div>' +
@@ -5129,7 +5138,7 @@
         var cliAt = clientes.filter(function(c){return c.id===x.clienteId;})[0] || {};
         return '<div class="queue-row">' +
           '<div class="queue-main">' +
-            '<div class="queue-name">'+esc(x.atividade.titulo)+' <span class="id">'+esc(x.clienteNome)+' · '+esc(x.csm||'')+'</span>'+waButton(cliAt)+'</div>' +
+            '<div class="queue-name">'+esc(x.atividade.titulo)+' <span class="id">'+esc(x.clienteNome)+' · '+esc(x.csm||'')+'</span>'+tagOnboardingCarteiraHtml(x.clienteId)+waButton(cliAt)+'</div>' +
             '<div class="queue-meta">' +
               (atrasada ? motivoChip({tipo:'crit', texto:'Atrasada'}) : '') +
               (x.atividade.prazo ? motivoChip({tipo: atrasada?'crit':'warn', texto:'Prazo '+fmtDate(x.atividade.prazo)}) : motivoChip({tipo:'', texto:'Sem prazo'})) +
@@ -5151,7 +5160,7 @@
   // Render: Carteira
   // ---------------------------------------------------------------
   // Etiqueta discreta "Onboarding · Fase X" ao lado do nome do cliente,
-  // na Carteira, quando ele tem um onboarding em andamento (não mostra
+  // na Carteira e no Painel, quando ele tem um onboarding em andamento (não mostra
   // quando já foi concluído).
   function tagOnboardingCarteiraHtml(clienteId){
     var onb = onboardingDoCliente(clienteId);
@@ -6654,7 +6663,7 @@
     var proximos = agendamentos.filter(function(a){ return a.csmId === agendaSelecionadoCsmId && a.status !== 'cancelado' && a.data >= hoje; })
       .slice().sort(function(a,b){ return (a.data+a.horaInicio) < (b.data+b.horaInicio) ? -1 : 1; });
     document.getElementById('agendaProximosTabela').innerHTML = proximos.length ? proximos.map(function(a){
-      return '<tr><td>'+esc(a.clienteNome||a.contatoNome||'—')+'</td><td>'+fmtDate(a.data)+'</td><td>'+esc(a.horaInicio)+'</td>' +
+      return '<tr><td>'+esc(a.clienteNome||a.contatoNome||'—')+tagAgendamentoRetroativoHtml(a)+'</td><td>'+fmtDate(a.data)+'</td><td>'+esc(a.horaInicio)+'</td>' +
         '<td>'+(a.origem==='cliente' ? 'Cliente (link)' : 'CSM')+'</td>' +
         '<td><button type="button" class="btn btn-sm btn-danger" data-cancelar-agendamento="'+esc(a.id)+'">Cancelar</button></td></tr>';
     }).join('') : '<tr><td colspan="5"><div class="empty-note">Nenhum agendamento futuro.</div></td></tr>';
@@ -6688,6 +6697,39 @@
   function inicioSemana(d){ return addDiasData(d, -d.getDay()); } // domingo daquela semana
   function minutosParaHHMM(min){ min = Math.max(0, min); return pad(Math.floor(min/60)%24)+':'+pad(min%60); }
   function hhmmParaMinutos(hhmm){ var p=String(hhmm||'0:0').split(':'); return Number(p[0])*60+Number(p[1]); }
+
+  function horarioJaPassou(data, hora, referencia){
+    if(!data || !hora) return false;
+    var inicio = new Date(data+'T'+hora+':00');
+    var instante = referencia ? new Date(referencia) : new Date();
+    return Number.isFinite(inicio.getTime()) && Number.isFinite(instante.getTime()) && inicio.getTime() < instante.getTime();
+  }
+
+  function agendamentoRetroativo(a){
+    if(typeof a.retroativo === 'boolean') return a.retroativo;
+    return !!a.criadoEm && horarioJaPassou(a.data, a.horaInicio, a.criadoEm);
+  }
+
+  function tagAgendamentoRetroativoHtml(a){
+    return agendamentoRetroativo(a) ? ' <span class="pill pill-warning">Agendamento retroativo</span>' : '';
+  }
+
+  function atualizarAvisoRetroativoDetalhe(){
+    var a = agendamentos.filter(function(x){ return x.id === agendaDetalheId; })[0];
+    var aviso = document.getElementById('adRetroativoAviso');
+    if(!a || !aviso) return;
+    var data = document.getElementById('adData').value;
+    var hora = document.getElementById('adHoraInicio').value;
+    var mudouHorario = data !== a.data || hora !== a.horaInicio;
+    aviso.hidden = !(mudouHorario ? horarioJaPassou(data, hora) : agendamentoRetroativo(a));
+  }
+
+  function conflitoAgenda(csmId, data, inicio, fim, ignorarId){
+    return agendamentos.some(function(a){
+      return a.id !== ignorarId && a.csmId === csmId && a.data === data && a.status !== 'cancelado' &&
+        a.horaInicio < fim && (a.horaFim || a.horaInicio) > inicio;
+    });
+  }
 
   function agendamentosDoCsmAtual(){
     if(!agendaSelecionadoCsmId) return [];
@@ -6811,10 +6853,10 @@
           var iniAg = hhmmParaMinutos(a.horaInicio), fimAg = hhmmParaMinutos(a.horaFim||a.horaInicio);
           return iniAg < minutoFim && fimAg > minutoIni;
         });
-        var livre = dentro && !passou && !ocupado;
+        var livre = dentro && !ocupado;
         linhasHtml += '<div class="agenda-cal-slot'+(livre?' livre':(!dentro?' fora':''))+'"' +
           (livre ? ' data-agenda-slot="'+iso+'|'+horaIniSlot+'|'+horaFimSlot+'"' : '') +
-          ' title="'+(livre?'Clique para criar um agendamento':'')+'"></div>';
+          ' title="'+(livre?(passou?'Clique para criar um agendamento retroativo':'Clique para criar um agendamento'):'')+'"></div>';
       }
     }
 
@@ -6831,9 +6873,9 @@
         var largura = 'calc((100% - 52px) / '+n+')';
         eventosHtml += '<div class="agenda-cal-evento'+(a.origem==='cliente'?' origem-cliente':'')+'" ' +
           'style="top:'+top+'px; height:'+altura+'px; left:'+esquerda+'; width:'+largura+';" ' +
-          'data-agenda-evento="'+esc(a.id)+'" title="'+esc(a.clienteNome||a.contatoNome||'')+' · '+esc(a.horaInicio)+'">' +
+          'data-agenda-evento="'+esc(a.id)+'" title="'+esc(a.clienteNome||a.contatoNome||'')+' · '+esc(a.horaInicio)+(agendamentoRetroativo(a)?' · Agendamento retroativo':'')+'">' +
           '<b>'+esc(a.horaInicio)+' '+esc(a.clienteNome||a.contatoNome||'')+'</b>' +
-          (a.origem==='cliente'?'Agendado pelo cliente':'Agendamento manual') +
+          (agendamentoRetroativo(a)?'⚠ Agendamento retroativo':(a.origem==='cliente'?'Agendado pelo cliente':'Agendamento manual')) +
           '</div>';
       });
     });
@@ -6855,6 +6897,7 @@
 
   function abrirAgendaManual(dataISO, horaInicio, horaFim){
     agendaSlotClicado = {data:dataISO, horaInicio:horaInicio, horaFim:horaFim};
+    document.getElementById('amRetroativoAviso').hidden = !horarioJaPassou(dataISO, horaInicio);
     var errEl = document.getElementById('amError');
     errEl.classList.remove('show');
     document.getElementById('amHorarioTexto').textContent = fmtDate(dataISO) + ' às ' + horaInicio + ' (com ' + (agendaNomeCsmAtual||'—') + ')';
@@ -6884,6 +6927,10 @@
     if(!cliente){ errEl.textContent = 'Selecione o cliente.'; errEl.classList.add('show'); return; }
     var contatoNome = document.getElementById('amContatoNome').value.trim();
     var contatoTelefone = normalizeTelefone(document.getElementById('amContatoTelefone').value);
+    if(conflitoAgenda(agendaSelecionadoCsmId, agendaSlotClicado.data, agendaSlotClicado.horaInicio, agendaSlotClicado.horaFim)){
+      errEl.textContent = 'Este horário já possui outro agendamento. Escolha um horário livre.';
+      errEl.classList.add('show'); return;
+    }
     var csms = csmUsuarios();
     var csmUser = csms.filter(function(u){ return u.id === agendaSelecionadoCsmId; })[0];
 
@@ -6892,7 +6939,8 @@
       clienteId: cliente.id, clienteNome: cliente.nome,
       contatoNome: contatoNome || cliente.nome, contatoTelefone: contatoTelefone || null,
       data: agendaSlotClicado.data, horaInicio: agendaSlotClicado.horaInicio, horaFim: agendaSlotClicado.horaFim,
-      criadoEm: new Date().toISOString(), status: 'confirmado', origem: 'csm'
+      criadoEm: new Date().toISOString(), status: 'confirmado', origem: 'csm',
+      retroativo: horarioJaPassou(agendaSlotClicado.data, agendaSlotClicado.horaInicio)
     };
     try{
       if(db && !offline){
@@ -6914,6 +6962,7 @@
     agendaDetalheId = id;
     document.getElementById('adError').classList.remove('show');
     document.getElementById('adCorpo').innerHTML =
+      '<div class="retroativo-aviso" id="adRetroativoAviso" role="status" hidden>⚠ Agendamento retroativo: esta reunião foi registrada ou está sendo remarcada para uma data e um horário que já passaram.</div>' +
       '<div class="field"><label>Cliente</label><div>'+esc(a.clienteNome||'—')+'</div></div>' +
       '<div class="field-row">' +
         '<div class="field"><label for="adData">Data</label><input type="date" id="adData" value="'+esc(a.data||'')+'"></div>' +
@@ -6927,6 +6976,7 @@
         '<div class="field"><label for="adContatoTelefone">WhatsApp do contato</label><input type="text" id="adContatoTelefone" value="'+esc(a.contatoTelefone?fmtTelefoneExibicao(a.contatoTelefone):'')+'"></div>' +
       '</div>' +
       '<div class="field"><label>Origem</label><div>'+(a.origem==='cliente'?'Agendado pelo próprio cliente (link)':'Agendamento manual (CSM)')+'</div></div>';
+    atualizarAvisoRetroativoDetalhe();
     openOverlay('overlayAgendaDetalhe');
   }
 
@@ -6947,7 +6997,19 @@
       errEl.classList.add('show');
       return;
     }
+    var atual = agendamentos.filter(function(a){ return a.id === agendaDetalheId; })[0];
+    if(!atual) return;
+    if(horaFim && horaFim <= horaInicio){
+      errEl.textContent = 'O horário de fim deve ser posterior ao início.';
+      errEl.classList.add('show'); return;
+    }
+    if(conflitoAgenda(atual.csmId, data, horaInicio, horaFim || horaInicio, agendaDetalheId)){
+      errEl.textContent = 'Este horário já possui outro agendamento. Escolha um horário livre.';
+      errEl.classList.add('show'); return;
+    }
+    var mudouHorario = data !== atual.data || horaInicio !== atual.horaInicio;
     var body = {
+      retroativo: mudouHorario ? horarioJaPassou(data, horaInicio) : agendamentoRetroativo(atual),
       data: data,
       horaInicio: horaInicio,
       horaFim: horaFim || horaInicio,
@@ -8630,6 +8692,8 @@
       cancelarAgendamento(agendaDetalheId, function(){ closeOverlay('overlayAgendaDetalhe'); });
     });
     document.getElementById('btnSalvarAgendaDetalhe').addEventListener('click', salvarAgendaDetalhe);
+    document.getElementById('adCorpo').addEventListener('input', atualizarAvisoRetroativoDetalhe);
+    document.getElementById('adCorpo').addEventListener('change', atualizarAvisoRetroativoDetalhe);
     document.getElementById('agCsmSelect').addEventListener('change', function(e){
       agendaSelecionadoCsmId = e.target.value;
       renderAgenda();
