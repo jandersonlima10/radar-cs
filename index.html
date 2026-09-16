@@ -293,6 +293,9 @@
     text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted);
     font-weight:600; padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap;
   }
+  thead th[data-sort-carteira]:hover{ color:var(--ink-2); }
+  thead th .sort-ind{ margin-left:3px; font-size:10px; }
+  .tag-onboarding{ display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; color:var(--accent-strong); background:var(--accent-soft); border:1px solid var(--accent); border-radius:99px; padding:1px 7px; margin-left:4px; vertical-align:middle; }
   tbody td{ padding:10px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
   tbody tr:last-child td{ border-bottom:none; }
   tbody tr:hover{ background:var(--surface-2); }
@@ -677,6 +680,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-2 4 4L19 4l2 2"/><path d="M3 20h18"/></svg>
         Painel do dia
       </button>
+      <button class="nav-item" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        Dashboard
+      </button>
       <button class="nav-item" data-view="carteira">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16"/></svg>
         Carteira
@@ -801,8 +808,47 @@
         <div class="card">
           <div class="card-head">
             <div>
+              <h2>Atividades do dia</h2>
+              <div class="hint" id="painelDiaHint">Contatos registrados e reuniões agendadas hoje, comparado com a meta diária.</div>
+            </div>
+            <div class="topbar-actions">
+              <input type="date" id="painelDiaEscolhido" aria-label="Ver outro dia" style="min-width:150px;">
+              <button type="button" class="btn btn-sm" id="btnPainelDiaHoje">Hoje</button>
+            </div>
+          </div>
+          <div class="card-body pad-top">
+            <div id="painelDiaResumo" class="empty-note"></div>
+            <div id="painelDiaAgenda" style="margin-top:12px;"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div>
               <h2>Fila de prioridade de hoje</h2>
               <div class="hint">Combina ciclo de 3 meses, renovação, risco de churn, NPS e ações em aberto — maior prioridade primeiro.</div>
+            </div>
+            <div class="topbar-actions">
+              <select id="filaFiltroCurva" aria-label="Filtrar por curva">
+                <option value="todas">Todas as curvas</option>
+                <option value="A">Curva A</option>
+                <option value="B">Curva B</option>
+                <option value="C">Curva C</option>
+                <option value="D">Curva D</option>
+              </select>
+              <select id="filaFiltroCriticidade" aria-label="Filtrar por criticidade">
+                <option value="todas">Toda criticidade</option>
+                <option value="P1">P1 — imediata</option>
+                <option value="P2">P2 — preventiva</option>
+                <option value="P3">P3 — evolução</option>
+              </select>
+              <input type="number" id="filaFiltroValorMin" placeholder="Valor mín. (R$)" style="width:130px;" aria-label="Filtrar por valor mínimo da licença">
+              <select id="filaOrdenar" aria-label="Ordenar fila">
+                <option value="prioridade">Ordenar: prioridade</option>
+                <option value="alfabetica">Ordenar: A–Z</option>
+                <option value="valor_desc">Ordenar: maior valor</option>
+                <option value="valor_asc">Ordenar: menor valor</option>
+              </select>
             </div>
           </div>
           <div class="card-body pad-top" id="filaHoje"></div>
@@ -812,7 +858,10 @@
           <div class="card-head">
             <div>
               <h2>Radar de renovação</h2>
-              <div class="hint">Licenças vencendo nos próximos 60 dias.</div>
+              <div class="hint" id="radarRenovacaoHint">Licenças vencendo nos próximos 60 dias.</div>
+            </div>
+            <div class="topbar-actions">
+              <button type="button" class="btn btn-sm" id="btnRadarRenovacaoExpandir" style="display:none;">Expandir</button>
             </div>
           </div>
           <div class="card-body pad-top" id="radarRenovacao"></div>
@@ -836,6 +885,51 @@
             </div>
           </div>
           <div class="card-body pad-top" id="atividadesPlano"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== DASHBOARD ===================== -->
+    <section class="view" id="view-dashboard">
+      <div class="topbar">
+        <div>
+          <h1>Dashboard</h1>
+          <div class="subtitle">Contatos do dia, ritmo da carteira e clientes críticos, em um só lugar.</div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="grid-stats">
+          <div class="stat">
+            <div class="label">Contatos realizados hoje</div>
+            <div class="value num" id="dashContatosHoje">–</div>
+            <div class="sub" id="dashContatosHojeSub"></div>
+          </div>
+          <div class="stat">
+            <div class="label">Faltam para bater a meta</div>
+            <div class="value num" id="dashFaltamMeta">–</div>
+            <div class="sub" id="dashFaltamMetaSub"></div>
+          </div>
+          <div class="stat">
+            <div class="label">Clientes críticos</div>
+            <div class="value num" id="dashCriticos">–</div>
+            <div class="sub crit" id="dashCriticosSub"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <h2>Cobertura da carteira</h2>
+              <div class="hint">Quanto da carteira já teve contato dentro do prazo configurado em Configurações.</div>
+            </div>
+          </div>
+          <div class="card-body pad-top">
+            <div style="display:flex; align-items:baseline; gap:8px;">
+              <div class="value num" id="dashCoberturaPct" style="font-size:22px;">–</div>
+              <div class="hint">da carteira com contato dentro do prazo</div>
+            </div>
+            <div id="dashCoberturaBarra" style="display:flex; gap:2px; margin-top:10px; border-radius:8px; overflow:hidden; cursor:pointer;"></div>
+            <div id="dashCoberturaLegenda" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"></div>
+          </div>
         </div>
       </div>
     </section>
@@ -902,15 +996,15 @@
               <thead>
                 <tr>
                   <th data-role-gate="admin" style="display:none; width:28px;"><input type="checkbox" id="chkCarteiraTodos" style="width:auto;" title="Selecionar todos os clientes exibidos"></th>
-                  <th>Cliente</th>
-                  <th>Curva</th>
+                  <th data-sort-carteira="nome" style="cursor:pointer;">Cliente<span class="sort-ind"></span></th>
+                  <th data-sort-carteira="curva" style="cursor:pointer;">Curva<span class="sort-ind"></span></th>
                   <th>CSM</th>
-                  <th>Vencimento</th>
+                  <th data-sort-carteira="vencimento" style="cursor:pointer;">Vencimento<span class="sort-ind"></span></th>
                   <th>Último contato</th>
-                  <th>Próximo contato</th>
-                  <th>Saúde</th>
-                  <th>Risco</th>
-                  <th class="num">NPS</th>
+                  <th data-sort-carteira="proximoContato" style="cursor:pointer;">Próximo contato<span class="sort-ind"></span></th>
+                  <th data-sort-carteira="saude" style="cursor:pointer;">Saúde<span class="sort-ind"></span></th>
+                  <th data-sort-carteira="risco" style="cursor:pointer;">Risco<span class="sort-ind"></span></th>
+                  <th class="num" data-sort-carteira="nps" style="cursor:pointer;">NPS<span class="sort-ind"></span></th>
                   <th></th>
                 </tr>
               </thead>
@@ -2431,6 +2525,9 @@
   var currentUserId = localStorage.getItem('radarcs.userId') || '';
   var currentUser = null; // resolvido a partir de usuarios + currentUserId
   var escopoAdminCsm = 'todos'; // filtro do painel quando o perfil é admin
+  var painelDiaSelecionado = null; // ISO yyyy-mm-dd; null = hoje (setado no primeiro renderPainel)
+  var filaFiltros = { curva:'todas', criticidade:'todas', valorMin:'', ordenar:'prioridade' };
+  var radarRenovacaoExpandido = false; // só usado no perfil CSM (item 4 do pedido de melhorias)
   var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos', cobertura:'todas', mostrarInativos:false };
   var relFiltro = { mes: '', csm: 'todos' };
   var atividadesFiltro = { periodo:'semana', csm:'todos', inicio:'', fim:'' }; // "Atividades realizadas" em Relatórios
@@ -4646,7 +4743,7 @@
     // O especialista de renovação tem um ambiente próprio e exclusivo
     // (seção 3 da spec): nada de Painel do CSM, Carteira, Onboarding,
     // Alertas, Playbooks ou Agenda no menu dele.
-    ['painel','carteira','onboarding','alertas','playbooks','agenda','reclamacoesRA'].forEach(function(v){
+    ['painel','dashboard','carteira','onboarding','alertas','playbooks','agenda','reclamacoesRA'].forEach(function(v){
       var el = document.querySelector('.nav-item[data-view="'+v+'"]');
       if(el) el.style.display = renov ? 'none' : '';
     });
@@ -4761,6 +4858,40 @@
   }
 
   // ---------------------------------------------------------------
+  // Render: Dashboard (contatos do dia, ritmo da meta, críticos)
+  // ---------------------------------------------------------------
+  function renderDashboard(){
+    if(!document.getElementById('dashContatosHoje')) return;
+    if(!clientesCarregados){
+      ['dashContatosHoje','dashFaltamMeta','dashCriticos'].forEach(function(id){ document.getElementById(id).textContent = '–'; });
+      return;
+    }
+    var escopo = escopoVisivelCsmNomes();
+    var stats = allStats().filter(function(s){ return noEscopo(s.cliente.csm, escopo); });
+    var hojeISO = todayISO();
+
+    var contatosHoje = contatos.filter(function(c){ return c.data === hojeISO && noEscopo(c.csm, escopo); });
+    var unicosHoje = {};
+    contatosHoje.forEach(function(c){ unicosHoje[c.clienteId] = true; });
+    var unicosHojeN = Object.keys(unicosHoje).length;
+    document.getElementById('dashContatosHoje').textContent = contatosHoje.length;
+    document.getElementById('dashContatosHojeSub').textContent = unicosHojeN + ' cliente' + (unicosHojeN===1?'':'s') + ' único' + (unicosHojeN===1?'':'s');
+
+    var prazoAtual = (prazoConfig && prazoConfig.dias) || PRAZO_CARTEIRA_PADRAO;
+    var contagem = {dentro:0, atencao:0, prioritario:0, vencida:0};
+    stats.forEach(function(s){ contagem[s.faixaCobertura] = (contagem[s.faixaCobertura]||0) + 1; });
+    var faltam = stats.length - contagem.dentro;
+    document.getElementById('dashFaltamMeta').textContent = faltam;
+    document.getElementById('dashFaltamMetaSub').textContent = stats.length ? ('de '+stats.length+' clientes, para cobrir a carteira em '+prazoAtual+' dias') : '';
+
+    var criticos = stats.filter(function(s){ return s.health === 'critical'; });
+    document.getElementById('dashCriticos').textContent = criticos.length;
+    document.getElementById('dashCriticosSub').textContent = criticos.length ? 'precisam de atenção imediata' : 'nenhum no momento';
+
+    renderCoberturaBloco(stats, 'dashCoberturaPct', 'dashCoberturaBarra', 'dashCoberturaLegenda');
+  }
+
+  // ---------------------------------------------------------------
   // Render: Painel do dia
   // ---------------------------------------------------------------
   function renderPainel(){
@@ -4776,9 +4907,10 @@
     // de verdade.
     if(!clientesCarregados){
       document.getElementById('painelMetaHoje').innerHTML = 'Carregando…';
-      ['filaHoje','radarRenovacao','acoesAbertas','atividadesPlano'].forEach(function(elId){
+      ['painelDiaResumo','filaHoje','radarRenovacao','acoesAbertas','atividadesPlano'].forEach(function(elId){
         document.getElementById(elId).innerHTML = '<div class="empty-note">Carregando…</div>';
       });
+      document.getElementById('painelDiaAgenda').innerHTML = '';
       return;
     }
 
@@ -4826,9 +4958,64 @@
     }
     renderCoberturaBloco(stats, 'painelCoberturaPct', 'painelCoberturaBarra', 'painelCoberturaLegenda');
 
+    // Atividades do dia (item novo): quantos contatos já foram feitos no
+    // dia escolhido (hoje por padrão, ou outro dia via o mini calendário)
+    // frente à meta diária, mais o que está agendado na Agenda para esse
+    // mesmo dia.
+    if(!painelDiaSelecionado) painelDiaSelecionado = hojeISO;
+    var diaInputEl = document.getElementById('painelDiaEscolhido');
+    if(diaInputEl && diaInputEl.value !== painelDiaSelecionado) diaInputEl.value = painelDiaSelecionado;
+    var ehHoje = painelDiaSelecionado === hojeISO;
+    var metaHojeNum = stats.length ? Math.ceil(stats.length / prazoCarteiraAtual) : 0;
+    var contatosDoDia = contatos.filter(function(c){ return c.data === painelDiaSelecionado && noEscopo(c.csm, escopoCsm); });
+    var unicosDoDia = {};
+    contatosDoDia.forEach(function(c){ unicosDoDia[c.clienteId] = true; });
+    var unicosDoDiaN = Object.keys(unicosDoDia).length;
+    var diaLabelCurto = ehHoje ? 'hoje' : fmtDate(painelDiaSelecionado);
+    document.getElementById('painelDiaHint').textContent = ehHoje
+      ? 'Contatos registrados e reuniões agendadas hoje, comparado com a meta diária.'
+      : 'Contatos registrados e reuniões agendadas em '+fmtDate(painelDiaSelecionado)+', comparado com a meta diária.';
+    var resumoEl = document.getElementById('painelDiaResumo');
+    if(!stats.length){
+      resumoEl.innerHTML = 'Nenhum cliente atribuído a você nesta carteira ainda.';
+    }else{
+      var bateuMeta = unicosDoDiaN >= metaHojeNum;
+      resumoEl.innerHTML = '<strong>'+unicosDoDiaN+' de '+metaHojeNum+' contato'+(metaHojeNum===1?'':'s')+' único'+(metaHojeNum===1?'':'s')+' '+(ehHoje?'feitos hoje':'feitos em '+fmtDate(painelDiaSelecionado))+'</strong>' +
+        (bateuMeta ? ' — meta do dia batida! 🎉' : ' — faltam '+Math.max(0,metaHojeNum-unicosDoDiaN)+' para bater a meta.') +
+        (contatosDoDia.length !== unicosDoDiaN ? ' <span class="hint">('+contatosDoDia.length+' contato'+(contatosDoDia.length===1?'':'s')+' registrado'+(contatosDoDia.length===1?'':'s')+' no total)</span>' : '');
+    }
+    var agendaDoDia = agendamentos.filter(function(a){ return a.data === painelDiaSelecionado && a.status !== 'cancelado' && noEscopo(a.csmNome, escopoCsm); })
+      .sort(function(a,b){ return (a.horaInicio||'').localeCompare(b.horaInicio||''); });
+    var agendaEl = document.getElementById('painelDiaAgenda');
+    if(!agendaDoDia.length){
+      agendaEl.innerHTML = '<div class="empty-note">Nenhuma reunião agendada para '+esc(diaLabelCurto)+'.</div>';
+    }else{
+      agendaEl.innerHTML = '<div class="hint" style="margin-bottom:6px;">Agendado para '+esc(diaLabelCurto)+':</div>' + agendaDoDia.map(function(a){
+        return '<div class="queue-row">' +
+          '<div class="queue-main">' +
+            '<div class="queue-name">'+esc(a.horaInicio||'')+(a.horaFim?'–'+esc(a.horaFim):'')+' · '+esc(a.clienteNome||'')+' <span class="id">'+esc(a.csmNome||'')+'</span></div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
     // fila de prioridade
-    var filaCompleta = stats.filter(function(s){ return s.precisaContato; })
-      .sort(function(a,b){ return b.score - a.score; });
+    var filaCompleta = stats.filter(function(s){ return s.precisaContato; });
+    if(filaFiltros.curva !== 'todas') filaCompleta = filaCompleta.filter(function(s){ return s.cliente.curva === filaFiltros.curva; });
+    if(filaFiltros.criticidade !== 'todas') filaCompleta = filaCompleta.filter(function(s){ return s.prioridadeCS === filaFiltros.criticidade; });
+    if(filaFiltros.valorMin !== '' && filaFiltros.valorMin != null && !isNaN(Number(filaFiltros.valorMin))){
+      var valorMinNum = Number(filaFiltros.valorMin);
+      filaCompleta = filaCompleta.filter(function(s){ return Number(s.cliente.arr||0) >= valorMinNum; });
+    }
+    if(filaFiltros.ordenar === 'alfabetica'){
+      filaCompleta = filaCompleta.slice().sort(function(a,b){ return a.cliente.nome.localeCompare(b.cliente.nome,'pt-BR'); });
+    }else if(filaFiltros.ordenar === 'valor_desc'){
+      filaCompleta = filaCompleta.slice().sort(function(a,b){ return Number(b.cliente.arr||0) - Number(a.cliente.arr||0); });
+    }else if(filaFiltros.ordenar === 'valor_asc'){
+      filaCompleta = filaCompleta.slice().sort(function(a,b){ return Number(a.cliente.arr||0) - Number(b.cliente.arr||0); });
+    }else{
+      filaCompleta = filaCompleta.slice().sort(function(a,b){ return b.score - a.score; });
+    }
     var LIMITE_FILA_HOJE = 14;
     var fila = filaCompleta.slice(0, LIMITE_FILA_HOJE);
 
@@ -4867,12 +5054,35 @@
       }
     }
 
-    // radar de renovação
-    var renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= 60; })
-      .sort(function(a,b){ return a.diasParaVencimento - b.diasParaVencimento; });
+    // radar de renovação — para o perfil CSM (item 4 do pedido de
+    // melhorias), o card vem encolhido por padrão: só licenças vencendo
+    // nos próximos 90 dias E em risco crítico de churn. Um botão deixa o
+    // CSM expandir pra ver o relatório completo (90 dias, qualquer risco).
+    // Para os demais perfis o comportamento original (60 dias, sem filtro
+    // de risco) continua igual.
+    var souCsmPainel = !!(currentUser && currentUser.perfil === 'csm');
+    var btnExpandirRadar = document.getElementById('btnRadarRenovacaoExpandir');
+    var hintRadarEl = document.getElementById('radarRenovacaoHint');
+    var renovacoes;
+    if(souCsmPainel){
+      btnExpandirRadar.style.display = '';
+      btnExpandirRadar.textContent = radarRenovacaoExpandido ? 'Encolher' : 'Expandir';
+      if(radarRenovacaoExpandido){
+        hintRadarEl.textContent = 'Todas as licenças vencendo nos próximos 90 dias.';
+        renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= 90; });
+      }else{
+        hintRadarEl.textContent = 'Licenças vencendo nos próximos 90 dias em risco crítico de churn.';
+        renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= 90 && s.risco === 'alto'; });
+      }
+    }else{
+      btnExpandirRadar.style.display = 'none';
+      hintRadarEl.textContent = 'Licenças vencendo nos próximos 60 dias.';
+      renovacoes = stats.filter(function(s){ return s.diasParaVencimento <= 60; });
+    }
+    renovacoes = renovacoes.sort(function(a,b){ return a.diasParaVencimento - b.diasParaVencimento; });
     var radarEl = document.getElementById('radarRenovacao');
     if(!renovacoes.length){
-      radarEl.innerHTML = '<div class="empty-note">Nenhuma renovação nos próximos 60 dias.</div>';
+      radarEl.innerHTML = '<div class="empty-note">'+(souCsmPainel && !radarRenovacaoExpandido ? 'Nenhuma licença crítica vencendo nos próximos 90 dias.' : 'Nenhuma renovação nos próximos '+(souCsmPainel?90:60)+' dias.')+'</div>';
     }else{
       radarEl.innerHTML = renovacoes.map(function(s){
         var vencida = s.diasParaVencimento < 0;
@@ -4940,6 +5150,66 @@
   // ---------------------------------------------------------------
   // Render: Carteira
   // ---------------------------------------------------------------
+  // Etiqueta discreta "Onboarding · Fase X" ao lado do nome do cliente,
+  // na Carteira, quando ele tem um onboarding em andamento (não mostra
+  // quando já foi concluído).
+  function tagOnboardingCarteiraHtml(clienteId){
+    var onb = onboardingDoCliente(clienteId);
+    if(!onb || onb.faseAtual === 'concluido') return '';
+    var label = ONBOARDING_FASE_LABEL[onb.faseAtual] || onb.faseAtual;
+    return ' <span class="tag-onboarding" title="Onboarding em andamento — '+esc(label)+'">Onboarding · '+esc(label)+'</span>';
+  }
+
+  // Ordenação clicável das colunas da Carteira. campo null = ordenação
+  // padrão (score de prioridade, como sempre foi). Direção alterna a
+  // cada clique na mesma coluna; trocar de coluna sempre começa em 'asc'.
+  var carteiraOrdenacao = { campo: null, direcao: 'asc' };
+  var CARTEIRA_ORDEM_SAUDE = { critical:0, warning:1, good:2 };
+  var CARTEIRA_ORDEM_RISCO = { alto:0, medio:1, baixo:2 };
+  function compararCarteira(a, b, campo){
+    var va, vb;
+    switch(campo){
+      case 'nome': return a.cliente.nome.localeCompare(b.cliente.nome, 'pt-BR');
+      case 'curva': return a.cliente.curva.localeCompare(b.cliente.curva, 'pt-BR');
+      case 'vencimento': return (a.cliente.vencimento||'').localeCompare(b.cliente.vencimento||'');
+      case 'proximoContato': return (a.proximoContato||'').localeCompare(b.proximoContato||'');
+      case 'saude':
+        va = CARTEIRA_ORDEM_SAUDE[a.health]; vb = CARTEIRA_ORDEM_SAUDE[b.health];
+        return va - vb;
+      case 'risco':
+        va = CARTEIRA_ORDEM_RISCO[a.risco]; vb = CARTEIRA_ORDEM_RISCO[b.risco];
+        return va - vb;
+      case 'nps':
+        // nulos sempre por último, nas duas direções
+        if(a.nps == null && b.nps == null) return 0;
+        if(a.nps == null) return 1;
+        if(b.nps == null) return -1;
+        return a.nps - b.nps;
+      default: return 0;
+    }
+  }
+  function aplicarOrdenacaoCarteira(stats){
+    if(!carteiraOrdenacao.campo) return stats.slice().sort(function(a,b){ return b.score - a.score; });
+    var campo = carteiraOrdenacao.campo;
+    var nulosUltimo = campo === 'nps';
+    var dir = carteiraOrdenacao.direcao === 'desc' ? -1 : 1;
+    return stats.slice().sort(function(a,b){
+      var cmp = compararCarteira(a, b, campo);
+      return nulosUltimo && (a.nps==null || b.nps==null) ? cmp : cmp * dir;
+    });
+  }
+  function atualizarIndicadoresSortCarteira(){
+    document.querySelectorAll('#view-carteira [data-sort-carteira]').forEach(function(th){
+      var ind = th.querySelector('.sort-ind');
+      if(!ind) return;
+      if(th.getAttribute('data-sort-carteira') === carteiraOrdenacao.campo){
+        ind.textContent = carteiraOrdenacao.direcao === 'desc' ? '▼' : '▲';
+      }else{
+        ind.textContent = '';
+      }
+    });
+  }
+
   function passaFiltrosCarteira(s){
     var escopoTeam = escopoVisivelCsmNomes();
     if(escopoTeam && escopoTeam.indexOf(s.cliente.csm) === -1) return false;
@@ -4966,8 +5236,8 @@
   var carteiraUltimoRenderIds = [];
 
   function renderCarteira(){
-    var stats = allStats(filtros.mostrarInativos).filter(passaFiltrosCarteira)
-      .sort(function(a,b){ return b.score - a.score; });
+    var stats = aplicarOrdenacaoCarteira(allStats(filtros.mostrarInativos).filter(passaFiltrosCarteira));
+    atualizarIndicadoresSortCarteira();
 
     var subtitleEl = document.getElementById('carteiraSubtitle');
     var totalBase = filtros.mostrarInativos ? clientes.length : clientesAtivos().length;
@@ -5004,7 +5274,7 @@
         (admin ? '<td><input type="checkbox" class="chk-carteira-item" data-carteira-item="'+esc(c.id)+'" style="width:auto;"'+(carteiraSelecionados[c.id]?' checked':'')+'></td>' : '') +
         '<td><div class="cell-client">' +
             '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
-            '<div><div class="nm">'+esc(c.nome)+(c.alertaAtivo?' <span class="pill pill-critical" style="margin-left:4px;"><span class="pill-dot"></span>Alerta</span>':'')+(c.ativo===false?' <span class="pill pill-neutral" style="margin-left:4px;"><span class="pill-dot"></span>Inativo</span>':'')+'</div>' +
+            '<div><div class="nm">'+esc(c.nome)+(c.alertaAtivo?' <span class="pill pill-critical" style="margin-left:4px;"><span class="pill-dot"></span>Alerta</span>':'')+(c.ativo===false?' <span class="pill pill-neutral" style="margin-left:4px;"><span class="pill-dot"></span>Inativo</span>':'')+tagOnboardingCarteiraHtml(c.id)+'</div>' +
               '<div class="ct">'+esc(c.id)+' · '+esc((c.contato||'').split(' — ')[0]||'')+'</div>' +
               (c.tags && c.tags.length ? '<div style="margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">'+tagChipsHtml(c.tags)+'</div>' : '') +
             '</div>' +
@@ -5413,6 +5683,7 @@
     applyRoleVisibility();
     populateCsmSelect();
     renderPainel();
+    renderDashboard();
     renderCarteira();
     renderPlaybooks();
     renderAlertas();
@@ -8177,6 +8448,29 @@
     document.getElementById('btnAlterarSenha').addEventListener('click', abrirAlterarSenha);
     document.getElementById('btnSalvarSenha').addEventListener('click', salvarNovaSenha);
 
+    document.getElementById('painelDiaEscolhido').addEventListener('change', function(e){
+      painelDiaSelecionado = e.target.value || todayISO();
+      renderPainel();
+    });
+    document.getElementById('btnPainelDiaHoje').addEventListener('click', function(){
+      painelDiaSelecionado = todayISO();
+      renderPainel();
+    });
+    ['filaFiltroCurva','filaFiltroCriticidade','filaOrdenar'].forEach(function(id){
+      document.getElementById(id).addEventListener('change', function(e){
+        var key = id === 'filaFiltroCurva' ? 'curva' : (id === 'filaFiltroCriticidade' ? 'criticidade' : 'ordenar');
+        filaFiltros[key] = e.target.value;
+        renderPainel();
+      });
+    });
+    document.getElementById('filaFiltroValorMin').addEventListener('input', function(e){
+      filaFiltros.valorMin = e.target.value;
+      renderPainel();
+    });
+    document.getElementById('btnRadarRenovacaoExpandir').addEventListener('click', function(){
+      radarRenovacaoExpandido = !radarRenovacaoExpandido;
+      renderPainel();
+    });
     document.getElementById('btnNovoClienteTopo').addEventListener('click', abrirNovoCliente);
     document.getElementById('btnNovoClienteCarteira').addEventListener('click', abrirNovoCliente);
     document.getElementById('btnSalvarCliente').addEventListener('click', salvarCliente);
@@ -8573,6 +8867,18 @@
     document.getElementById('fMostrarInativos').addEventListener('change', function(e){
       filtros.mostrarInativos = e.target.checked;
       renderCarteira();
+    });
+    document.querySelectorAll('#view-carteira [data-sort-carteira]').forEach(function(th){
+      th.addEventListener('click', function(){
+        var campo = th.getAttribute('data-sort-carteira');
+        if(carteiraOrdenacao.campo === campo){
+          carteiraOrdenacao.direcao = carteiraOrdenacao.direcao === 'asc' ? 'desc' : 'asc';
+        }else{
+          carteiraOrdenacao.campo = campo;
+          carteiraOrdenacao.direcao = 'asc';
+        }
+        renderCarteira();
+      });
     });
 
     document.getElementById('fMes').value = monthKey(todayISO());
