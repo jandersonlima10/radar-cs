@@ -298,6 +298,15 @@
   #overlayOnboarding .modal-foot{ flex-wrap:wrap; }
   #overlayOnboarding .modal-foot .btn{ max-width:100%; white-space:normal; }
   @media(max-width:600px){ #overlayOnboarding .modal-foot .btn{ flex:1 1 calc(50% - 8px); margin-right:0 !important; } #overlayOnboarding .modal-foot #btnAvancarFaseOnboarding{ flex-basis:100%; } }
+  #onbBoard[hidden], #repPainel[hidden], #btnNovaReimplantacao[hidden], #btnIniciarOnboarding[hidden]{display:none;}
+  .rep-board{display:grid;grid-template-columns:repeat(4,minmax(245px,1fr));gap:14px;overflow-x:auto;padding-bottom:14px;}
+  .rep-card{cursor:pointer;overflow-wrap:anywhere;}
+  .rep-resumo{font-size:12px;line-height:1.5;margin-top:8px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+  .rep-motivo{color:var(--critical-ink);}
+  .rep-historico{padding-left:20px;font-size:12px;color:var(--ink-2);}
+  .rep-historico li{margin-bottom:8px;}
+  #view-painel .queue-actions{flex-wrap:wrap;}
+  #overlayReimplantacao .modal-foot{flex-wrap:wrap;}
   .retroativo-aviso{ padding:10px 12px; margin-bottom:12px; border:1px solid var(--warning-fill); border-radius:8px; background:var(--warning-soft); color:var(--warning-ink); font-size:13px; }
   .tag-onboarding{ display:inline-block; font-size:10px; font-weight:600; letter-spacing:.02em; color:var(--accent-strong); background:var(--accent-soft); border:1px solid var(--accent); border-radius:99px; padding:1px 7px; margin-left:4px; vertical-align:middle; }
   tbody td{ padding:10px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
@@ -1038,6 +1047,7 @@
             <label for="onbFiltroCsm" class="hint">Filtrar por CSM</label>
             <select id="onbFiltroCsm" aria-label="Filtrar onboarding por CSM"><option value="">Todos os CSMs</option></select>
           </div>
+          <button type="button" class="btn btn-accent" id="btnNovaReimplantacao" hidden>Nova reimplantação</button>
           <button class="btn btn-accent" id="btnIniciarOnboarding">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Iniciar onboarding
@@ -1045,7 +1055,9 @@
         </div>
       </div>
       <div class="content">
+        <div style="display:flex;gap:8px;margin-bottom:16px;" aria-label="Seção de onboarding"><button type="button" class="btn btn-accent" data-onboarding-aba="onboarding" aria-pressed="true">Onboarding</button><button type="button" class="btn" data-onboarding-aba="reimplantacao" aria-pressed="false">Reimplantação</button></div>
         <div class="onb-board" id="onbBoard"></div>
+        <div id="repPainel" hidden><div class="retroativo-aviso" id="repCargaError" role="alert" hidden></div><div class="rep-board" id="repBoard"></div></div>
       </div>
     </section>
 
@@ -2164,6 +2176,24 @@
       <button class="btn" data-close="overlayPlano">Cancelar</button>
       <button class="btn btn-accent" id="btnSalvarPlano">Salvar plano</button>
     </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlayReimplantacao">
+  <div class="modal" style="width:680px;">
+    <div class="modal-head"><h3 id="repTitulo">Nova reimplantação</h3><button class="icon-btn" data-close="overlayReimplantacao" aria-label="Fechar">✕</button></div>
+    <div class="modal-body">
+      <div class="field-row"><div class="field"><label for="repCliente">Cliente *</label><select id="repCliente"></select></div><div class="field"><label for="repCsm">CSM responsável</label><input id="repCsm" type="text" disabled></div></div>
+      <div class="field"><label for="repResumo">Resumo da reimplantação *</label><textarea id="repResumo" placeholder="Contexto, necessidade do cliente e objetivo da reimplantação"></textarea></div>
+      <div class="field-row"><div class="field"><label for="repTreinamento">Treinamento</label><input id="repTreinamento" type="text" placeholder="Nome ou tema do treinamento"></div><div class="field"><label for="repDataTreinamento">Data do treinamento</label><input id="repDataTreinamento" type="date"></div></div>
+      <div class="field"><label for="repResumoTreinamento">Resumo do treinamento</label><textarea id="repResumoTreinamento" placeholder="Conteúdo abordado, orientações e próximos passos"></textarea></div>
+      <div class="field"><label for="repStatus">Status da reimplantação</label><select id="repStatus"></select></div>
+      <div id="repMotivoWrap" hidden><div class="field"><label for="repMotivo">Motivo do cancelamento *</label><textarea id="repMotivo" placeholder="Informe o motivo do cancelamento"></textarea></div></div>
+      <div class="hint">Para concluir, preencha o treinamento, a data e o resumo do treinamento.</div>
+      <div class="gate-error" id="repError" role="alert"></div>
+      <div id="repHistorico"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" data-close="overlayReimplantacao">Fechar</button><button class="btn btn-accent" id="btnSalvarReimplantacao">Salvar reimplantação</button></div>
   </div>
 </div>
 
@@ -3537,6 +3567,8 @@
     });
     agendamentos = [];
     onboardings = [];
+    reimplantacaoDocs = [];
+    reimplantacaoErroCarga = '';
     renovacoesData = [];
     reclamacoesRA = [];
     clientesCarregados = true;
@@ -3650,9 +3682,9 @@
     }, function(){});
 
     db.collection('onboardings').onSnapshot(function(snap){
-      onboardings = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      repReceberDocumentos(snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }));
       renderAll();
-    }, function(){});
+    }, function(){reimplantacaoErroCarga='Não foi possível carregar os processos. Confira sua conexão e recarregue a página.';renderReimplantacao();});
 
     db.collection('renovacoes').onSnapshot(function(snap){
       renovacoesData = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
@@ -4585,6 +4617,7 @@
   function entrarComo(userId){
     radarRenovacaoExpandido = false;
     onboardingFiltroCsm = '';
+    onboardingAba = 'onboarding';
     currentUserId = userId;
     localStorage.setItem('radarcs.userId', userId);
     resolveCurrentUser();
@@ -5040,7 +5073,7 @@
       return '<div class="queue-row"><div class="queue-main">' +
         '<div class="queue-name"><a href="#" data-open-historico="'+esc(c.clienteId)+'">'+esc(c.clienteNome||'Cliente')+'</a>'+tagOnboardingCarteiraHtml(c.clienteId)+'</div>' +
         '<div class="queue-meta">'+esc(c.observacao||'Contato registrado')+' <span class="id">'+esc(c.csm||'')+'</span></div>' +
-        '</div></div>';
+        '</div><div class="queue-actions">'+repBotaoCliente(c.clienteId)+'</div></div>';
     }).join('') : '<div class="empty-note">Nenhum contato registrado para '+esc(diaLabelCurto)+'.</div>';
 
     var agendaDoDia = agendamentos.filter(function(a){ return a.data === painelDiaSelecionado && a.status !== 'cancelado' && noEscopo(a.csmNome, escopoCsm); })
@@ -5101,7 +5134,7 @@
           '</div>' +
           '<div class="queue-side">Último: '+(s.last?fmtDate(s.last.data):'nunca')+'</div>' +
           '<div class="queue-actions">' +
-            '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(s.cliente.id)+'">Registrar</button>' +
+            '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(s.cliente.id)+'">Registrar</button>'+repBotaoCliente(s.cliente.id) +
           '</div>' +
         '</div>';
       }).join('');
@@ -5148,7 +5181,7 @@
             '<div class="queue-name">'+esc(c.clienteNome)+tagOnboardingCarteiraHtml(c.clienteId)+' <span class="id">'+esc(c.csm||'')+' · '+fmtDate(c.data)+'</span></div>' +
             '<div style="font-size:12.5px; color:var(--ink-2); margin-top:4px;">'+esc(c.planoAcao || c.observacao || '')+'</div>' +
           '</div>' +
-          '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(c.clienteId)+'">Ver</button></div>' +
+          '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(c.clienteId)+'">Ver</button>'+repBotaoCliente(c.clienteId)+'</div>' +
         '</div>';
       }).join('');
     }
@@ -5173,7 +5206,7 @@
               motivoChip({tipo:'', texto:x.planoTitulo}) +
             '</div>' +
           '</div>' +
-          '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(x.clienteId)+'">Ver</button></div>' +
+          '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(x.clienteId)+'">Ver</button>'+repBotaoCliente(x.clienteId)+'</div>' +
         '</div>';
       }).join('');
       // Item 3 da spec de usabilidade: avisar quando a lista foi cortada.
@@ -5843,6 +5876,11 @@
       usuarios.map(function(u){ return [u.id, u.nome, u.perfil, u.csmVinculado||'']; })
     ))) return;
 
+    if(!(await salvar('radar-cs-reimplantacoes-'+carimbo+'.csv',
+      ['ID','Cliente_ID','Cliente','CSM','Resumo','Treinamento','Data_Treinamento','Resumo_Treinamento','Status','Motivo_Cancelamento','Criado_Em','Atualizado_Em','Concluido_Em','Cancelado_Em','Historico_Status'],
+      repLista().filter(function(r){return repPodeVer(r.clienteId,r.csm);}).map(function(r){return [r.id,r.clienteId,r.clienteNome,r.csm,r.resumo,r.treinamento,r.dataTreinamento||'',r.resumoTreinamento,REP_STATUS[r.status],r.motivoCancelamento,r.criadoEm,r.atualizadoEm,r.concluidoEm||'',r.canceladoEm||'',JSON.stringify(r.historico||[])];})
+    ))) return;
+
     // 8) Onboarding (uma linha por cliente em processo estruturado de onboarding)
     await salvar('radar-cs-onboarding-'+carimbo+'.csv',
       ['Cliente_ID','Cliente_Nome','CSM','Fase_Atual','Data_Inicio','Dias_Desde_Inicio','Vencimento_Fase_Vencido'],
@@ -5879,6 +5917,7 @@
   function closeOverlay(id){
     if(id === 'overlayContato' && contatoSalvando) return;
     if(id === 'overlayOnboarding' && onbAgendaSalvando) return;
+    if(id === 'overlayReimplantacao' && repSalvando) return;
     document.getElementById(id).classList.remove('open');
   }
 
@@ -7378,6 +7417,185 @@
       : '<div class="meta"><span class="chip c-warn">Alinhamento pendente</span></div>'+(onb.vencimentoContato?'<div class="meta">Prazo da fase: '+fmtDate(onb.vencimentoContato)+'</div>':'');
   }
 
+  // Reimplantação: documentos próprios na tabela existente de onboarding.
+  // Um documento por cliente guarda ciclos separados e preserva o histórico.
+  var reimplantacaoDocs = [];
+  var reimplantacaoErroCarga = '';
+  var onboardingAba = 'onboarding';
+  var repEdit = null, repSalvando = false, repEnvio = null;
+  var REP_STATUS = {aguardando:'Aguardando iniciar',andamento:'Em andamento',concluido:'Concluído',cancelado:'Cancelado'};
+
+  function repDocId(clienteId){ return 'reimplantacao-'+clienteId; }
+  function repCliente(id){return clientes.filter(function(c){return c.id===id;})[0] || null;}
+  function repPodeVer(clienteId, csm){
+    if(!currentUser || isRenovacao()) return false;
+    var c=repCliente(clienteId);
+    return noEscopo(c ? c.csm : csm,escopoVisivelCsmNomes());
+  }
+  function repLista(){
+    var out=[];
+    reimplantacaoDocs.forEach(function(d){(d.ciclos||[]).forEach(function(r){
+      var c=repCliente(d.clienteId);
+      out.push(Object.assign({},r,{clienteId:d.clienteId,clienteNome:c?c.nome:d.clienteNome,csm:c?c.csm:d.csm}));
+    });});
+    return out;
+  }
+  function repAtiva(clienteId){return repLista().filter(function(r){return r.clienteId===clienteId && (r.status==='aguardando'||r.status==='andamento');})[0] || null;}
+  function repBotaoCliente(clienteId){
+    var c=repCliente(clienteId);
+    if(!c || !repPodeVer(c.id,c.csm)) return '';
+    return '<button type="button" class="btn btn-sm" data-iniciar-reimplantacao="'+esc(clienteId)+'">'+(repAtiva(clienteId)?'Abrir reimplantação':'Iniciar reimplantação')+'</button>';
+  }
+  function repReceberDocumentos(docs){
+    reimplantacaoDocs=docs.filter(function(d){return d.tipo==='reimplantacao';});
+    onboardings=docs.filter(function(d){return d.tipo!=='reimplantacao';});
+    reimplantacaoErroCarga='';
+  }
+  function renderReimplantacao(){
+    if(!currentUser) return;
+    document.querySelectorAll('[data-onboarding-aba]').forEach(function(b){
+      var selecionado=b.getAttribute('data-onboarding-aba')===onboardingAba;
+      b.classList.toggle('btn-accent',selecionado);b.setAttribute('aria-pressed',String(selecionado));
+    });
+    document.getElementById('onbBoard').hidden=onboardingAba!=='onboarding';
+    document.getElementById('repPainel').hidden=onboardingAba!=='reimplantacao';
+    document.getElementById('btnIniciarOnboarding').hidden=onboardingAba!=='onboarding';
+    document.getElementById('btnNovaReimplantacao').hidden=onboardingAba!=='reimplantacao';
+    var aviso=document.getElementById('repCargaError');
+    aviso.textContent=reimplantacaoErroCarga;aviso.hidden=!reimplantacaoErroCarga;
+    var lista=repLista().filter(function(r){
+      if(!repPodeVer(r.clienteId,r.csm)) return false;
+      return !isAdmin() || !onboardingFiltroCsm || (String(r.csm||'').trim().toLowerCase()||'__sem_csm')===onboardingFiltroCsm;
+    }).sort(function(a,b){return (b.atualizadoEm||'').localeCompare(a.atualizadoEm||'');});
+    document.getElementById('repBoard').innerHTML=Object.keys(REP_STATUS).map(function(st){
+      var rows=lista.filter(function(r){return r.status===st;});
+      return '<section class="onb-col rep-col" data-rep-drop="'+st+'"><div class="onb-col-head"><span>'+REP_STATUS[st]+'</span><span class="cnt">'+rows.length+'</span></div>'+rows.map(function(r){
+        return '<article class="onb-card rep-card" draggable="true" data-rep-drag="'+esc(r.id)+'" data-rep-open="'+esc(r.id)+'" tabindex="0" role="button" aria-label="Abrir reimplantação de '+esc(r.clienteNome)+'">'+
+          '<div class="nm">'+esc(r.clienteNome)+'</div><div class="meta">'+esc(r.csm||'Sem CSM atribuído')+'</div>'+
+          '<div class="rep-resumo">'+esc(r.resumo)+'</div>'+
+          (r.treinamento?'<div class="meta"><strong>Treinamento:</strong> '+esc(r.treinamento)+'</div>':'')+
+          '<div class="meta">'+(r.dataTreinamento?'Treinamento: '+fmtDate(r.dataTreinamento):'Treinamento não agendado')+'</div>'+
+          (st==='cancelado'?'<div class="rep-resumo rep-motivo">Motivo: '+esc(r.motivoCancelamento)+'</div>':'')+
+          '</article>';
+      }).join('')+(rows.length?'':'<div class="empty-note" style="padding:12px;">Nenhuma reimplantação</div>')+'</section>';
+    }).join('');
+  }
+  function repAtualizarCampos(){
+    var status=document.getElementById('repStatus').value;
+    document.getElementById('repMotivoWrap').hidden=status!=='cancelado';
+    document.getElementById('repMotivo').required=status==='cancelado';
+    var c=repCliente(document.getElementById('repCliente').value);
+    document.getElementById('repCsm').value=c?c.csm||'Sem CSM atribuído':'';
+  }
+  function repEstadoSalvando(){
+    document.querySelectorAll('#overlayReimplantacao input, #overlayReimplantacao select, #overlayReimplantacao textarea').forEach(function(el){
+      el.disabled=repSalvando || !!repEnvio || el.id==='repCsm' || (el.id==='repCliente' && !!(repEdit && repEdit.id)) || (el.id==='repStatus' && !(repEdit && repEdit.id));
+    });
+    document.querySelectorAll('#overlayReimplantacao [data-close]').forEach(function(b){b.disabled=repSalvando;});
+    var btn=document.getElementById('btnSalvarReimplantacao');btn.disabled=repSalvando;
+    btn.textContent=repSalvando?'Salvando…':(repEnvio?'Tentar novamente':'Salvar reimplantação');
+  }
+  function abrirReimplantacao(clienteId, cicloId, statusDestino){
+    if(repSalvando) return;
+    var r=cicloId?repLista().filter(function(r){return r.id===cicloId;})[0]:repAtiva(clienteId);
+    if(r){clienteId=r.clienteId;if(!repPodeVer(clienteId,r.csm))return;}
+    if(clienteId && !repPodeVer(clienteId,(repCliente(clienteId)||{}).csm)) return;
+    repEdit=r?JSON.parse(JSON.stringify(r)):{novoId:novoId('rep'),clienteId:clienteId||'',status:'aguardando'};
+    repEnvio=null;
+    var sel=document.getElementById('repCliente');
+    var elegiveis=clientes.filter(function(c){return repPodeVer(c.id,c.csm);}).sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
+    sel.innerHTML='<option value="">Selecione o cliente</option>'+elegiveis.map(function(c){return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>';}).join('');
+    sel.value=clienteId||'';
+    document.getElementById('repTitulo').textContent=r?'Reimplantação — '+r.clienteNome:'Nova reimplantação';
+    document.getElementById('repResumo').value=r?r.resumo||'':'';
+    document.getElementById('repTreinamento').value=r?r.treinamento||'':'';
+    document.getElementById('repDataTreinamento').value=r?r.dataTreinamento||'':'';
+    document.getElementById('repResumoTreinamento').value=r?r.resumoTreinamento||'':'';
+    document.getElementById('repStatus').innerHTML=Object.keys(REP_STATUS).map(function(st){return '<option value="'+st+'">'+REP_STATUS[st]+'</option>';}).join('');
+    document.getElementById('repStatus').value=statusDestino || repEdit.status;
+    document.getElementById('repMotivo').value=r?r.motivoCancelamento||'':'';
+    document.getElementById('repError').classList.remove('show');
+    document.getElementById('repHistorico').innerHTML=r && r.historico && r.historico.length?'<h4>Histórico de status</h4><ol class="rep-historico">'+r.historico.map(function(h){
+      return '<li>'+esc(new Date(h.data).toLocaleString('pt-BR'))+' · '+esc(h.usuarioNome||'')+' — '+esc(REP_STATUS[h.para]||h.para)+(h.motivo?'<div>Motivo: '+esc(h.motivo)+'</div>':'')+'</li>';
+    }).join('')+'</ol>':'';
+    repAtualizarCampos();repEstadoSalvando();openOverlay('overlayReimplantacao');
+    if(statusDestino==='cancelado') document.getElementById('repMotivo').focus();
+  }
+  async function salvarReimplantacao(){
+    if(repSalvando || !repEdit)return;
+    var err=document.getElementById('repError');err.classList.remove('show');
+    if(!repEnvio){
+      var c=repCliente(document.getElementById('repCliente').value);
+      var status=document.getElementById('repStatus').value;
+      var resumo=document.getElementById('repResumo').value.trim();
+      var treinamento=document.getElementById('repTreinamento').value.trim();
+      var data=document.getElementById('repDataTreinamento').value;
+      var resumoTreinamento=document.getElementById('repResumoTreinamento').value.trim();
+      var motivo=document.getElementById('repMotivo').value.trim();
+      var erro=!c?'Selecione o cliente.':!repPodeVer(c.id,c.csm)?'Cliente fora da sua carteira.':!resumo?'Preencha o resumo da reimplantação.':!REP_STATUS[status]?'Selecione um status válido.':status==='cancelado'&&!motivo?'Informe o motivo do cancelamento.':status==='concluido'&&(!treinamento||!data||!resumoTreinamento)?'Para concluir, preencha o treinamento, a data e o resumo do treinamento.':'';
+      if(erro){err.textContent=erro;err.classList.add('show');return;}
+      var ativa=repAtiva(c.id);
+      if(ativa && ativa.id!==repEdit.id && (!repEdit.id || status==='aguardando'||status==='andamento')){
+        err.textContent='Este cliente já possui uma reimplantação ativa. Abra o processo existente.';err.classList.add('show');return;
+      }
+      if(!repEdit.id) status='aguardando';
+      var agora=new Date().toISOString();
+      var historico=(repEdit.historico||[]).slice();
+      if(!repEdit.id || status!==repEdit.status)historico.push({de:repEdit.id?repEdit.status:null,para:status,data:agora,usuarioId:currentUser.id,usuarioNome:currentUser.nome,motivo:status==='cancelado'?motivo:''});
+      var registro=Object.assign({},repEdit,{id:repEdit.id||repEdit.novoId,resumo:resumo,treinamento:treinamento,dataTreinamento:data||null,resumoTreinamento:resumoTreinamento,status:status,motivoCancelamento:status==='cancelado'?motivo:'',historico:historico,criadoEm:repEdit.criadoEm||agora,atualizadoEm:agora,versao:(repEdit.versao||0)+1,ultimaOperacaoId:novoId('op')});
+      if(status==='concluido' && status!==repEdit.status)registro.concluidoEm=agora;
+      if(status==='cancelado' && status!==repEdit.status)registro.canceladoEm=agora;
+      delete registro.novoId;delete registro.clienteId;delete registro.clienteNome;delete registro.csm;
+      repEnvio={clienteId:c.id,registro:registro,versaoAnterior:repEdit.versao||0};
+    }
+    repSalvando=true;repEstadoSalvando();
+    try{
+      var envio=repEnvio,cAtual=repCliente(envio.clienteId);
+      if(!cAtual || !repPodeVer(cAtual.id,cAtual.csm))throw Error('Cliente fora da sua carteira.');
+      var idDoc=repDocId(envio.clienteId), doc=reimplantacaoDocs.filter(function(d){return d.clienteId===envio.clienteId;})[0];
+      if(db && !offline){var snap=await db.collection('onboardings').doc(idDoc).get();doc=snap.exists?snap.data():null;}
+      if(doc && doc.tipo!=='reimplantacao')throw Error('O identificador deste cliente coincide com outro registro. Nenhum dado foi substituído.');
+      var ciclos=doc?(doc.ciclos||[]).slice():[];
+      var idx=ciclos.findIndex(function(r){return r.id===envio.registro.id;}), anterior=idx<0?null:ciclos[idx];
+      if(!anterior || anterior.ultimaOperacaoId!==envio.registro.ultimaOperacaoId){
+        if(anterior && (anterior.versao||0)!==envio.versaoAnterior)throw Error('Este processo foi atualizado em outra sessão. Feche e reabra para carregar a versão atual.');
+        if(ciclos.some(function(r){return r.id!==envio.registro.id && (r.status==='aguardando'||r.status==='andamento');}) && (envio.registro.status==='aguardando'||envio.registro.status==='andamento'))throw Error('Já existe uma reimplantação ativa para este cliente.');
+        if(idx<0)ciclos.push(envio.registro);else ciclos[idx]=envio.registro;
+      }
+      var documento={tipo:'reimplantacao',clienteId:cAtual.id,clienteNome:cAtual.nome,csm:cAtual.csm||'',ciclos:ciclos};
+      if(db && !offline)await db.collection('onboardings').doc(idDoc).set(documento);
+      var i=reimplantacaoDocs.findIndex(function(d){return d.clienteId===envio.clienteId;});
+      if(i<0)reimplantacaoDocs.push(Object.assign({id:idDoc},documento));else reimplantacaoDocs[i]=Object.assign({id:idDoc},documento);
+      repEnvio=null;repSalvando=false;renderAll();closeOverlay('overlayReimplantacao');mostrarToastSucesso('Reimplantação salva com sucesso.');
+    }catch(e){err.textContent='Não foi possível confirmar o salvamento. '+detalheErro(e);err.classList.add('show');}
+    finally{repSalvando=false;repEstadoSalvando();}
+  }
+  function moverReimplantacao(id,status){
+    var r=repLista().filter(function(r){return r.id===id;})[0];
+    if(!r || r.status===status || !REP_STATUS[status] || !repPodeVer(r.clienteId,r.csm))return;
+    abrirReimplantacao(r.clienteId,id,status);
+    if(status!=='cancelado')salvarReimplantacao();
+  }
+  function wireReimplantacao(){
+    document.querySelectorAll('[data-onboarding-aba]').forEach(function(b){b.addEventListener('click',function(){onboardingAba=b.getAttribute('data-onboarding-aba');renderOnboarding();});});
+    document.getElementById('btnNovaReimplantacao').addEventListener('click',function(){abrirReimplantacao('');});
+    document.getElementById('repStatus').addEventListener('change',repAtualizarCampos);
+    document.getElementById('repCliente').addEventListener('change',function(){
+      var id=this.value,ativa=repAtiva(id);if(ativa){abrirReimplantacao(id,ativa.id);return;}repAtualizarCampos();
+    });
+    document.getElementById('btnSalvarReimplantacao').addEventListener('click',salvarReimplantacao);
+    document.body.addEventListener('click',function(e){
+      var iniciar=e.target.closest('[data-iniciar-reimplantacao]');if(iniciar){e.preventDefault();abrirReimplantacao(iniciar.getAttribute('data-iniciar-reimplantacao'));return;}
+      var card=e.target.closest('[data-rep-open]');if(card)abrirReimplantacao('',card.getAttribute('data-rep-open'));
+    });
+    var board=document.getElementById('repBoard'),arrastando=null;
+    board.addEventListener('keydown',function(e){var card=e.target.closest('[data-rep-open]');if(card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();abrirReimplantacao('',card.getAttribute('data-rep-open'));}});
+    board.addEventListener('dragstart',function(e){var card=e.target.closest('[data-rep-drag]');if(card){arrastando=card.getAttribute('data-rep-drag');if(e.dataTransfer){e.dataTransfer.setData('text/plain',arrastando);e.dataTransfer.effectAllowed='move';}}});
+    board.addEventListener('dragover',function(e){if(arrastando && e.target.closest('[data-rep-drop]'))e.preventDefault();});
+    board.addEventListener('drop',function(e){var col=e.target.closest('[data-rep-drop]');if(col&&arrastando){e.preventDefault();var id=arrastando;arrastando=null;moverReimplantacao(id,col.getAttribute('data-rep-drop'));}});
+    board.addEventListener('dragend',function(){arrastando=null;});
+  }
+
   function renderOnboarding(){
     if(!currentUser) return;
     var admin = isAdmin();
@@ -7387,7 +7605,7 @@
     if(admin){
       var nomes = {};
       csmUsuarios().forEach(function(u){ var nome = (u.csmVinculado || u.nome || '').trim(); if(nome) nomes[nome.toLowerCase()] = nome; });
-      lista.forEach(function(o){ var nome = (o.csm||'').trim(); if(nome) nomes[nome.toLowerCase()] = nome; });
+      lista.concat(repLista()).forEach(function(o){ var nome = (o.csm||'').trim(); if(nome) nomes[nome.toLowerCase()] = nome; });
       var seletor = document.getElementById('onbFiltroCsm');
       seletor.innerHTML = '<option value="">Todos os CSMs</option><option value="__sem_csm">Sem CSM atribuído</option>' + Object.keys(nomes).sort(function(a,b){return nomes[a].localeCompare(nomes[b],'pt-BR');}).map(function(k){
         return '<option value="'+esc(k)+'">'+esc(nomes[k])+'</option>';
@@ -7414,6 +7632,7 @@
       }).join('') || '<div class="empty-note" style="padding:8px 0; font-size:12px;">Vazio</div>';
       return '<div class="onb-col" data-drop-onb="'+f.key+'"><div class="onb-col-head"><span>'+esc(f.label)+'</span><span class="cnt">'+doColuna.length+'</span></div>'+cards+'</div>';
     }).join('');
+    renderReimplantacao();
   }
 
   function clientesElegiveisOnboarding(){
@@ -8966,6 +9185,7 @@
       renderAgenda();
     });
 
+    wireReimplantacao();
     document.getElementById('onbFiltroCsm').addEventListener('change', function(e){onboardingFiltroCsm=e.target.value;renderOnboarding();});
     document.getElementById('btnIniciarOnboarding').addEventListener('click', abrirIniciarOnboarding);
     document.getElementById('btnConfirmarIniciarOnboarding').addEventListener('click', confirmarIniciarOnboarding);
