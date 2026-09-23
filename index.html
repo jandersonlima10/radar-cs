@@ -217,6 +217,8 @@
   /* ---------- Cards / stat tiles ---------- */
   .grid-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:14px 0 22px; }
   @media (max-width:1050px){ .grid-stats{ grid-template-columns:repeat(2,1fr);} }
+  .grid-2col{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; align-items:start; }
+  @media (max-width:900px){ .grid-2col{ grid-template-columns:1fr; } }
   .stat{
     background:var(--surface); border:none; border-radius:16px; padding:16px 17px;
     box-shadow:var(--shadow);
@@ -297,6 +299,14 @@
   thead th[data-sort-carteira]:hover{ color:var(--ink-2); }
   thead th .sort-ind{ margin-left:3px; font-size:10px; }
   #overlayOnboarding .modal-foot{ flex-wrap:wrap; }
+  /* "Cancelar onboarding" é a única ação destrutiva do rodapé — fica
+     visualmente isolada das ações de rotina (mais discreta, com uma
+     borda separando-a do resto), em vez de disputar o mesmo peso
+     visual das demais e correr risco de clique acidental. */
+  #overlayOnboarding .modal-foot #btnExcluirOnboarding{
+    padding-right:14px; border-right:1px solid var(--border); border-radius:7px 0 0 7px;
+    background:none; border-top:none; border-bottom:none; border-left:none;
+  }
   #overlayOnboarding .modal-foot .btn{ max-width:100%; white-space:normal; }
   @media(max-width:600px){ #overlayOnboarding .modal-foot .btn{ flex:1 1 calc(50% - 8px); margin-right:0 !important; } #overlayOnboarding .modal-foot #btnAvancarFaseOnboarding{ flex-basis:100%; } }
   #onbBoard[hidden], #repPainel[hidden], #btnNovaReimplantacao[hidden], #btnIniciarOnboarding[hidden]{display:none;}
@@ -672,7 +682,9 @@
     .sidebar.mobile-open{ transform:translateX(0); box-shadow:0 10px 40px rgba(0,0,0,0.35); }
     .mobile-menu-btn{ display:flex; }
     .content{ padding:12px 16px 40px; }
-    .topbar{ padding:16px 16px 8px 60px; }
+    .topbar{ padding:16px 16px 8px 60px; flex-wrap:wrap; }
+    .topbar-actions{ flex:1 1 100%; flex-wrap:wrap; }
+    .topbar-actions .btn{ flex:1 1 auto; justify-content:center; }
     .grid-stats{ grid-template-columns:repeat(2,1fr); }
   }
   @media (max-width:600px){
@@ -682,6 +694,59 @@
   }
   @media (max-width:420px){
     .grid-stats{ grid-template-columns:1fr; }
+  }
+
+  /* ---------- Alvos de toque maiores em telas de toque ----------
+     Botões com ~13px de fonte e 8px de padding vertical ficam abaixo
+     dos ~44px recomendados como alvo mínimo de toque. Em telas
+     estreitas ou em qualquer dispositivo com ponteiro "grosso"
+     (touch), aumenta a área clicável sem mudar a aparência em
+     desktop com mouse. */
+  @media (max-width:880px), (pointer:coarse){
+    .btn{ padding:11px 14px; min-height:44px; }
+    .btn-sm{ padding:9px 12px; min-height:38px; }
+    .icon-btn{ padding:9px; min-height:40px; min-width:40px; align-items:center; justify-content:center; }
+    .nav-item{ min-height:44px; }
+  }
+
+  /* ---------- Scroll horizontal visível (quadro Kanban e tabelas) ----------
+     .table-wrap e .onb-board já tinham overflow-x:auto, mas sem
+     nenhuma barra de rolagem perceptível o conteúdo cortado parecia
+     simplesmente sumir. Estiliza a barra para ficar sempre visível. */
+  .table-wrap, .onb-board{
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+  .table-wrap::-webkit-scrollbar, .onb-board::-webkit-scrollbar{ height:9px; }
+  .table-wrap::-webkit-scrollbar-track, .onb-board::-webkit-scrollbar-track{ background:transparent; }
+  .table-wrap::-webkit-scrollbar-thumb, .onb-board::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:99px; }
+  .table-wrap::-webkit-scrollbar-thumb:hover, .onb-board::-webkit-scrollbar-thumb:hover{ background:var(--muted); }
+
+  @media (max-width:900px){
+    .onb-col{ flex:0 0 220px; }
+  }
+
+  /* ---------- Carteira em cards no mobile ----------
+     Abaixo de 760px a tabela de clientes (muitas colunas) deixa de
+     caber — em vez de cortar conteúdo fora da tela, cada linha vira
+     um cartão empilhado, com rótulo antes do valor (via data-label). */
+  @media (max-width:760px){
+    .carteira-table thead{ display:none; }
+    .carteira-table, .carteira-table tbody, .carteira-table tr, .carteira-table td{ display:block; width:100%; }
+    .carteira-table tr{
+      position:relative; border:1px solid var(--border); border-radius:12px; padding:12px 14px 10px; margin-bottom:10px; background:var(--surface);
+    }
+    .carteira-table tr:has(.td-check){ padding-left:34px; }
+    .carteira-table td{ border:none; padding:5px 0; }
+    .carteira-table td.td-check{ position:absolute; top:14px; left:12px; }
+    .carteira-table td.td-identidade{ padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid var(--border); }
+    .carteira-table td.td-curva{ display:none; }
+    .carteira-table td[data-label]{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; }
+    .carteira-table td[data-label]::before{
+      content: attr(data-label); font-size:11.5px; font-weight:600; color:var(--muted); flex:none;
+    }
+    .carteira-table td.td-acoes{ padding-top:8px; margin-top:2px; border-top:1px solid var(--border); }
+    .carteira-table td.td-acoes > div{ justify-content:flex-start !important; flex-wrap:wrap !important; }
   }
 </style>
 </head>
@@ -934,7 +999,7 @@
       <div class="topbar">
         <div>
           <h1>Dashboard</h1>
-          <div class="subtitle">Contatos do dia, ritmo da carteira e clientes críticos, em um só lugar.</div>
+          <div class="subtitle">Visão analítica da carteira: saúde por curva, tendência de contatos e onde o risco financeiro está concentrado.</div>
         </div>
       </div>
       <div class="content">
@@ -958,17 +1023,32 @@
         <div class="card">
           <div class="card-head">
             <div>
-              <h2>Cobertura da carteira</h2>
-              <div class="hint">Quanto da carteira já teve contato dentro do prazo configurado em Configurações.</div>
+              <h2>Saúde da carteira por curva</h2>
+              <div class="hint">Quantos clientes de cada curva estão saudáveis, em atenção ou críticos agora.</div>
             </div>
           </div>
-          <div class="card-body pad-top">
-            <div style="display:flex; align-items:baseline; gap:8px;">
-              <div class="value num" id="dashCoberturaPct" style="font-size:22px;">–</div>
-              <div class="hint">da carteira com contato dentro do prazo</div>
+          <div class="card-body pad-top" id="dashSaudeCurva"></div>
+        </div>
+
+        <div class="grid-2col">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Tendência de contatos únicos</h2>
+                <div class="hint">Clientes únicos contatados por mês, últimos 6 meses.</div>
+              </div>
             </div>
-            <div id="dashCoberturaBarra" style="display:flex; gap:2px; margin-top:10px; border-radius:8px; overflow:hidden; cursor:pointer;"></div>
-            <div id="dashCoberturaLegenda" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;"></div>
+            <div class="card-body pad-top" id="dashTendencia"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Maior valor em risco</h2>
+                <div class="hint">Clientes críticos ou em atenção, ordenados por ARR — onde uma perda pesaria mais.</div>
+              </div>
+            </div>
+            <div class="card-body pad-top" id="dashTopRisco"></div>
           </div>
         </div>
       </div>
@@ -1032,7 +1112,7 @@
 
         <div class="card">
           <div class="table-wrap">
-            <table>
+            <table class="carteira-table">
               <thead>
                 <tr>
                   <th data-role-gate="admin" style="display:none; width:28px;"><input type="checkbox" id="chkCarteiraTodos" style="width:auto;" title="Selecionar todos os clientes exibidos"></th>
@@ -2327,7 +2407,7 @@
     </div>
     <div class="modal-body" id="onbFormBody"></div>
     <div class="modal-foot">
-      <button class="btn btn-danger" id="btnExcluirOnboarding" style="margin-right:auto;">Cancelar onboarding</button>
+      <button class="btn btn-sm btn-danger" id="btnExcluirOnboarding" style="margin-right:auto;">Cancelar onboarding</button>
       <button class="btn" id="btnVoltarFaseOnboarding" style="display:none;">Voltar para fase anterior</button>
       <button class="btn" data-close="overlayOnboarding">Fechar</button>
       <button class="btn" id="btnSalvarOnboarding">Salvar alterações</button>
@@ -3114,11 +3194,21 @@
   // Confirmação de ação no visual do próprio sistema, substituindo o
   // confirm() nativo do navegador (item 2 da spec de usabilidade).
   // Uso: confirmarAcao('Excluir isso?', function(){ ...ação... }, {textoConfirmar:'Excluir'});
+  // opts.perigo (padrão true) controla a cor do botão de confirmação:
+  // vermelho para ações destrutivas/irreversíveis (excluir, remover,
+  // cancelar), roxo neutro para confirmações de rotina que não perdem
+  // dados (congelar, descongelar, voltar de fase) — sem isso, todo
+  // "Confirmar" parecia igualmente perigoso e o sinal de alerta real
+  // se perdia no meio de confirmações do dia a dia.
   var confirmarAcaoPendente = null;
   function confirmarAcao(mensagem, onConfirmar, opts){
     opts = opts || {};
     document.getElementById('confirmarAcaoTexto').textContent = mensagem;
-    document.getElementById('btnConfirmarAcaoOk').textContent = opts.textoConfirmar || 'Confirmar';
+    var btnOk = document.getElementById('btnConfirmarAcaoOk');
+    btnOk.textContent = opts.textoConfirmar || 'Confirmar';
+    var perigo = opts.perigo !== false;
+    btnOk.classList.toggle('btn-danger-fill', perigo);
+    btnOk.classList.toggle('btn-accent', !perigo);
     confirmarAcaoPendente = onConfirmar;
     openOverlay('overlayConfirmarAcao');
   }
@@ -5224,7 +5314,92 @@
     document.getElementById('dashCriticos').textContent = criticos.length;
     document.getElementById('dashCriticosSub').textContent = criticos.length ? 'precisam de atenção imediata' : 'nenhum no momento';
 
-    renderCoberturaBloco(stats, 'dashCoberturaPct', 'dashCoberturaBarra', 'dashCoberturaLegenda');
+    // O Dashboard não repete mais a barra de "cobertura da carteira" (que
+    // já vive, com mais contexto de ação, no Painel do dia) — em vez
+    // disso mostra três leituras que só existem aqui: saúde por curva,
+    // tendência de contatos ao longo do tempo e onde o risco financeiro
+    // está concentrado.
+    renderDashSaudeCurva(stats);
+    renderDashTendencia(escopo);
+    renderDashTopRisco(stats);
+  }
+
+  function renderDashSaudeCurva(stats){
+    var el = document.getElementById('dashSaudeCurva');
+    if(!el) return;
+    if(!stats.length){ el.innerHTML = '<div class="empty-note">Nenhum cliente na carteira ainda.</div>'; return; }
+    var HEALTH_LABEL_CURTO = {good:'Saudável', warning:'Atenção', critical:'Crítico'};
+    var HEALTH_COR = {good:'var(--good)', warning:'var(--warning-fill)', critical:'var(--critical)'};
+    var ordemCurva = ['A','B','C','D'].filter(function(cv){ return stats.some(function(s){ return s.cliente.curva === cv; }); });
+    el.innerHTML = ordemCurva.map(function(cv){
+      var doCurva = stats.filter(function(s){ return s.cliente.curva === cv; });
+      var total = doCurva.length;
+      var contagem = {good:0, warning:0, critical:0};
+      doCurva.forEach(function(s){ contagem[s.health] = (contagem[s.health]||0) + 1; });
+      var barra = ['good','warning','critical'].map(function(h){
+        var pct = total ? Math.round(100*contagem[h]/total) : 0;
+        if(!pct) return '';
+        return '<div title="'+esc(HEALTH_LABEL_CURTO[h])+': '+contagem[h]+'" style="width:'+pct+'%; min-width:4px; height:10px; background:'+HEALTH_COR[h]+';"></div>';
+      }).join('');
+      return '<div style="margin-bottom:14px;">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">' +
+          '<span class="curva curva-'+cv+'">'+cv+'</span> <span class="hint">'+total+' cliente'+(total===1?'':'s')+'</span>' +
+        '</div>' +
+        '<div style="display:flex; gap:2px; border-radius:6px; overflow:hidden;">'+barra+'</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderDashTendencia(escopo){
+    var el = document.getElementById('dashTendencia');
+    if(!el) return;
+    var hoje = new Date();
+    var nomesMes = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    var meses = [];
+    for(var i=5;i>=0;i--){
+      var d = new Date(hoje.getFullYear(), hoje.getMonth()-i, 1);
+      meses.push({key: d.getFullYear()+'-'+pad(d.getMonth()+1), label: nomesMes[d.getMonth()]});
+    }
+    var porMes = {};
+    meses.forEach(function(m){ porMes[m.key] = {}; });
+    contatos.forEach(function(c){
+      if(!noEscopo(c.csm, escopo)) return;
+      var mk = monthKey(c.data);
+      if(porMes[mk]) porMes[mk][c.clienteId] = true;
+    });
+    var valores = meses.map(function(m){ return Object.keys(porMes[m.key]).length; });
+    var max = Math.max.apply(null, valores.concat([1]));
+    el.innerHTML = '<div style="display:flex; align-items:flex-end; gap:10px; height:110px;">' +
+      meses.map(function(m, idx){
+        var v = valores[idx];
+        var alturaPx = v ? Math.max(6, Math.round(76 * v / max)) : 2;
+        return '<div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; gap:6px; height:100%;">' +
+          '<div class="hint num" style="font-size:11px;">'+v+'</div>' +
+          '<div style="width:100%; max-width:30px; height:'+alturaPx+'px; background:var(--accent); opacity:'+(idx===meses.length-1?'1':'0.5')+'; border-radius:4px 4px 0 0;"></div>' +
+        '</div>';
+      }).join('') +
+    '</div>' +
+    '<div style="display:flex; gap:10px; margin-top:6px;">' +
+      meses.map(function(m){ return '<div class="hint" style="flex:1; text-align:center; font-size:11px;">'+m.label+'</div>'; }).join('') +
+    '</div>';
+  }
+
+  function renderDashTopRisco(stats){
+    var el = document.getElementById('dashTopRisco');
+    if(!el) return;
+    var lista = stats.filter(function(s){ return s.health !== 'good'; })
+      .slice().sort(function(a,b){ return Number(b.cliente.arr||0) - Number(a.cliente.arr||0); })
+      .slice(0,5);
+    if(!lista.length){ el.innerHTML = '<div class="empty-note">Nenhum cliente em atenção ou crítico no momento. 🎉</div>'; return; }
+    el.innerHTML = lista.map(function(s){
+      var c = s.cliente;
+      return '<div class="queue-row">' +
+        '<div class="queue-main">' +
+          '<div class="queue-name"><a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a> <span class="id">'+esc(c.csm||'—')+'</span></div>' +
+          '<div class="queue-meta">'+healthPill(s.health)+' '+motivoChip({tipo:'', texto: fmtMoney(c.arr)})+'</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
   }
 
   // ---------------------------------------------------------------
@@ -5618,8 +5793,8 @@
       var proxCls = (s.frio || s.diasAtraso > 0) ? 'color:var(--critical-ink); font-weight:600;' : '';
       var riscoPill = s.risco === 'alto' ? healthPill('critical','Alto') : (s.risco === 'medio' ? healthPill('warning','Médio') : healthPill('good','Baixo'));
       return '<tr>' +
-        (admin ? '<td><input type="checkbox" class="chk-carteira-item" data-carteira-item="'+esc(c.id)+'" style="width:auto;"'+(carteiraSelecionados[c.id]?' checked':'')+'></td>' : '') +
-        '<td><div class="cell-client">' +
+        (admin ? '<td class="td-check"><input type="checkbox" class="chk-carteira-item" data-carteira-item="'+esc(c.id)+'" style="width:auto;"'+(carteiraSelecionados[c.id]?' checked':'')+'></td>' : '') +
+        '<td class="td-identidade"><div class="cell-client">' +
             '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
             '<div><div class="nm">'+esc(c.nome)+(c.alertaAtivo?' <span class="pill pill-critical" style="margin-left:4px;"><span class="pill-dot"></span>Alerta</span>':'')+(c.ativo===false?' <span class="pill pill-neutral" style="margin-left:4px;"><span class="pill-dot"></span>Inativo</span>':'')+tagOnboardingCarteiraHtml(c.id)+'</div>' +
               '<div class="ct">'+esc(c.id)+' · '+esc((c.contato||'').split(' — ')[0]||'')+'</div>' +
@@ -5627,15 +5802,15 @@
             '</div>' +
             waButton(c) +
           '</div></td>' +
-        '<td>'+c.curva+'</td>' +
-        '<td>'+esc(c.csm||'—')+'</td>' +
-        '<td class="num" style="'+vencCls+'">'+fmtDate(c.vencimento)+'</td>' +
-        '<td class="num">'+(s.last?fmtDate(s.last.data):'nunca')+'</td>' +
-        '<td class="num" style="'+proxCls+'">'+(s.frio?'agora':fmtDate(s.proximoContato))+'</td>' +
-        '<td>'+healthPill(s.health)+'</td>' +
-        '<td>'+riscoPill+'</td>' +
-        '<td class="num">'+(s.nps==null?'—':s.nps)+'</td>' +
-        '<td><div style="display:flex; gap:4px; justify-content:flex-end;">' +
+        '<td class="td-curva" data-label="Curva">'+c.curva+'</td>' +
+        '<td data-label="CSM">'+esc(c.csm||'—')+'</td>' +
+        '<td class="num" data-label="Vencimento" style="'+vencCls+'">'+fmtDate(c.vencimento)+'</td>' +
+        '<td class="num" data-label="Último contato">'+(s.last?fmtDate(s.last.data):'nunca')+'</td>' +
+        '<td class="num" data-label="Próximo contato" style="'+proxCls+'">'+(s.frio?'agora':fmtDate(s.proximoContato))+'</td>' +
+        '<td data-label="Saúde">'+healthPill(s.health)+'</td>' +
+        '<td data-label="Risco">'+riscoPill+'</td>' +
+        '<td class="num" data-label="NPS">'+(s.nps==null?'—':s.nps)+'</td>' +
+        '<td class="td-acoes"><div style="display:flex; gap:4px; justify-content:flex-end;">' +
           '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Histórico</button>' +
           '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Contato</button>' +
           '<button class="icon-btn" data-open-editar="'+esc(c.id)+'" title="Editar" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>' +
@@ -8789,7 +8964,7 @@
       }catch(e){
         alert('Não foi possível voltar de fase agora. Confira a configuração do Supabase e sua conexão.');
       }
-    }, {textoConfirmar: 'Voltar de fase'});
+    }, {textoConfirmar: 'Voltar de fase', perigo: false});
   }
 
   // Botão "Congelar cliente" — disponível em qualquer fase, exceto se já
@@ -8810,7 +8985,7 @@
         renderAll();renderOnboardingFormBody();
         mostrarToastSucesso('Cliente congelado.');
       }catch(e){ alert('Não foi possível congelar agora. '+detalheErro(e)); }
-    }, {textoConfirmar:'Congelar cliente'});
+    }, {textoConfirmar:'Congelar cliente', perigo: false});
   }
 
   // Botão "Descongelar" — recalcula o Início do onboarding para que,
@@ -8835,7 +9010,7 @@
         renderAll();renderOnboardingFormBody();
         mostrarToastSucesso('Cliente descongelado.');
       }catch(e){ alert('Não foi possível descongelar agora. '+detalheErro(e)); }
-    }, {textoConfirmar:'Descongelar'});
+    }, {textoConfirmar:'Descongelar', perigo: false});
   }
 
   // Arraste de card no quadro de Onboarding: reaproveita exatamente as
