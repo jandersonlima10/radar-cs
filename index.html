@@ -548,10 +548,12 @@
   .role-pill-csm{ background:var(--surface-3); color:var(--ink-2); }
   .role-pill-coord{ background:var(--warning-soft); color:var(--warning-ink); }
   .role-pill-renov{ background:var(--accent-soft); color:var(--accent); }
+  .role-pill-treino{ background:var(--good-soft); color:var(--good-ink); }
   .user-card .role-pill-admin{ background:rgba(255,255,255,0.2); color:#ffffff; }
   .user-card .role-pill-csm{ background:rgba(255,255,255,0.14); color:var(--sidebar-ink-muted); }
   .user-card .role-pill-coord{ background:rgba(255,255,255,0.18); color:#ffffff; }
   .user-card .role-pill-renov{ background:rgba(255,255,255,0.2); color:#ffffff; }
+  .user-card .role-pill-treino{ background:rgba(255,255,255,0.2); color:#ffffff; }
 
   .kanban-board{ display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; }
   .kanban-col{ flex:0 0 230px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; max-height:560px; overflow-y:auto; transition:background .15s ease, outline .15s ease; }
@@ -1166,13 +1168,18 @@
       <div class="topbar">
         <div>
           <h1>Treinamento</h1>
-          <div class="subtitle">Reuniões de treinamento que já passaram do horário agendado, aguardando a analista validar antes de colher o CSAT do cliente.</div>
+          <div class="subtitle">Treinamentos de Onboarding, Reimplantação e Tira-dúvida que já passaram do horário agendado, aguardando a analista validar antes de colher o CSAT do cliente.</div>
         </div>
         <div class="topbar-actions">
+          <div>
+            <label for="treinamentoCategoriaSelect" class="hint">Tipo</label>
+            <select id="treinamentoCategoriaSelect" aria-label="Tipo de treinamento"></select>
+          </div>
           <div>
             <label for="treinamentoPerfilSelect" class="hint">Perfil de acesso</label>
             <select id="treinamentoPerfilSelect" aria-label="Perfil de acesso"></select>
           </div>
+          <button type="button" class="btn btn-accent" id="btnNovaTiraDuvida" style="align-self:flex-end;">+ Nova Tira-dúvida</button>
         </div>
       </div>
       <div class="content">
@@ -1182,6 +1189,7 @@
         </div>
         <div id="treinamentoFilaBoard"></div>
         <div id="treinamentoHistoricoBoard" hidden></div>
+        <div id="treinamentoTiraDuvidaAgendadasBoard" hidden></div>
       </div>
     </section>
 
@@ -2090,7 +2098,7 @@
       <div class="field"><label for="uiNome">Nome</label><input id="uiNome" type="text" placeholder="Nome completo"></div>
       <div class="field-row">
         <div class="field"><label for="uiPerfil">Perfil de acesso</label>
-          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="renovacao">Especialista de renovação (ambiente próprio)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
+          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="renovacao">Especialista de renovação (ambiente próprio)</option><option value="treinamento">Analista de Treinamento (Treinamento + Onboarding + Agenda)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
         </div>
         <div class="field" id="uiCsmVinculadoWrap"><label for="uiCsmVinculado">Carteira vinculada</label><input id="uiCsmVinculado" type="text" placeholder="Nome do CSM na carteira" list="listaCsmsDatalist"></div>
       </div>
@@ -2311,6 +2319,12 @@
       <div class="field"><label for="repResumo">Resumo da reimplantação *</label><textarea id="repResumo" placeholder="Contexto, necessidade do cliente e objetivo da reimplantação"></textarea></div>
       <div class="field-row"><div class="field"><label for="repTreinamento">Treinamento</label><input id="repTreinamento" type="text" placeholder="Nome ou tema do treinamento"></div><div class="field"><label for="repDataTreinamento">Data do treinamento</label><input id="repDataTreinamento" type="date"></div></div>
       <div class="field"><label for="repResumoTreinamento">Resumo do treinamento</label><textarea id="repResumoTreinamento" placeholder="Conteúdo abordado, orientações e próximos passos"></textarea></div>
+      <div class="field">
+        <label>Reuniões de treinamento</label>
+        <div class="hint" style="margin-bottom:6px;">Agende as reuniões de treinamento desta reimplantação com uma analista. Depois do horário de cada uma, ela entra na fila de validação da aba Treinamento.</div>
+        <div style="margin-bottom:8px;"><button type="button" class="btn btn-sm" id="btnRepAddReuniao">+ Adicionar reunião</button></div>
+        <div id="repReunioesLista"></div>
+      </div>
       <div class="field"><label for="repStatus">Status da reimplantação</label><select id="repStatus"></select></div>
       <div id="repMotivoWrap" hidden><div class="field"><label for="repMotivo">Motivo do cancelamento *</label><textarea id="repMotivo" placeholder="Informe o motivo do cancelamento"></textarea></div></div>
       <div class="hint">Para concluir, preencha o treinamento, a data e o resumo do treinamento.</div>
@@ -2318,6 +2332,31 @@
       <div id="repHistorico"></div>
     </div>
     <div class="modal-foot"><button class="btn" data-close="overlayReimplantacao">Fechar</button><button class="btn btn-accent" id="btnSalvarReimplantacao">Salvar reimplantação</button></div>
+  </div>
+</div>
+
+<!-- ===================== MODAL: Tira-dúvida (treinamento avulso, cliente de base) ===================== -->
+<div class="overlay" id="overlayTiraDuvida">
+  <div class="modal" style="width:640px;">
+    <div class="modal-head"><h3 id="tdTitulo">Nova Tira-dúvida</h3><button class="icon-btn" data-close="overlayTiraDuvida" aria-label="Fechar">✕</button></div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:8px;">Sessão avulsa de dúvidas gerais com um cliente já de base — sem onboarding nem reimplantação em andamento.</div>
+      <div class="field-row"><div class="field"><label for="tdCliente">Cliente *</label><select id="tdCliente"></select></div><div class="field"><label for="tdCsm">CSM responsável</label><input id="tdCsm" type="text" disabled></div></div>
+      <div class="field"><label for="tdAssunto">Assunto da dúvida *</label><textarea id="tdAssunto" placeholder="Ex.: dúvida sobre emissão de recibos e fechamento de caixa"></textarea></div>
+      <div class="field-row">
+        <div class="field"><label for="tdData">Data agendada</label><input id="tdData" type="date"></div>
+        <div class="field"><label for="tdHora">Horário agendado</label><input id="tdHora" type="time"></div>
+        <div class="field"><label for="tdAnalista">Analista</label><select id="tdAnalista"></select></div>
+      </div>
+      <div class="field"><label for="tdParticipantes">Participantes</label><textarea id="tdParticipantes" placeholder="Ex.: Dra. Helena, Ana (recepção)"></textarea></div>
+      <div class="field"><label for="tdObservacoes">Observações</label><textarea id="tdObservacoes"></textarea></div>
+      <div class="gate-error" id="tdError" role="alert"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sm btn-danger" id="btnExcluirTiraDuvida" style="margin-right:auto; display:none;">Excluir</button>
+      <button class="btn" data-close="overlayTiraDuvida">Fechar</button>
+      <button class="btn btn-accent" id="btnSalvarTiraDuvida">Salvar</button>
+    </div>
   </div>
 </div>
 
@@ -2735,9 +2774,11 @@
   // expandidas na tela (id da reunião -> bool); ao abrir o cliente, todas
   // começam ocultas, para deixar a fase mais compacta.
   var onbReunioesExpandidas = {};
-  var onbTreinamentoValidar = null; // {clienteId, reuniaoId} da reunião aberta no modal "Validar treinamento"
+  var onbTreinamentoValidar = null; // {clienteId, reuniaoId, categoria} do item aberto no modal "Validar treinamento"
   var treinamentoAba = 'fila'; // 'fila' (validação) | 'historico'
-  var treinamentoPerfilFiltro = 'admin'; // 'admin' (vê tudo) | um dos ONBOARDING_ANALISTAS
+  var treinamentoPerfilFiltro = 'admin'; // 'admin' (vê tudo) | nome de um dos analistas (listaAnalistasTreinamento())
+  var treinamentoPerfilFiltroInicializado = false; // ao logar como Analista de Treinamento, cai direto na própria fila
+  var treinamentoCategoriaFiltro = 'todas'; // 'todas' | 'onboarding' | 'reimplantacao' | 'tiraduvida'
   var radarRenovacaoExpandido = false; // conteúdo recolhido por padrão para o CSM
   var filtros = { busca:'', csm:'todos', curva:'todas', saude:'todas', cadencia:'todos', cobertura:'todas', mostrarInativos:false };
   var relFiltro = { mes: '', csm: 'todos' };
@@ -2839,7 +2880,14 @@
     {key:'correcaoRealizada', label:'Correção Realizada'}
   ];
   // Analistas de treinamento (aba "Treinamento" — fila de validação de CSAT).
-  var ONBOARDING_ANALISTAS = ['Andressa Burguetti', 'Ketilyn Sorrechia', 'Francis Marques'];
+  // Derivado dos usuários com perfil "treinamento" cadastrados em
+  // Configurações — cada analista tem login próprio (seção "Analista de
+  // Treinamento" da spec), então a lista nunca fica desatualizada.
+  function listaAnalistasTreinamento(){
+    return usuarios.filter(function(u){ return u.perfil === 'treinamento'; })
+      .map(function(u){ return u.nome; })
+      .sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
+  }
   // Reuniões fixas do conteúdo programático (Fase "Construindo o Sucesso") —
   // título e objetivo pré-definidos; é possível cadastrar reuniões extras
   // com título/objetivo livres além destas 3.
@@ -3897,7 +3945,10 @@
       {id:'bruno-lima', nome:'Bruno Lima', perfil:'csm', csmVinculado:'Bruno Lima'},
       {id:'carla-mendes', nome:'Carla Mendes', perfil:'csm', csmVinculado:'Carla Mendes'},
       {id:'coordenacao-cs', nome:'Coordenação CS', perfil:'admin', csmVinculado:null},
-      {id:'renata-renovacao', nome:'Renata Renovação', perfil:'renovacao', csmVinculado:null}
+      {id:'renata-renovacao', nome:'Renata Renovação', perfil:'renovacao', csmVinculado:null},
+      {id:'andressa-burguetti', nome:'Andressa Burguetti', perfil:'treinamento', csmVinculado:null},
+      {id:'ketilyn-sorrechia', nome:'Ketilyn Sorrechia', perfil:'treinamento', csmVinculado:null},
+      {id:'francis-marques', nome:'Francis Marques', perfil:'treinamento', csmVinculado:null}
     ];
     var out = [];
     for(var i=0;i<base.length;i++){
@@ -3915,7 +3966,7 @@
     playbooks = buildSeedPlaybooks().map(function(p){ return Object.assign({}, p); });
     planos = buildSeedPlanos().map(function(p){ return Object.assign({}, p); });
     tags = buildSeedTags().map(function(t){ return Object.assign({}, t); });
-    agendas = usuarios.filter(function(u){ return u.perfil === 'csm'; }).map(function(u){
+    agendas = usuarios.filter(function(u){ return u.perfil === 'csm' || u.perfil === 'treinamento'; }).map(function(u){
       var d = disponibilidadePadrao();
       d.telefoneWhatsapp = '5511999990000';
       return Object.assign({id:u.id}, d);
@@ -3923,6 +3974,7 @@
     agendamentos = [];
     onboardings = [];
     reimplantacaoDocs = [];
+    tiraDuvidas = [];
     reimplantacaoErroCarga = '';
     renovacoesData = [];
     reclamacoesRA = [];
@@ -4967,6 +5019,7 @@
   function isAdmin(){ return !!(currentUser && currentUser.perfil === 'admin'); }
   function isCoordenador(){ return !!(currentUser && currentUser.perfil === 'coordenador'); }
   function isRenovacao(){ return !!(currentUser && currentUser.perfil === 'renovacao'); }
+  function isAnalistaTreinamento(){ return !!(currentUser && currentUser.perfil === 'treinamento'); }
   function meuCsmVinculado(){ return currentUser ? currentUser.csmVinculado : null; }
 
   function entrarComo(userId){
@@ -4998,6 +5051,7 @@
     currentUserId = '';
     localStorage.removeItem('radarcs.userId');
     gateSelectedUserId = null;
+    treinamentoPerfilFiltroInicializado = false;
     document.getElementById('overlayGate').classList.remove('hidden');
     renderGate();
   }
@@ -5153,6 +5207,7 @@
     var admin = isAdmin();
     var coord = isCoordenador();
     var renov = isRenovacao();
+    var treino = isAnalistaTreinamento();
     document.querySelectorAll('[data-role-gate="admin"]').forEach(function(el){
       el.style.display = admin ? '' : 'none';
     });
@@ -5173,6 +5228,13 @@
       var el = document.querySelector('.nav-item[data-view="'+v+'"]');
       if(el) el.style.display = renov ? 'none' : '';
     });
+    // Analista de Treinamento: ambiente restrito a Treinamento, Onboarding
+    // (que inclui a aba Reimplantação) e Agenda — sem Painel, Dashboard,
+    // Carteira, Alertas, Playbooks ou Reclamações RA no menu dela.
+    ['painel','dashboard','carteira','alertas','playbooks','reclamacoesRA'].forEach(function(v){
+      var el = document.querySelector('.nav-item[data-view="'+v+'"]');
+      if(el && treino) el.style.display = 'none';
+    });
     if(!admin){
       var activeView = document.querySelector('.view.active');
       if(activeView && activeView.id === 'view-configuracoes'){
@@ -5181,6 +5243,17 @@
       if(!coord && activeView && activeView.id === 'view-relatorios'){
         switchView('painel');
       }
+      if(treino && activeView && ['view-painel','view-dashboard','view-carteira','view-alertas','view-playbooks','view-reclamacoesRA','view-renovacao'].indexOf(activeView.id) > -1){
+        switchView('treinamento');
+      }
+    }
+    // Ao logar como Analista de Treinamento, a fila de validação já abre
+    // filtrada na própria fila (em vez de "Administrador — todas as
+    // filas"). Só na primeira renderização depois do login — se ela
+    // trocar o filtro manualmente depois, isso não é sobrescrito de volta.
+    if(treino && !treinamentoPerfilFiltroInicializado){
+      treinamentoPerfilFiltro = currentUser.nome;
+      treinamentoPerfilFiltroInicializado = true;
     }
     if(renov){
       switchView('renovacao');
@@ -5189,8 +5262,8 @@
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
       document.getElementById('userCardNome').textContent = currentUser.nome;
       var roleEl = document.getElementById('userCardRole');
-      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : (renov ? 'Especialista de renovação' : 'CSM'));
-      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : (renov ? 'role-pill-renov' : 'role-pill-csm')));
+      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : (renov ? 'Especialista de renovação' : (treino ? 'Analista de Treinamento' : 'CSM')));
+      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : (renov ? 'role-pill-renov' : (treino ? 'role-pill-treino' : 'role-pill-csm'))));
     }
   }
 
@@ -5205,6 +5278,9 @@
   function escopoVisivelCsmNomes(){
     if(!currentUser) return [];
     if(isAdmin()) return null;
+    // Analista de Treinamento atende reuniões de treinamento de toda a
+    // carteira, não de um CSM específico — sem restrição de escopo.
+    if(isAnalistaTreinamento()) return null;
     if(isCoordenador()) return (currentUser.equipeCsm||[]).slice();
     return [meuCsmVinculado() || currentUser.nome];
   }
@@ -6359,6 +6435,10 @@
     // Reforçado aqui (e não só escondendo os botões do menu) para que a
     // restrição valha mesmo se algo tentar navegar direto por fora do menu.
     if(isRenovacao() && view !== 'renovacao') view = 'renovacao';
+    // Analista de Treinamento: só Treinamento, Onboarding (+ Reimplantação,
+    // que é uma aba dentro de Onboarding) e Agenda — reforçado aqui pelo
+    // mesmo motivo do bloco acima.
+    if(isAnalistaTreinamento() && ['treinamento','onboarding','agenda'].indexOf(view) === -1) view = 'treinamento';
     document.querySelectorAll('.nav-item[data-view]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-view')===view); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
   }
@@ -7874,6 +7954,11 @@
   // Um documento por cliente guarda ciclos separados e preserva o histórico.
   var reimplantacaoDocs = [];
   var reimplantacaoErroCarga = '';
+  // Tira-dúvida: terceiro tipo de treinamento (junto de Onboarding e
+  // Reimplantação), para clientes já de base que só precisam de uma sessão
+  // avulsa de dúvidas gerais — sem fase de onboarding nem ciclo de
+  // reimplantação. Documentos próprios (tipo:'tiraduvida') na mesma tabela.
+  var tiraDuvidas = [];
   var onboardingAba = 'onboarding';
   var repEdit = null, repSalvando = false, repEnvio = null;
   var REP_STATUS = {aguardando:'Aguardando iniciar',andamento:'Em andamento',concluido:'Concluído',cancelado:'Cancelado'};
@@ -7901,7 +7986,8 @@
   }
   function repReceberDocumentos(docs){
     reimplantacaoDocs=docs.filter(function(d){return d.tipo==='reimplantacao';});
-    onboardings=docs.filter(function(d){return d.tipo!=='reimplantacao';}).map(onboardingBackfillCampos);
+    tiraDuvidas=docs.filter(function(d){return d.tipo==='tiraduvida';});
+    onboardings=docs.filter(function(d){return d.tipo!=='reimplantacao' && d.tipo!=='tiraduvida';}).map(onboardingBackfillCampos);
     reimplantacaoErroCarga='';
   }
   function renderReimplantacao(){
@@ -7918,7 +8004,7 @@
     aviso.textContent=reimplantacaoErroCarga;aviso.hidden=!reimplantacaoErroCarga;
     var lista=repLista().filter(function(r){
       if(!repPodeVer(r.clienteId,r.csm)) return false;
-      return !isAdmin() || !onboardingFiltroCsm || (String(r.csm||'').trim().toLowerCase()||'__sem_csm')===onboardingFiltroCsm;
+      return !(isAdmin()||isAnalistaTreinamento()) || !onboardingFiltroCsm || (String(r.csm||'').trim().toLowerCase()||'__sem_csm')===onboardingFiltroCsm;
     }).sort(function(a,b){return (b.atualizadoEm||'').localeCompare(a.atualizadoEm||'');});
     document.getElementById('repBoard').innerHTML=Object.keys(REP_STATUS).map(function(st){
       var rows=lista.filter(function(r){return r.status===st;});
@@ -7954,6 +8040,7 @@
     if(r){clienteId=r.clienteId;if(!repPodeVer(clienteId,r.csm))return;}
     if(clienteId && !repPodeVer(clienteId,(repCliente(clienteId)||{}).csm)) return;
     repEdit=r?JSON.parse(JSON.stringify(r)):{novoId:novoId('rep'),clienteId:clienteId||'',status:'aguardando'};
+    repEdit.reunioes = repEdit.reunioes || [];
     repEnvio=null;
     var sel=document.getElementById('repCliente');
     var elegiveis=clientes.filter(function(c){return repPodeVer(c.id,c.csm);}).sort(function(a,b){return a.nome.localeCompare(b.nome,'pt-BR');});
@@ -7971,8 +8058,19 @@
     document.getElementById('repHistorico').innerHTML=r && r.historico && r.historico.length?'<h4>Histórico de status</h4><ol class="rep-historico">'+r.historico.map(function(h){
       return '<li>'+esc(new Date(h.data).toLocaleString('pt-BR'))+' · '+esc(h.usuarioNome||'')+' — '+esc(REP_STATUS[h.para]||h.para)+(h.motivo?'<div>Motivo: '+esc(h.motivo)+'</div>':'')+'</li>';
     }).join('')+'</ol>':'';
+    renderRepReunioes();
     repAtualizarCampos();repEstadoSalvando();openOverlay('overlayReimplantacao');
     if(statusDestino==='cancelado') document.getElementById('repMotivo').focus();
+  }
+
+  function repReuniaoPorId(id){
+    return (repEdit && repEdit.reunioes || []).filter(function(x){ return x.id === id; })[0] || null;
+  }
+  function renderRepReunioes(){
+    var wrap = document.getElementById('repReunioesLista');
+    if(!wrap || !repEdit) return;
+    var reunioes = repEdit.reunioes || [];
+    wrap.innerHTML = reunioes.length ? reunioes.map(function(r,idx){ return renderReuniaoCard(r, idx, 'rep'); }).join('') : '<div class="empty-note" style="padding:6px 0; font-size:12px;">Nenhuma reunião cadastrada ainda.</div>';
   }
   async function salvarReimplantacao(){
     if(repSalvando || !repEdit)return;
@@ -8041,6 +8139,54 @@
       var iniciar=e.target.closest('[data-iniciar-reimplantacao]');if(iniciar){e.preventDefault();abrirReimplantacao(iniciar.getAttribute('data-iniciar-reimplantacao'));return;}
       var card=e.target.closest('[data-rep-open]');if(card)abrirReimplantacao('',card.getAttribute('data-rep-open'));
     });
+    // Reuniões de treinamento dentro do modal de reimplantação — mesmo
+    // padrão de eventos do onboarding (prefixo "rep" em vez de "onb"),
+    // só que os campos ficam em repEdit em memória até "Salvar
+    // reimplantação" ser clicado (não autosalva campo a campo).
+    var repOverlayEl = document.getElementById('overlayReimplantacao');
+    repOverlayEl.addEventListener('input', function(e){
+      var reuniaoField = e.target.getAttribute('data-rep-reuniao-field');
+      if(reuniaoField != null && e.target.tagName !== 'SELECT'){
+        var reu = repReuniaoPorId(e.target.getAttribute('data-rep-reuniao-id'));
+        if(reu){
+          reu[reuniaoField] = e.target.value;
+          if((reuniaoField === 'data' || reuniaoField === 'horaInicio') && reu.aguardandoReagendamento) reu.aguardandoReagendamento = false;
+        }
+      }
+    });
+    repOverlayEl.addEventListener('change', function(e){
+      var reuniaoField = e.target.getAttribute('data-rep-reuniao-field');
+      if(reuniaoField != null){
+        var reu = repReuniaoPorId(e.target.getAttribute('data-rep-reuniao-id'));
+        if(reu) reu[reuniaoField] = e.target.value;
+      }
+    });
+    repOverlayEl.addEventListener('click', function(e){
+      if(e.target.closest('#btnRepAddReuniao')){
+        repEdit.reunioes = repEdit.reunioes || [];
+        var nova = onboardingReuniaoVazia(false);
+        repEdit.reunioes.push(nova);
+        onbReunioesExpandidas[nova.id] = true;
+        renderRepReunioes();
+        return;
+      }
+      var toggleReuniao = e.target.closest('[data-rep-reuniao-toggle]');
+      if(toggleReuniao){
+        var idReu = toggleReuniao.getAttribute('data-rep-reuniao-toggle');
+        onbReunioesExpandidas[idReu] = !onbReunioesExpandidas[idReu];
+        renderRepReunioes();
+        return;
+      }
+      var removerReuniao = e.target.closest('[data-rep-reuniao-remover]');
+      if(removerReuniao){
+        var idRem = removerReuniao.getAttribute('data-rep-reuniao-remover');
+        confirmarAcao('Remover esta reunião de treinamento?', function(){
+          repEdit.reunioes = (repEdit.reunioes||[]).filter(function(x){ return x.id !== idRem; });
+          renderRepReunioes();
+        }, {textoConfirmar:'Remover reunião'});
+        return;
+      }
+    });
     var board=document.getElementById('repBoard'),arrastando=null;
     board.addEventListener('keydown',function(e){var card=e.target.closest('[data-rep-open]');if(card&&(e.key==='Enter'||e.key===' ')){e.preventDefault();abrirReimplantacao('',card.getAttribute('data-rep-open'));}});
     board.addEventListener('dragstart',function(e){var card=e.target.closest('[data-rep-drag]');if(card){arrastando=card.getAttribute('data-rep-drag');if(e.dataTransfer){e.dataTransfer.setData('text/plain',arrastando);e.dataTransfer.effectAllowed='move';}}});
@@ -8051,7 +8197,9 @@
 
   function renderOnboarding(){
     if(!currentUser) return;
-    var admin = isAdmin();
+    // Analista de Treinamento enxerga o board inteiro (todas as carteiras),
+    // igual ao admin — o trabalho dela cruza todos os CSMs.
+    var admin = isAdmin() || isAnalistaTreinamento();
     var meuNome = meuCsmVinculado() || currentUser.nome;
     var lista = onboardings.filter(function(o){ return o.faseAtual !== 'concluido'; });
     document.getElementById('onbFiltroCsmWrap').style.display = admin ? '' : 'none';
@@ -8518,30 +8666,35 @@
     return (onboardingEdit && onboardingEdit.reunioes || []).filter(function(r){ return r.id === id; })[0] || null;
   }
 
-  function renderOnbReuniao(r, idx){
+  // prefix: 'onb' (reunião de onboarding, dentro de onboardingEdit.reunioes)
+  // ou 'rep' (reunião de reimplantação, dentro de repEdit.reunioes) — só
+  // muda o prefixo dos data-attributes, pra reaproveitar os mesmos campos
+  // e o mesmo listener de eventos nos dois modais.
+  function renderReuniaoCard(r, idx, prefix){
     var expandido = !!onbReunioesExpandidas[r.id];
     var statusChip = r.aguardandoReagendamento ? ' <span class="chip c-warn">Aguardando reagendamento</span>' : (r.validada ? ' <span class="chip c-good">Validada · CSAT '+esc(ONBOARDING_CSAT_LABEL[r.csat]||r.csat)+'</span>' : '');
     return '<div class="onb-reuniao-card" style="border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px;">' +
       '<div class="onb-reuniao-head" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
-        '<button type="button" class="btn btn-sm" data-onb-reuniao-toggle="'+esc(r.id)+'">'+(expandido?'Ocultar':'Expandir')+'</button>' +
+        '<button type="button" class="btn btn-sm" data-'+prefix+'-reuniao-toggle="'+esc(r.id)+'">'+(expandido?'Ocultar':'Expandir')+'</button>' +
         '<strong>'+(idx+1)+'. '+esc(r.titulo||'Reunião extra')+'</strong>' + statusChip +
-        (!r.fixa ? '<button type="button" class="icon-btn" data-onb-reuniao-remover="'+esc(r.id)+'" aria-label="Remover reunião" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' : '') +
+        (!r.fixa ? '<button type="button" class="icon-btn" data-'+prefix+'-reuniao-remover="'+esc(r.id)+'" aria-label="Remover reunião" style="margin-left:auto;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>' : '') +
       '</div>' +
       (expandido ? (
         '<div class="field"><label>Objetivo / resultado esperado'+(r.fixa?'':' *')+'</label>' +
-          (r.fixa ? '<div class="hint">'+esc(r.objetivo)+'</div>' : '<textarea data-onb-reuniao-field="objetivo" data-onb-reuniao-id="'+esc(r.id)+'">'+esc(r.objetivo||'')+'</textarea>') + '</div>' +
-        (!r.fixa ? '<div class="field"><label>Nome da reunião *</label><input type="text" data-onb-reuniao-field="titulo" data-onb-reuniao-id="'+esc(r.id)+'" value="'+esc(r.titulo||'')+'"></div>' : '') +
+          (r.fixa ? '<div class="hint">'+esc(r.objetivo)+'</div>' : '<textarea data-'+prefix+'-reuniao-field="objetivo" data-'+prefix+'-reuniao-id="'+esc(r.id)+'">'+esc(r.objetivo||'')+'</textarea>') + '</div>' +
+        (!r.fixa ? '<div class="field"><label>Nome da reunião *</label><input type="text" data-'+prefix+'-reuniao-field="titulo" data-'+prefix+'-reuniao-id="'+esc(r.id)+'" value="'+esc(r.titulo||'')+'"></div>' : '') +
         '<div class="field-row">' +
-          '<div class="field"><label>Data agendada</label><input type="date" data-onb-reuniao-field="data" data-onb-reuniao-id="'+esc(r.id)+'" value="'+esc(r.data||'')+'"></div>' +
-          '<div class="field"><label>Horário agendado</label><input type="time" data-onb-reuniao-field="horaInicio" data-onb-reuniao-id="'+esc(r.id)+'" value="'+esc(r.horaInicio||'')+'"></div>' +
-          '<div class="field"><label>Analista designada</label><select data-onb-reuniao-field="analista" data-onb-reuniao-id="'+esc(r.id)+'"><option value="">—</option>'+ONBOARDING_ANALISTAS.map(function(a){ return '<option value="'+esc(a)+'"'+(r.analista===a?' selected':'')+'>'+esc(a)+'</option>'; }).join('')+'</select></div>' +
+          '<div class="field"><label>Data agendada</label><input type="date" data-'+prefix+'-reuniao-field="data" data-'+prefix+'-reuniao-id="'+esc(r.id)+'" value="'+esc(r.data||'')+'"></div>' +
+          '<div class="field"><label>Horário agendado</label><input type="time" data-'+prefix+'-reuniao-field="horaInicio" data-'+prefix+'-reuniao-id="'+esc(r.id)+'" value="'+esc(r.horaInicio||'')+'"></div>' +
+          '<div class="field"><label>Analista designada</label><select data-'+prefix+'-reuniao-field="analista" data-'+prefix+'-reuniao-id="'+esc(r.id)+'"><option value="">—</option>'+listaAnalistasTreinamento().map(function(a){ return '<option value="'+esc(a)+'"'+(r.analista===a?' selected':'')+'>'+esc(a)+'</option>'; }).join('')+'</select></div>' +
         '</div>' +
-        '<div class="field"><label>Participantes da reunião</label><textarea data-onb-reuniao-field="participantes" data-onb-reuniao-id="'+esc(r.id)+'" placeholder="Ex.: Dra. Helena, Ana (recepção), João (financeiro)">'+esc(r.participantes||'')+'</textarea></div>' +
-        '<div class="field"><label>Observações da reunião</label><textarea data-onb-reuniao-field="observacoes" data-onb-reuniao-id="'+esc(r.id)+'">'+esc(r.observacoes||'')+'</textarea></div>' +
-        '<div class="field"><label>Status do CSAT</label><select data-onb-reuniao-field="csat" data-onb-reuniao-id="'+esc(r.id)+'">'+Object.keys(ONBOARDING_CSAT_LABEL).map(function(k){ return '<option value="'+k+'"'+(r.csat===k?' selected':'')+'>'+ONBOARDING_CSAT_LABEL[k]+'</option>'; }).join('')+'</select></div>'
+        '<div class="field"><label>Participantes da reunião</label><textarea data-'+prefix+'-reuniao-field="participantes" data-'+prefix+'-reuniao-id="'+esc(r.id)+'" placeholder="Ex.: Dra. Helena, Ana (recepção), João (financeiro)">'+esc(r.participantes||'')+'</textarea></div>' +
+        '<div class="field"><label>Observações da reunião</label><textarea data-'+prefix+'-reuniao-field="observacoes" data-'+prefix+'-reuniao-id="'+esc(r.id)+'">'+esc(r.observacoes||'')+'</textarea></div>' +
+        '<div class="field"><label>Status do CSAT</label><select data-'+prefix+'-reuniao-field="csat" data-'+prefix+'-reuniao-id="'+esc(r.id)+'">'+Object.keys(ONBOARDING_CSAT_LABEL).map(function(k){ return '<option value="'+k+'"'+(r.csat===k?' selected':'')+'>'+ONBOARDING_CSAT_LABEL[k]+'</option>'; }).join('')+'</select></div>'
       ) : '') +
     '</div>';
   }
+  function renderOnbReuniao(r, idx){ return renderReuniaoCard(r, idx, 'onb'); }
 
   // ---------------------------------------------------------------
   // Treinamento — fila de validação de CSAT (aba própria)
@@ -8556,35 +8709,89 @@
     return dt.getTime() <= agora.getTime();
   }
 
+  // Os três tipos de treinamento que a Analista de Treinamento registra:
+  // Onboarding (reuniões dentro de onboardingEdit.reunioes), Reimplantação
+  // (reuniões dentro de cada ciclo de reimplantação) e Tira-dúvida (sessão
+  // avulsa com um cliente de base, sem onboarding nem reimplantação em
+  // andamento). Os três aparecem juntos na mesma fila/histórico.
+  var TREINAMENTO_CATEGORIA_LABEL = {onboarding:'Onboarding', reimplantacao:'Reimplantação', tiraduvida:'Tira-dúvida'};
+
   function treinamentoTodasReunioes(){
     var out = [];
     onboardings.filter(function(o){ return o.tipo !== 'reimplantacao'; }).forEach(function(o){
-      (o.reunioes||[]).forEach(function(r){ out.push({onb:o, r:r}); });
+      (o.reunioes||[]).forEach(function(r){ out.push({onb:o, r:r, categoria:'onboarding'}); });
+    });
+    reimplantacaoDocs.forEach(function(d){
+      var c = repCliente(d.clienteId);
+      (d.ciclos||[]).forEach(function(ciclo){
+        (ciclo.reunioes||[]).forEach(function(r){
+          out.push({onb:{clienteId:d.clienteId, clienteNome:c?c.nome:d.clienteNome, csm:c?c.csm:d.csm, tipo:'reimplantacao', repDocId:d.id}, r:r, categoria:'reimplantacao'});
+        });
+      });
+    });
+    tiraDuvidas.forEach(function(d){
+      var c = repCliente(d.clienteId);
+      out.push({onb:{clienteId:d.clienteId, clienteNome:c?c.nome:d.clienteNome, csm:c?c.csm:d.csm, tipo:'tiraduvida'}, r:d, categoria:'tiraduvida'});
     });
     return out;
   }
 
   function treinamentoFilaLista(){
     var perfil = treinamentoPerfilFiltro;
+    var cat = treinamentoCategoriaFiltro;
     return treinamentoTodasReunioes().filter(function(x){
-      return reuniaoJaPassou(x.r) && !x.r.validada && !x.r.aguardandoReagendamento && (perfil === 'admin' || x.r.analista === perfil);
+      return reuniaoJaPassou(x.r) && !x.r.validada && !x.r.aguardandoReagendamento && (perfil === 'admin' || x.r.analista === perfil) && (cat === 'todas' || x.categoria === cat);
     }).sort(function(a,b){ return (a.r.data+'T'+(a.r.horaInicio||'')).localeCompare(b.r.data+'T'+(b.r.horaInicio||'')); });
   }
 
   function treinamentoHistoricoLista(){
     var perfil = treinamentoPerfilFiltro;
+    var cat = treinamentoCategoriaFiltro;
     return treinamentoTodasReunioes().filter(function(x){
-      return !!x.r.validada && (perfil === 'admin' || x.r.analista === perfil);
+      return !!x.r.validada && (perfil === 'admin' || x.r.analista === perfil) && (cat === 'todas' || x.categoria === cat);
     }).sort(function(a,b){ return (b.r.validadaEm||'').localeCompare(a.r.validadaEm||''); });
+  }
+
+  // Persiste a validação/reagendamento de um item da fila, seja ele de
+  // onboarding, reimplantação ou tira-dúvida — cada categoria vive num
+  // formato diferente por trás, mas a analista não precisa saber disso.
+  async function persistirItemTreinamento(item){
+    if(item.categoria === 'reimplantacao'){
+      var d = reimplantacaoDocs.filter(function(x){ return x.id === item.onb.repDocId; })[0];
+      if(!d) throw new Error('Registro de reimplantação não encontrado — a tela pode estar desatualizada.');
+      var body = {tipo:'reimplantacao', clienteId:d.clienteId, clienteNome:d.clienteNome, csm:d.csm, ciclos:d.ciclos};
+      if(db && !offline){ await db.collection('onboardings').doc(d.id).set(body); }
+      var idx = reimplantacaoDocs.findIndex(function(x){ return x.id === d.id; });
+      if(idx > -1) reimplantacaoDocs[idx] = Object.assign({id:d.id}, body);
+    }else if(item.categoria === 'tiraduvida'){
+      var body2 = Object.assign({}, item.r); delete body2.id;
+      if(db && !offline){ await db.collection('onboardings').doc(item.r.id).set(body2); }
+      var idx2 = tiraDuvidas.findIndex(function(x){ return x.id === item.r.id; });
+      if(idx2 > -1) tiraDuvidas[idx2] = Object.assign({id:item.r.id}, body2);
+    }else{
+      await persistirOnboarding(item.onb, {reunioes: item.onb.reunioes});
+    }
+  }
+
+  function treinamentoItemPorId(clienteId, reuniaoId, categoria){
+    return treinamentoTodasReunioes().filter(function(x){
+      return x.onb.clienteId === clienteId && x.r.id === reuniaoId && x.categoria === (categoria || 'onboarding');
+    })[0] || null;
   }
 
   function renderTreinamento(){
     var selEl = document.getElementById('treinamentoPerfilSelect');
-    if(selEl && !selEl.options.length){
-      selEl.innerHTML = '<option value="admin">Administrador (todas as filas)</option>' +
-        ONBOARDING_ANALISTAS.map(function(a){ return '<option value="'+esc(a)+'">'+esc(a)+'</option>'; }).join('');
+    if(selEl){
+      var perfilOpcoesHtml = '<option value="admin">Administrador (todas as filas)</option>' +
+        listaAnalistasTreinamento().map(function(a){ return '<option value="'+esc(a)+'">'+esc(a)+'</option>'; }).join('');
+      if(selEl.innerHTML !== perfilOpcoesHtml) selEl.innerHTML = perfilOpcoesHtml;
+      if(selEl.value !== treinamentoPerfilFiltro) selEl.value = treinamentoPerfilFiltro;
     }
-    if(selEl && selEl.value !== treinamentoPerfilFiltro) selEl.value = treinamentoPerfilFiltro;
+    var catSelEl = document.getElementById('treinamentoCategoriaSelect');
+    if(catSelEl && !catSelEl.options.length){
+      catSelEl.innerHTML = '<option value="todas">Todos os tipos</option><option value="onboarding">Onboarding</option><option value="reimplantacao">Reimplantação</option><option value="tiraduvida">Tira-dúvida</option>';
+    }
+    if(catSelEl && catSelEl.value !== treinamentoCategoriaFiltro) catSelEl.value = treinamentoCategoriaFiltro;
 
     var fila = treinamentoFilaLista();
     var historico = treinamentoHistoricoLista();
@@ -8617,9 +8824,9 @@
       }else{
         filaBoardEl.innerHTML = fila.map(function(x){
           return '<div class="queue-row"><div class="queue-main">' +
-            '<div class="queue-name">'+esc(x.onb.clienteNome)+'</div>' +
-            '<div class="queue-meta">Reunião: '+esc(x.r.titulo||'')+' · Analista: '+esc(x.r.analista||'—')+' · '+fmtDate(x.r.data)+(x.r.horaInicio?(' às '+esc(x.r.horaInicio)):'')+'</div>' +
-          '</div><div class="queue-actions"><button class="btn btn-sm" data-treinamento-abrir="'+esc(x.onb.clienteId)+'|'+esc(x.r.id)+'">Abrir</button></div></div>';
+            '<div class="queue-name">'+esc(x.onb.clienteNome)+' <span class="chip" style="margin-left:4px;">'+esc(TREINAMENTO_CATEGORIA_LABEL[x.categoria]||x.categoria)+'</span></div>' +
+            '<div class="queue-meta">'+(x.categoria==='tiraduvida'?'Assunto':'Reunião')+': '+esc(x.r.titulo||'')+' · Analista: '+esc(x.r.analista||'—')+' · '+fmtDate(x.r.data)+(x.r.horaInicio?(' às '+esc(x.r.horaInicio)):'')+'</div>' +
+          '</div><div class="queue-actions"><button class="btn btn-sm" data-treinamento-abrir="'+esc(x.onb.clienteId)+'|'+esc(x.r.id)+'|'+esc(x.categoria)+'">Abrir</button></div></div>';
         }).join('');
       }
     }
@@ -8632,24 +8839,48 @@
             ? ('<div class="queue-meta">'+(x.r.participantes?('Participantes: '+esc(x.r.participantes)):'')+(x.r.participantes && x.r.observacoes?' · ':'')+(x.r.observacoes?('Observações: '+esc(x.r.observacoes)):'')+'</div>')
             : '';
           return '<div class="queue-row"><div class="queue-main">' +
-            '<div class="queue-name">'+esc(x.onb.clienteNome)+'</div>' +
-            '<div class="queue-meta">Reunião: '+esc(x.r.titulo||'')+' · Analista: '+esc(x.r.analista||'—')+' · Validado em '+fmtDate((x.r.validadaEm||'').slice(0,10))+' · CSAT: '+esc(ONBOARDING_CSAT_LABEL[x.r.csat]||x.r.csat)+'</div>' +
+            '<div class="queue-name">'+esc(x.onb.clienteNome)+' <span class="chip" style="margin-left:4px;">'+esc(TREINAMENTO_CATEGORIA_LABEL[x.categoria]||x.categoria)+'</span></div>' +
+            '<div class="queue-meta">'+(x.categoria==='tiraduvida'?'Assunto':'Reunião')+': '+esc(x.r.titulo||'')+' · Analista: '+esc(x.r.analista||'—')+' · Validado em '+fmtDate((x.r.validadaEm||'').slice(0,10))+' · CSAT: '+esc(ONBOARDING_CSAT_LABEL[x.r.csat]||x.r.csat)+'</div>' +
             extra +
-          '</div><div class="queue-actions"><button class="btn btn-sm" data-treinamento-abrir="'+esc(x.onb.clienteId)+'|'+esc(x.r.id)+'">Abrir</button></div></div>';
+          '</div><div class="queue-actions"><button class="btn btn-sm" data-treinamento-abrir="'+esc(x.onb.clienteId)+'|'+esc(x.r.id)+'|'+esc(x.categoria)+'">Abrir</button></div></div>';
+        }).join('');
+      }
+    }
+
+    // Tira-dúvidas ainda não vencidas ficam de fora da fila (que só lista
+    // o que já passou do horário) e do histórico (que só lista validadas)
+    // — sem esse bloco, uma tira-dúvida agendada para o futuro não
+    // apareceria em lugar nenhum até vencer.
+    var futurasEl = document.getElementById('treinamentoTiraDuvidaAgendadasBoard');
+    if(futurasEl){
+      var futuras = tiraDuvidas.filter(function(d){ return !reuniaoJaPassou(d) && !d.validada; })
+        .sort(function(a,b){ return (a.data+'T'+(a.horaInicio||'')).localeCompare(b.data+'T'+(b.horaInicio||'')); });
+      if(!futuras.length){
+        futurasEl.hidden = true;
+        futurasEl.innerHTML = '';
+      }else{
+        futurasEl.hidden = false;
+        futurasEl.innerHTML = '<div class="hint" style="margin:16px 0 6px;">Tira-dúvidas agendadas (ainda não venceram)</div>' + futuras.map(function(d){
+          var c = repCliente(d.clienteId);
+          return '<div class="queue-row"><div class="queue-main">' +
+            '<div class="queue-name">'+esc(c?c.nome:d.clienteNome)+'</div>' +
+            '<div class="queue-meta">Assunto: '+esc(d.objetivo||'')+' · Analista: '+esc(d.analista||'—')+' · '+(d.data?fmtDate(d.data):'Sem data')+(d.horaInicio?(' às '+esc(d.horaInicio)):'')+'</div>' +
+          '</div><div class="queue-actions"><button class="btn btn-sm" data-tiraduvida-editar="'+esc(d.id)+'">Abrir</button></div></div>';
         }).join('');
       }
     }
   }
 
-  function abrirValidarTreinamento(clienteId, reuniaoId){
-    var onb = onboardingDoCliente(clienteId);
-    var r = onb ? (onb.reunioes||[]).filter(function(x){ return x.id === reuniaoId; })[0] : null;
-    if(!onb || !r) return;
-    onbTreinamentoValidar = { clienteId: clienteId, reuniaoId: reuniaoId };
+  function abrirValidarTreinamento(clienteId, reuniaoId, categoria){
+    categoria = categoria || 'onboarding';
+    var item = treinamentoItemPorId(clienteId, reuniaoId, categoria);
+    if(!item) return;
+    var onb = item.onb, r = item.r;
+    onbTreinamentoValidar = { clienteId: clienteId, reuniaoId: reuniaoId, categoria: categoria };
     var cliente = clientes.filter(function(c){ return c.id === clienteId; })[0] || {};
     var body = document.getElementById('treinamentoValidarBody');
     body.innerHTML =
-      '<div class="onb-fase-section"><h3>Formulário inicial do cliente</h3>' +
+      '<div class="onb-fase-section"><h3>Formulário inicial do cliente <span class="chip" style="margin-left:4px;">'+esc(TREINAMENTO_CATEGORIA_LABEL[categoria]||categoria)+'</span></h3>' +
         '<div class="field-row">' +
           '<div class="field"><label>ID do cliente</label><input type="text" value="'+esc(onb.clienteId)+'" disabled></div>' +
           '<div class="field"><label>Nome do cliente / clínica</label><input type="text" value="'+esc(onb.clienteNome||'')+'" disabled></div>' +
@@ -8660,18 +8891,18 @@
         '</div>' +
         '<div class="field-row">' +
           '<div class="field"><label>CSM responsável</label><input type="text" value="'+esc(onb.csm||'Sem CSM atribuído')+'" disabled></div>' +
-          '<div class="field"><label>Início do onboarding</label><input type="text" value="'+esc(fmtDate(onb.dataInicio))+'" disabled></div>' +
+          (categoria === 'onboarding' ? '<div class="field"><label>Início do onboarding</label><input type="text" value="'+esc(fmtDate(onb.dataInicio))+'" disabled></div>' : '') +
         '</div>' +
       '</div>' +
-      '<div class="onb-fase-section"><h3>Reunião e resultado esperado</h3>' +
+      '<div class="onb-fase-section"><h3>'+(categoria==='tiraduvida'?'Assunto':'Reunião')+' e resultado esperado</h3>' +
         '<div style="font-weight:700;">'+esc(r.titulo||'')+'</div>' +
         '<div class="hint" style="margin-bottom:6px;">'+esc(fmtDate(r.data))+(r.horaInicio?(' às '+esc(r.horaInicio)):'')+' · Analista: '+esc(r.analista||'—')+'</div>' +
         '<div style="font-size:12.5px;">'+esc(r.objetivo||'')+'</div>' +
       '</div>' +
-      '<div class="field"><label>Participantes da reunião</label><textarea id="treinamentoParticipantes" placeholder="Ex.: Dra. Helena, Ana (recepção), João (financeiro)">'+esc(r.participantes||'')+'</textarea>' +
-        '<div class="hint">Ao salvar, preenche o campo Participantes da reunião no fluxo principal do onboarding.</div></div>' +
-      '<div class="field"><label>Observações da Reunião</label><textarea id="treinamentoObservacoes">'+esc(r.observacoes||'')+'</textarea>' +
-        '<div class="hint">Ao salvar, preenche o campo Observações da reunião no fluxo principal do onboarding.</div></div>' +
+      '<div class="field"><label>Participantes'+(categoria==='tiraduvida'?'':' da reunião')+'</label><textarea id="treinamentoParticipantes" placeholder="Ex.: Dra. Helena, Ana (recepção), João (financeiro)">'+esc(r.participantes||'')+'</textarea>' +
+        '<div class="hint">Ao salvar, preenche o campo Participantes no registro original.</div></div>' +
+      '<div class="field"><label>Observações</label><textarea id="treinamentoObservacoes">'+esc(r.observacoes||'')+'</textarea>' +
+        '<div class="hint">Ao salvar, preenche o campo Observações no registro original.</div></div>' +
       '<div class="gate-error" id="treinamentoValidarError"></div>';
     openOverlay('overlayValidarTreinamento');
   }
@@ -8685,19 +8916,18 @@
 
   async function confirmarValidarReuniaoTreinamento(){
     if(!onbTreinamentoValidar) return;
-    var onb = onboardingDoCliente(onbTreinamentoValidar.clienteId);
-    var r = onb ? (onb.reunioes||[]).filter(function(x){ return x.id === onbTreinamentoValidar.reuniaoId; })[0] : null;
+    var item = treinamentoItemPorId(onbTreinamentoValidar.clienteId, onbTreinamentoValidar.reuniaoId, onbTreinamentoValidar.categoria);
     var errEl = document.getElementById('treinamentoValidarError');
-    if(!onb || !r){ if(errEl){ errEl.textContent = 'Reunião não encontrada — a tela pode estar desatualizada.'; errEl.classList.add('show'); } return; }
-    treinamentoCamposComuns(r);
-    r.validada = true;
-    r.validadaEm = todayISO();
-    r.aguardandoReagendamento = false;
+    if(!item){ if(errEl){ errEl.textContent = 'Registro não encontrado — a tela pode estar desatualizada.'; errEl.classList.add('show'); } return; }
+    treinamentoCamposComuns(item.r);
+    item.r.validada = true;
+    item.r.validadaEm = todayISO();
+    item.r.aguardandoReagendamento = false;
     try{
-      await persistirOnboarding(onb, {reunioes: onb.reunioes});
+      await persistirItemTreinamento(item);
       closeOverlay('overlayValidarTreinamento');
       onbTreinamentoValidar = null;
-      mostrarToastSucesso(r.csat === 'pendente' ? 'Reunião validada. A atividade de CSAT foi criada no Painel do dia.' : 'Reunião validada.');
+      mostrarToastSucesso(item.r.csat === 'pendente' ? 'Registro validado. A atividade de CSAT foi criada no Painel do dia.' : 'Registro validado.');
       renderAll();
     }catch(e){
       if(errEl){ errEl.textContent = 'Não foi possível salvar agora: '+detalheErro(e); errEl.classList.add('show'); }
@@ -8706,14 +8936,13 @@
 
   async function confirmarSolicitarReagendamentoTreinamento(){
     if(!onbTreinamentoValidar) return;
-    var onb = onboardingDoCliente(onbTreinamentoValidar.clienteId);
-    var r = onb ? (onb.reunioes||[]).filter(function(x){ return x.id === onbTreinamentoValidar.reuniaoId; })[0] : null;
+    var item = treinamentoItemPorId(onbTreinamentoValidar.clienteId, onbTreinamentoValidar.reuniaoId, onbTreinamentoValidar.categoria);
     var errEl = document.getElementById('treinamentoValidarError');
-    if(!onb || !r){ if(errEl){ errEl.textContent = 'Reunião não encontrada — a tela pode estar desatualizada.'; errEl.classList.add('show'); } return; }
-    treinamentoCamposComuns(r);
-    r.aguardandoReagendamento = true;
+    if(!item){ if(errEl){ errEl.textContent = 'Registro não encontrado — a tela pode estar desatualizada.'; errEl.classList.add('show'); } return; }
+    treinamentoCamposComuns(item.r);
+    item.r.aguardandoReagendamento = true;
     try{
-      await persistirOnboarding(onb, {reunioes: onb.reunioes});
+      await persistirItemTreinamento(item);
       closeOverlay('overlayValidarTreinamento');
       onbTreinamentoValidar = null;
       mostrarToastSucesso('Reagendamento solicitado. Uma atividade foi criada no Painel do dia do CSM.');
@@ -8721,6 +8950,100 @@
     }catch(e){
       if(errEl){ errEl.textContent = 'Não foi possível salvar agora: '+detalheErro(e); errEl.classList.add('show'); }
     }
+  }
+
+  // ---------------------------------------------------------------
+  // Tira-dúvida — sessão avulsa de dúvidas gerais com cliente de base
+  // ---------------------------------------------------------------
+  var tdEdit = null; // {id, ...} quando editando uma tira-dúvida existente; null = nova
+  var tdSalvando = false;
+
+  function tdAtualizarCsm(){
+    var id = document.getElementById('tdCliente').value;
+    var c = clientes.filter(function(x){ return x.id === id; })[0];
+    document.getElementById('tdCsm').value = c ? (c.csm || 'Sem CSM atribuído') : '';
+  }
+
+  function abrirTiraDuvida(id){
+    var d = id ? tiraDuvidas.filter(function(x){ return x.id === id; })[0] : null;
+    tdEdit = d ? Object.assign({}, d) : null;
+    document.getElementById('tdTitulo').textContent = d ? ('Tira-dúvida — ' + (d.clienteNome || '')) : 'Nova Tira-dúvida';
+    var sel = document.getElementById('tdCliente');
+    var elegiveis = clientes.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    sel.innerHTML = '<option value="">Selecione o cliente</option>' + elegiveis.map(function(c){ return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>'; }).join('');
+    sel.value = d ? d.clienteId : '';
+    sel.disabled = !!(d && d.id);
+    tdAtualizarCsm();
+    document.getElementById('tdAssunto').value = d ? (d.objetivo || '') : '';
+    document.getElementById('tdData').value = d ? (d.data || '') : '';
+    document.getElementById('tdHora').value = d ? (d.horaInicio || '') : '';
+    var selA = document.getElementById('tdAnalista');
+    selA.innerHTML = '<option value="">—</option>' + listaAnalistasTreinamento().map(function(a){ return '<option value="'+esc(a)+'">'+esc(a)+'</option>'; }).join('');
+    selA.value = d ? (d.analista || '') : (isAnalistaTreinamento() ? currentUser.nome : '');
+    document.getElementById('tdParticipantes').value = d ? (d.participantes || '') : '';
+    document.getElementById('tdObservacoes').value = d ? (d.observacoes || '') : '';
+    document.getElementById('tdError').classList.remove('show');
+    document.getElementById('btnExcluirTiraDuvida').style.display = (d && d.id) ? 'inline-flex' : 'none';
+    openOverlay('overlayTiraDuvida');
+  }
+
+  async function salvarTiraDuvida(){
+    if(tdSalvando) return;
+    var err = document.getElementById('tdError');
+    err.classList.remove('show');
+    var clienteId = document.getElementById('tdCliente').value;
+    var c = clientes.filter(function(x){ return x.id === clienteId; })[0];
+    var assunto = document.getElementById('tdAssunto').value.trim();
+    var erro = !c ? 'Selecione o cliente.' : !assunto ? 'Descreva o assunto da dúvida.' : '';
+    if(erro){ err.textContent = erro; err.classList.add('show'); return; }
+    var isNovo = !(tdEdit && tdEdit.id);
+    var id = isNovo ? novoId('tiraduvida') : tdEdit.id;
+    var registro = {
+      tipo:'tiraduvida', clienteId:c.id, clienteNome:c.nome, csm:c.csm||'',
+      titulo:'Tira-dúvida', objetivo:assunto,
+      data: document.getElementById('tdData').value || null,
+      horaInicio: document.getElementById('tdHora').value || null,
+      analista: document.getElementById('tdAnalista').value,
+      participantes: document.getElementById('tdParticipantes').value,
+      observacoes: document.getElementById('tdObservacoes').value,
+      csat: (tdEdit && tdEdit.csat) || 'pendente',
+      validada: !!(tdEdit && tdEdit.validada),
+      validadaEm: (tdEdit && tdEdit.validadaEm) || null,
+      aguardandoReagendamento: false,
+      criadoEm: (tdEdit && tdEdit.criadoEm) || new Date().toISOString()
+    };
+    tdSalvando = true;
+    try{
+      if(db && !offline){ await db.collection('onboardings').doc(id).set(registro); }
+      var idx = tiraDuvidas.findIndex(function(x){ return x.id === id; });
+      var rec = Object.assign({id:id}, registro);
+      if(idx>-1) tiraDuvidas[idx] = rec; else tiraDuvidas.push(rec);
+      tdEdit = null;
+      closeOverlay('overlayTiraDuvida');
+      mostrarToastSucesso('Tira-dúvida salva com sucesso.');
+      renderAll();
+    }catch(e){
+      err.textContent = 'Não foi possível salvar agora: '+detalheErro(e); err.classList.add('show');
+    }finally{
+      tdSalvando = false;
+    }
+  }
+
+  function excluirTiraDuvida(){
+    if(!(tdEdit && tdEdit.id)) return;
+    var id = tdEdit.id;
+    confirmarAcao('Excluir esta tira-dúvida? A ação não pode ser desfeita.', async function(){
+      try{
+        if(db && !offline){ await db.collection('onboardings').doc(id).delete(); }
+        tiraDuvidas = tiraDuvidas.filter(function(x){ return x.id !== id; });
+        tdEdit = null;
+        closeOverlay('overlayTiraDuvida');
+        mostrarToastSucesso('Tira-dúvida excluída.');
+        renderAll();
+      }catch(e){
+        alert('Não foi possível excluir agora: '+detalheErro(e));
+      }
+    }, {textoConfirmar:'Excluir'});
   }
 
   function renderOnbFase4(onb){
@@ -9627,12 +9950,14 @@
       var eh = u.perfil === 'admin';
       var ehCoord = u.perfil === 'coordenador';
       var ehRenov = u.perfil === 'renovacao';
-      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : 'role-pill-csm'));
-      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : 'CSM'));
+      var ehTreino = u.perfil === 'treinamento';
+      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : (ehTreino ? 'role-pill-treino' : 'role-pill-csm')));
+      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : (ehTreino ? 'Analista de Treinamento' : 'CSM')));
       var carteiraTxt = eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
         (ehCoord ? 'Equipe: ' + ((u.equipeCsm&&u.equipeCsm.length) ? esc(u.equipeCsm.join(', ')) : '<span class="ct" style="color:var(--muted);">nenhum CSM ainda</span>') :
         (ehRenov ? '<span class="ct" style="color:var(--muted);">Ambiente de renovação</span>' :
-        esc(u.csmVinculado||u.nome)));
+        (ehTreino ? '<span class="ct" style="color:var(--muted);">Treinamento (Onboarding + Reimplantação)</span>' :
+        esc(u.csmVinculado||u.nome))));
       return '<tr>' +
         '<td><div class="cell-client"><span class="gate-avatar">'+esc(initials(u.nome))+'</span><div class="nm">'+esc(u.nome)+(u.id===currentUserId?' <span class="ct">(você)</span>':'')+'</div></div></td>' +
         '<td><span class="role-pill '+roleCls+'">'+roleLbl+'</span></td>' +
@@ -10159,6 +10484,9 @@
     });
 
     wireReimplantacao();
+    document.getElementById('tdCliente').addEventListener('change', tdAtualizarCsm);
+    document.getElementById('btnSalvarTiraDuvida').addEventListener('click', salvarTiraDuvida);
+    document.getElementById('btnExcluirTiraDuvida').addEventListener('click', excluirTiraDuvida);
     document.getElementById('onbFiltroCsm').addEventListener('change', function(e){onboardingFiltroCsm=e.target.value;renderOnboarding();});
     document.getElementById('btnIniciarOnboarding').addEventListener('click', abrirIniciarOnboarding);
     document.getElementById('btnConfirmarIniciarOnboarding').addEventListener('click', confirmarIniciarOnboarding);
@@ -10168,6 +10496,8 @@
     document.getElementById('btnExcluirOnboarding').addEventListener('click', excluirOnboarding);
 
     document.getElementById('treinamentoPerfilSelect').addEventListener('change', function(e){ treinamentoPerfilFiltro = e.target.value; renderTreinamento(); });
+    document.getElementById('treinamentoCategoriaSelect').addEventListener('change', function(e){ treinamentoCategoriaFiltro = e.target.value; renderTreinamento(); });
+    document.getElementById('btnNovaTiraDuvida').addEventListener('click', function(){ abrirTiraDuvida(''); });
     document.getElementById('btnTreinamentoValidar').addEventListener('click', confirmarValidarReuniaoTreinamento);
     document.getElementById('btnTreinamentoReagendar').addEventListener('click', confirmarSolicitarReagendamentoTreinamento);
 
@@ -10382,9 +10712,11 @@
       if(treinAbrir){
         e.preventDefault();
         var partesTr = treinAbrir.getAttribute('data-treinamento-abrir').split('|');
-        abrirValidarTreinamento(partesTr[0], partesTr[1]);
+        abrirValidarTreinamento(partesTr[0], partesTr[1], partesTr[2]);
         return;
       }
+      var tdEditar = e.target.closest('[data-tiraduvida-editar]');
+      if(tdEditar){ e.preventDefault(); abrirTiraDuvida(tdEditar.getAttribute('data-tiraduvida-editar')); return; }
       var abrirCasoRAEl = e.target.closest('[data-abrir-caso-ra]');
       if(abrirCasoRAEl){ e.preventDefault(); abrirCasoRA(abrirCasoRAEl.getAttribute('data-abrir-caso-ra')); return; }
       var toggleAtivo = e.target.closest('[data-toggle-ativo-cliente]');
