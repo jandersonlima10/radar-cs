@@ -3483,14 +3483,25 @@
     {key:'proximoContato', label:'Próximo contato previsto (opcional)', syn:['proximo contato','próximo contato','data do proximo contato','data do próximo contato','proxima acao','próxima ação','proximo followup','próximo followup']}
   ];
 
+  // Campos do importador de Reclamações RA (planilha bem mais simples que a
+  // de carteira: só precisamos casar o nome do cliente com um cadastro já
+  // existente e trazer os dados básicos da reclamação).
+  var CAMPOS_IMPORT_RA = [
+    {key:'clienteNome', label:'Nome do Cliente', syn:['nome','cliente','nome do cliente','nome da clinica','nome da clínica','clinica','clínica','razao social','razão social','empresa']},
+    {key:'numeroReclamacao', label:'Número da reclamação', syn:['numero da reclamacao','número da reclamação','numero reclamacao','número reclamação','n reclamacao','nº reclamação','protocolo','numero do protocolo','número do protocolo','numero','número','n reclame aqui','reclame aqui']},
+    {key:'dataAbertura', label:'Data de abertura', syn:['data de abertura','data abertura','data','data da reclamacao','data da reclamação']},
+    {key:'resumo', label:'Resumo', syn:['resumo','descricao','descrição','detalhes','observacao','observação','assunto']}
+  ];
+
   function normalizarTexto(s){
     return String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   }
 
-  function autoDetectarMapeamento(headers){
+  function autoDetectarMapeamento(headers, camposList){
+    var lista = camposList || CAMPOS_IMPORT;
     var norm = headers.map(normalizarTexto);
     var mapping = {};
-    CAMPOS_IMPORT.forEach(function(campo){
+    lista.forEach(function(campo){
       var idx = norm.findIndex(function(h){ return campo.syn.indexOf(h) > -1; });
       if(idx === -1) idx = norm.findIndex(function(h){ return h && campo.syn.some(function(s){ return h.indexOf(s)>-1 || s.indexOf(h)>-1; }); });
       mapping[campo.key] = idx;
@@ -3761,6 +3772,195 @@
     if(downloads){
       try{ await downloads.save({filename:'modelo-importacao-reclamacoes-ra.csv', data:'﻿'+csv}); }catch(e){}
     }
+  }
+
+  // ---- Importação em lote de Reclamações RA -------------------------------
+  // Mesmo esqueleto do importador de carteira (3 passos: arquivo → mapear/
+  // casar cliente → progresso), mas bem mais simples: não há conceito de
+  // "atualizar cadastro existente", cada linha vira um caso novo em
+  // reclamacoesRA. O ponto delicado é casar o nome da planilha com um
+  // cliente já cadastrado — por isso cada linha tem um <select> pra
+  // confirmar/corrigir o casamento, e o botão de importar só libera quando
+  // todas as linhas tiverem um cliente escolhido.
+
+  function abrirImportarRA(){
+    impRaHeaders = []; impRaDataRows = []; impRaMapping = {}; impRaResolucoes = [];
+    document.getElementById('impRaFileInput').value = '';
+    document.getElementById('impRaErroArquivo').classList.remove('show');
+    document.getElementById('impRaResumo').style.display = 'none';
+    document.getElementById('impRaProgressoFill').style.width = '0%';
+    document.getElementById('impRaProgressoTexto').textContent = '';
+    goToImportStepRA(1);
+    openOverlay('overlayImportarRA');
+  }
+
+  function goToImportStepRA(n){
+    [1,2,3].forEach(function(i){
+      document.getElementById('impRaPasso'+i).style.display = (i===n) ? '' : 'none';
+      document.getElementById('impRaStep'+i).classList.toggle('done', i<=n);
+    });
+    document.getElementById('btnImportarRATrocarArquivo').style.display = (n===2) ? '' : 'none';
+    document.getElementById('btnImportarRAConfirmar').style.display = (n===2) ? '' : 'none';
+  }
+
+  async function onArquivoSelecionadoRA(e){
+    var file = e.target.files && e.target.files[0];
+    if(!file) return;
+    var errEl = document.getElementById('impRaErroArquivo');
+    errEl.classList.remove('show');
+    if(typeof XLSX === 'undefined'){
+      errEl.textContent = 'Não foi possível carregar o suporte a planilhas agora. Recarregue a página e tente de novo.';
+      errEl.classList.add('show');
+      return;
+    }
+    try{
+      var buf = await file.arrayBuffer();
+      var wb = XLSX.read(buf, {type:'array', cellDates:true});
+      var sheet = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
+      rows = rows.filter(function(r){ return r.some(function(v){ return String(v==null?'':v).trim()!==''; }); });
+      if(rows.length < 2) throw new Error('vazio');
+      impRaHeaders = rows[0].map(function(h){ return String(h==null?'':h).trim(); });
+      impRaDataRows = rows.slice(1);
+      impRaMapping = autoDetectarMapeamento(impRaHeaders, CAMPOS_IMPORT_RA);
+      impRaResolucoes = [];
+      renderMapeamentoImportacaoRA();
+      renderPreviewImportacaoRA();
+      document.getElementById('impRaLinhasCount').textContent = impRaDataRows.length;
+      goToImportStepRA(2);
+    }catch(err){
+      errEl.textContent = 'Não consegui ler esse arquivo. Confira se é um .xlsx, .xls ou .csv válido, com os cabeçalhos das colunas na primeira linha.';
+      errEl.classList.add('show');
+    }
+    e.target.value = '';
+  }
+
+  function renderMapeamentoImportacaoRA(){
+    var el = document.getElementById('impRaMapeamento');
+    el.innerHTML = CAMPOS_IMPORT_RA.map(function(campo){
+      var options = '<option value="-1">— não importar —</option>' + impRaHeaders.map(function(h,i){
+        return '<option value="'+i+'"'+(impRaMapping[campo.key]===i?' selected':'')+'>'+esc(h||('(coluna '+(i+1)+')'))+'</option>';
+      }).join('');
+      return '<div class="import-map-row"><div class="src">'+esc(campo.label)+'</div><select data-map-field-ra="'+campo.key+'">'+options+'</select></div>';
+    }).join('');
+    Array.prototype.forEach.call(el.querySelectorAll('[data-map-field-ra]'), function(sel){
+      sel.addEventListener('change', function(){
+        impRaMapping[sel.getAttribute('data-map-field-ra')] = parseInt(sel.value, 10);
+        renderPreviewImportacaoRA();
+      });
+    });
+  }
+
+  function getCampoImportRA(row, key){
+    var idx = impRaMapping[key];
+    return (idx==null||idx<0) ? '' : (row[idx]!=null?row[idx]:'');
+  }
+
+  function encontrarClientePorNomeRA(nomePlanilha, opcoes){
+    var alvo = normalizarTexto(nomePlanilha);
+    if(!alvo) return null;
+    var exato = opcoes.filter(function(c){ return normalizarTexto(c.nome) === alvo; })[0];
+    if(exato) return exato;
+    var parcial = opcoes.filter(function(c){
+      var n = normalizarTexto(c.nome);
+      return n && (n.indexOf(alvo)>-1 || alvo.indexOf(n)>-1);
+    })[0];
+    return parcial || null;
+  }
+
+  function renderPreviewImportacaoRA(){
+    var body = document.getElementById('impRaPreviewBody');
+    var opcoes = clientesParaNovoCasoRA();
+    body.innerHTML = impRaDataRows.map(function(row, idx){
+      var nomePlanilha = String(getCampoImportRA(row,'clienteNome')||'').trim();
+      var numero = String(getCampoImportRA(row,'numeroReclamacao')||'').trim();
+      var dataAbertura = parseFlexibleDate(getCampoImportRA(row,'dataAbertura'));
+      if(impRaResolucoes[idx] === undefined){
+        var achado = encontrarClientePorNomeRA(nomePlanilha, opcoes);
+        impRaResolucoes[idx] = achado ? achado.id : '';
+      }
+      var selecionado = impRaResolucoes[idx];
+      var options = '<option value="">— selecione —</option>' + opcoes.map(function(c){
+        return '<option value="'+esc(c.id)+'"'+(selecionado===c.id?' selected':'')+'>'+esc(c.nome)+'</option>';
+      }).join('');
+      var semMatch = !selecionado;
+      return '<tr'+(semMatch?' style="background:var(--critical-soft);"':'')+'>' +
+        '<td style="font-size:12px; white-space:nowrap;">'+esc(nomePlanilha||'—')+'</td>' +
+        '<td style="font-size:12px; white-space:nowrap;">'+esc(numero||'—')+'</td>' +
+        '<td style="font-size:12px; white-space:nowrap;">'+esc(dataAbertura||'—')+'</td>' +
+        '<td><select data-ra-imp-cliente="'+idx+'" style="font-size:12px; max-width:220px;">'+options+'</select></td>' +
+        '</tr>';
+    }).join('');
+    Array.prototype.forEach.call(body.querySelectorAll('[data-ra-imp-cliente]'), function(sel){
+      sel.addEventListener('change', function(){
+        var idx = parseInt(sel.getAttribute('data-ra-imp-cliente'), 10);
+        impRaResolucoes[idx] = sel.value;
+        var tr = sel.closest('tr');
+        if(tr) tr.style.background = sel.value ? '' : 'var(--critical-soft)';
+        atualizarBotaoImportarRA();
+      });
+    });
+    atualizarBotaoImportarRA();
+  }
+
+  function atualizarBotaoImportarRA(){
+    var btn = document.getElementById('btnImportarRAConfirmar');
+    var total = impRaDataRows.length;
+    var resolvidos = impRaResolucoes.filter(function(v){ return !!v; }).length;
+    var todosResolvidos = total>0 && resolvidos === total;
+    btn.disabled = !todosResolvidos;
+    btn.style.opacity = todosResolvidos ? '' : '0.5';
+    btn.textContent = todosResolvidos
+      ? 'Importar ' + total + (total===1?' reclamação':' reclamações')
+      : 'Resolva ' + (total-resolvidos) + ' linha(s) sem cliente identificado';
+  }
+
+  async function executarImportacaoRA(){
+    goToImportStepRA(3);
+    var total = impRaDataRows.length;
+    var criados=0, pulados=0, erros=[];
+
+    for(var i=0;i<total;i++){
+      document.getElementById('impRaProgressoTexto').textContent = 'Importando '+(i+1)+' de '+total+'…';
+      document.getElementById('impRaProgressoFill').style.width = Math.round(((i+1)/total)*100)+'%';
+      var row = impRaDataRows[i];
+      var clienteId = impRaResolucoes[i];
+      if(!clienteId){ erros.push('Linha '+(i+2)+': sem cliente identificado, foi ignorada.'); pulados++; continue; }
+      var cliente = clientes.filter(function(c){ return c.id === clienteId; })[0];
+      if(!cliente){ erros.push('Linha '+(i+2)+': cliente não encontrado, foi ignorada.'); pulados++; continue; }
+
+      var dataAbertura = parseFlexibleDate(getCampoImportRA(row,'dataAbertura')) || todayISO();
+      var body = {
+        clienteId: clienteId, clienteNome: cliente.nome, csm: cliente.csm || '',
+        numeroReclamacao: String(getCampoImportRA(row,'numeroReclamacao')||'').trim(),
+        dataAbertura: dataAbertura, resumo: String(getCampoImportRA(row,'resumo')||'').trim(),
+        status: 'aberto', historico: [], ultimoContatoEm: null,
+        notaRecebida: null, notaRecebidaEm: null
+      };
+
+      try{
+        var id = novoId('ra');
+        if(db && !offline){
+          await db.collection('reclamacoesRA').doc(id).set(body);
+        }else{
+          reclamacoesRA.push(Object.assign({id:id}, body));
+        }
+        criados++;
+      }catch(e){
+        erros.push('Linha '+(i+2)+' ('+cliente.nome+'): não foi possível salvar.');
+        pulados++;
+      }
+    }
+
+    if(offline || !db) renderAll();
+
+    document.getElementById('impRaProgressoTexto').textContent = 'Importação concluída.';
+    var resumoEl = document.getElementById('impRaResumo');
+    resumoEl.style.display = 'block';
+    resumoEl.innerHTML =
+      '<strong>'+criados+'</strong> reclamação(ões) criada(s)' +
+      (pulados ? ', <strong>'+pulados+'</strong> ignorada(s)' : '') + '.' +
+      (erros.length ? '<br><br>' + erros.slice(0,12).map(esc).join('<br>') + (erros.length>12 ? '<br>…' : '') : '');
   }
   function initials(nome){
     var parts = String(nome||'').trim().split(/\s+/).filter(Boolean);
@@ -10326,6 +10526,11 @@
     document.getElementById('btnBaixarModeloRA').addEventListener('click', baixarModeloImportacaoRA);
     document.getElementById('btnImportarTrocarArquivo').addEventListener('click', function(){ goToImportStep(1); });
     document.getElementById('btnImportarConfirmar').addEventListener('click', executarImportacao);
+
+    document.getElementById('btnImportarRA').addEventListener('click', abrirImportarRA);
+    document.getElementById('impRaFileInput').addEventListener('change', onArquivoSelecionadoRA);
+    document.getElementById('btnImportarRATrocarArquivo').addEventListener('click', function(){ goToImportStepRA(1); });
+    document.getElementById('btnImportarRAConfirmar').addEventListener('click', executarImportacaoRA);
     document.getElementById('btnSalvarContato').addEventListener('click', salvarContato);
     document.getElementById('coPlaybook').addEventListener('change', renderContatoPlaybookPreview);
     document.getElementById('coData').addEventListener('change', renderContatoPlaybookPreview);
