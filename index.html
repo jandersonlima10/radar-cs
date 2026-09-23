@@ -1950,6 +1950,11 @@
     <div class="modal-body">
       <div class="field"><label for="ncRaCliente">Cliente</label><select id="ncRaCliente"></select></div>
       <div class="field-row">
+        <div class="field"><label for="ncRaContatoNome">Nome da pessoa</label><input type="text" id="ncRaContatoNome" placeholder="Quem fez a reclamação"></div>
+        <div class="field"><label for="ncRaContatoEmail">E-mail (opcional)</label><input type="email" id="ncRaContatoEmail" placeholder="pessoa@empresa.com"></div>
+      </div>
+      <div class="field"><label for="ncRaContatoTelefone">Telefone / WhatsApp (opcional)</label><input type="text" id="ncRaContatoTelefone" placeholder="DDI+DDD+número, ex: 5511999998888"></div>
+      <div class="field-row">
         <div class="field"><label for="ncRaNumero">Número da reclamação (opcional)</label><input type="text" id="ncRaNumero" placeholder="Nº do protocolo no RA"></div>
         <div class="field"><label for="ncRaDataAbertura">Data de abertura</label><input type="date" id="ncRaDataAbertura"></div>
       </div>
@@ -2708,7 +2713,7 @@
   // de renovação em 60 dias) dentro de renderPainel() — nomes diferentes
   // evitam qualquer confusão entre os dois.
   var renovacoesData = []; // {id, clienteId, clienteNome, csm, status, historicoStatus:[{status,data}], valorNegociado, observacoes, atualizadoEm}
-  var reclamacoesRA = []; // {id, clienteId, clienteNome, csm, numeroReclamacao, dataAbertura, resumo, status, historico:[{data,autor,observacao}], ultimoContatoEm, notaRecebida}
+  var reclamacoesRA = []; // {id, clienteId, clienteNome, csm, contatoNome, contatoEmail, contatoTelefone, numeroReclamacao, dataAbertura, resumo, status, historico:[{data,autor,observacao}], ultimoContatoEm, notaRecebida}
   var pendingOnboardingClienteId = null; // cliente cujo painel de onboarding está aberto no momento
   var curvaConfig = { limiteA:8000, limiteB:5000, limiteC:2000 }; // calibrável em Configurações
   var waConfig = { empresa:'' }; // nome da empresa usado na mensagem padrão do WhatsApp, calibrável em Configurações
@@ -3488,6 +3493,9 @@
   // existente e trazer os dados básicos da reclamação).
   var CAMPOS_IMPORT_RA = [
     {key:'clienteNome', label:'Nome do Cliente', syn:['nome','cliente','nome do cliente','nome da clinica','nome da clínica','clinica','clínica','razao social','razão social','empresa']},
+    {key:'contatoNome', label:'Nome da pessoa (opcional)', syn:['nome da pessoa','nome do contato','contato','pessoa','quem reclamou','solicitante']},
+    {key:'contatoEmail', label:'E-mail (opcional)', syn:['email','e-mail','email do contato','e-mail do contato']},
+    {key:'contatoTelefone', label:'Telefone / WhatsApp (opcional)', syn:['telefone','whatsapp','celular','fone','telefone do contato','numero de telefone','número de telefone']},
     {key:'numeroReclamacao', label:'Número da reclamação', syn:['numero da reclamacao','número da reclamação','numero reclamacao','número reclamação','n reclamacao','nº reclamação','protocolo','numero do protocolo','número do protocolo','numero','número','n reclame aqui','reclame aqui']},
     {key:'dataAbertura', label:'Data de abertura', syn:['data de abertura','data abertura','data','data da reclamacao','data da reclamação']},
     {key:'resumo', label:'Resumo', syn:['resumo','descricao','descrição','detalhes','observacao','observação','assunto']}
@@ -3932,6 +3940,9 @@
       var dataAbertura = parseFlexibleDate(getCampoImportRA(row,'dataAbertura')) || todayISO();
       var body = {
         clienteId: clienteId, clienteNome: cliente.nome, csm: cliente.csm || '',
+        contatoNome: String(getCampoImportRA(row,'contatoNome')||'').trim(),
+        contatoEmail: String(getCampoImportRA(row,'contatoEmail')||'').trim(),
+        contatoTelefone: normalizeTelefone(getCampoImportRA(row,'contatoTelefone')),
         numeroReclamacao: String(getCampoImportRA(row,'numeroReclamacao')||'').trim(),
         dataAbertura: dataAbertura, resumo: String(getCampoImportRA(row,'resumo')||'').trim(),
         status: 'aberto', historico: [], ultimoContatoEm: null,
@@ -4844,6 +4855,9 @@
     sel.innerHTML = '<option value="">Selecione o cliente...</option>' + clientesParaNovoCasoRA().map(function(c){
       return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>';
     }).join('');
+    document.getElementById('ncRaContatoNome').value = '';
+    document.getElementById('ncRaContatoEmail').value = '';
+    document.getElementById('ncRaContatoTelefone').value = '';
     document.getElementById('ncRaNumero').value = '';
     document.getElementById('ncRaDataAbertura').value = todayISO();
     document.getElementById('ncRaResumo').value = '';
@@ -4865,6 +4879,9 @@
     if(!cliente) return;
     var body = {
       clienteId: clienteId, clienteNome: cliente.nome, csm: cliente.csm || '',
+      contatoNome: document.getElementById('ncRaContatoNome').value.trim(),
+      contatoEmail: document.getElementById('ncRaContatoEmail').value.trim(),
+      contatoTelefone: normalizeTelefone(document.getElementById('ncRaContatoTelefone').value),
       numeroReclamacao: document.getElementById('ncRaNumero').value.trim(),
       dataAbertura: dataAbertura, resumo: document.getElementById('ncRaResumo').value.trim(),
       status: 'aberto', historico: [], ultimoContatoEm: null,
@@ -4896,6 +4913,14 @@
     return '<div class="field-row">' +
         '<div class="field"><label>Cliente</label><div>'+esc(caso.clienteNome)+'</div></div>' +
         '<div class="field"><label>CSM responsável</label><div>'+esc(caso.csm||'—')+'</div></div>' +
+      '</div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Nome da pessoa</label><input type="text" data-ra-field="contatoNome" value="'+esc(caso.contatoNome||'')+'" placeholder="Quem fez a reclamação"></div>' +
+        '<div class="field"><label>E-mail</label><input type="email" data-ra-field="contatoEmail" value="'+esc(caso.contatoEmail||'')+'" placeholder="pessoa@empresa.com"></div>' +
+      '</div>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Telefone (WhatsApp)</label><input type="text" data-ra-field="contatoTelefone" value="'+esc(caso.contatoTelefone?fmtTelefoneExibicao(caso.contatoTelefone):'')+'" placeholder="DDI+DDD+número"></div>' +
+        '<div class="field" style="display:flex; align-items:flex-end;">' + (caso.contatoTelefone ? waButtonCasoRA(caso) : '<span class="hint">Preencha o telefone para habilitar o WhatsApp.</span>') + '</div>' +
       '</div>' +
       '<div class="field-row">' +
         '<div class="field"><label>Número da reclamação</label><input type="text" data-ra-field="numeroReclamacao" value="'+esc(caso.numeroReclamacao||'')+'"></div>' +
@@ -5198,6 +5223,26 @@
     if(!cliente.telefone) return '';
     var href = whatsappUrl(cliente.telefone, mensagemWhatsappPadrao(cliente));
     return '<a class="wa-btn" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer" title="Abrir WhatsApp — '+esc(fmtTelefoneExibicao(cliente.telefone))+'">'+ICON_CHAT+'</a>';
+  }
+
+  // Mesma ideia do waButton() de cima, mas pro contato de uma reclamação RA
+  // (pessoa que reclamou, não necessariamente o CSM/contato padrão do
+  // cliente) — usada na atividade do caso, pra abrir o WhatsApp já com uma
+  // mensagem inicial mencionando a reclamação registrada.
+  function mensagemWhatsappPadraoRA(caso){
+    var contatoNome = (caso.contatoNome||'').trim() || caso.clienteNome || '';
+    var csmNome = (currentUser && currentUser.nome) || caso.csm || '';
+    var empresa = (waConfig && waConfig.empresa) ? waConfig.empresa.trim() : '';
+    var linha1 = 'Prezado(a) ' + contatoNome + ', ' + saudacaoPorHorario() + '!';
+    var linha2 = 'Sou ' + csmNome + (empresa ? ' da ' + empresa : '') + ', tudo bem?';
+    var linha3 = 'Estou entrando em contato sobre a reclamação registrada no Reclame Aqui' + (caso.numeroReclamacao ? ' (protocolo '+caso.numeroReclamacao+')' : '') + ' para te ajudar a resolver o quanto antes.';
+    return linha1 + '\n' + linha2 + '\n' + linha3;
+  }
+
+  function waButtonCasoRA(caso){
+    if(!caso.contatoTelefone) return '';
+    var href = whatsappUrl(caso.contatoTelefone, mensagemWhatsappPadraoRA(caso));
+    return '<a class="btn btn-sm btn-accent" href="'+esc(href)+'" target="_blank" rel="noopener noreferrer">Iniciar conversa por WhatsApp</a>';
   }
 
   // ---------------------------------------------------------------
@@ -10711,6 +10756,17 @@
     document.getElementById('btnExcluirCasoRA').addEventListener('click', excluirCasoRA);
     document.getElementById('raCasoCorpo').addEventListener('change', function(e){
       var campo = e.target.getAttribute('data-ra-field');
+      if(campo === 'contatoTelefone'){
+        var valorNormalizado = normalizeTelefone(e.target.value);
+        // Atualiza a referência local na hora (mesmo padrão usado pras
+        // reuniões de onboarding/reimplantação) pra já reexibir o botão do
+        // WhatsApp sem precisar fechar e reabrir o caso.
+        var casoAtual = reclamacoesRA.filter(function(r){ return r.id === casoRAAbertoId; })[0];
+        if(casoAtual) casoAtual.contatoTelefone = valorNormalizado;
+        salvarCampoCasoRA(campo, valorNormalizado);
+        if(casoRAAbertoId) abrirCasoRA(casoRAAbertoId);
+        return;
+      }
       if(campo){ salvarCampoCasoRA(campo, e.target.value); return; }
       if(e.target.id === 'raCasoStatusSelect'){ mudarStatusCasoRA(e.target.value); }
     });
@@ -11160,3 +11216,5 @@
 </script>
 </body>
 </html>
+
+  
