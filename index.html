@@ -217,6 +217,12 @@
   /* ---------- Cards / stat tiles ---------- */
   .grid-stats{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:14px 0 22px; }
   @media (max-width:1050px){ .grid-stats{ grid-template-columns:repeat(2,1fr);} }
+  /* Painel do dia tem um 5º cartão ("Atividades realizadas hoje") — usa
+     uma variação própria pra não desalinhar os outros grids de stats
+     (Dashboard, Renovação etc.) que continuam com 4 cartões. */
+  .grid-stats-painel{ grid-template-columns:repeat(5,1fr); }
+  @media (max-width:1200px){ .grid-stats-painel{ grid-template-columns:repeat(3,1fr);} }
+  @media (max-width:1050px){ .grid-stats-painel{ grid-template-columns:repeat(2,1fr);} }
   .grid-2col{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:16px; align-items:start; }
   @media (max-width:900px){ .grid-2col{ grid-template-columns:1fr; } }
   .stat{
@@ -298,6 +304,12 @@
   }
   thead th[data-sort-carteira]:hover{ color:var(--ink-2); }
   thead th .sort-ind{ margin-left:3px; font-size:10px; }
+  /* Painel de onboarding: precisa de bem mais espaço que os modais comuns
+     (520px) pra caber duas colunas confortáveis nas fases 1-4 — ocupa a
+     maior parte da janela, como um painel grande e centralizado. */
+  #overlayOnboarding .modal{ max-width:1320px; width:94vw; }
+  #overlayOnboarding .modal-body{ max-height:80vh; }
+  @media(max-width:900px){ #overlayOnboarding .modal{ width:96vw; } #overlayOnboarding .modal-body{ max-height:78vh; } }
   #overlayOnboarding .modal-foot{ flex-wrap:wrap; }
   /* "Cancelar onboarding" é a única ação destrutiva do rodapé — fica
      visualmente isolada das ações de rotina (mais discreta, com uma
@@ -421,6 +433,9 @@
     transition:opacity .18s ease, transform .18s ease; max-width:90vw; text-align:center;
   }
   .toast-sucesso.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast-sucesso.erro{ background:#c0392b; }
+  .onb-salvo-msg{ color:var(--good-ink); }
+  .onb-salvo-msg.erro{ color:var(--critical-ink); }
   .booking-slot-dia{ margin-bottom:14px; }
   .booking-slot-dia h4{ margin:0 0 7px; font-size:13px; color:var(--ink-2); }
   .booking-slots-wrap{ display:flex; flex-wrap:wrap; gap:7px; }
@@ -445,6 +460,7 @@
   }
   .onb-card:hover{ border-color:var(--accent); }
   .onb-card.dragging{ opacity:0.45; }
+  .onb-card-id{ font-weight:800; font-size:11px; color:var(--accent); letter-spacing:.02em; margin-bottom:2px; }
   .onb-card .nm{ font-weight:700; font-size:13px; }
   .onb-card .meta{ font-size:11.5px; color:var(--muted); margin-top:3px; }
   .onb-card .meta.crit{ color:var(--critical-ink); font-weight:600; }
@@ -455,12 +471,27 @@
   .onb-checklist-item{ display:flex; align-items:center; gap:7px; font-size:12.5px; }
   .onb-checklist-item input{ width:auto; }
   .onb-checklist-item-info{ color:var(--ink-2); }
-  .onb-layout{ display:flex; gap:16px; align-items:flex-start; }
-  .onb-col-esquerda{ flex:0 0 300px; max-width:300px; position:sticky; top:0; }
+  /* Painel de onboarding: ocupa a maior parte da janela (ver #overlayOnboarding
+     .modal abaixo) — duas colunas confortáveis lado a lado nas fases 1 a 4.
+     Fase 0 usa .onb-layout-unica (coluna só, sem o Formulário Inicial "ao
+     lado", porque ele É o próprio conteúdo da fase de Criar Registro). */
+  .onb-layout{ display:flex; gap:24px; align-items:flex-start; }
+  .onb-col-esquerda{ flex:0 0 380px; max-width:380px; position:sticky; top:0; max-height:calc(64vh - 4px); overflow-y:auto; }
   .onb-col-direita{ flex:1 1 auto; min-width:0; }
+  .onb-layout-unica{ display:block; }
+  .onb-abas-mobile{ display:none; gap:8px; margin-bottom:14px; }
+  .onb-aba-mobile-btn{ flex:1 1 0; font-size:12.5px; font-weight:700; padding:8px 10px; border-radius:9px; border:1px solid var(--border); background:var(--surface-2); color:var(--muted); cursor:pointer; }
+  .onb-aba-mobile-btn.ativa{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
   @media (max-width:900px){
-    .onb-layout{ flex-direction:column; }
-    .onb-col-esquerda{ flex:1 1 auto; max-width:none; position:static; }
+    .onb-layout:not(.onb-layout-unica){ flex-direction:column; gap:0; }
+    .onb-abas-mobile{ display:flex; }
+    .onb-layout:not(.onb-layout-unica) .onb-col-esquerda{ flex:1 1 auto; max-width:none; position:static; max-height:none; overflow:visible; }
+    /* Fora da fase 0, só uma das duas seções fica visível por vez — a
+       alternância é feita clicando nas abas acima, nunca as duas juntas. */
+    .onb-layout:not(.onb-layout-unica) .onb-col-esquerda,
+    .onb-layout:not(.onb-layout-unica) .onb-col-direita{ display:none; }
+    .onb-layout:not(.onb-layout-unica) .onb-col-esquerda.onb-aba-ativa,
+    .onb-layout:not(.onb-layout-unica) .onb-col-direita.onb-aba-ativa{ display:block; }
   }
   .onb-progresso{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
   .onb-step{ font-size:11.5px; font-weight:600; padding:5px 10px; border-radius:99px; border:1px solid var(--border); background:var(--surface-2); color:var(--muted); cursor:pointer; }
@@ -864,7 +895,7 @@
       </div>
 
       <div class="content">
-        <div class="grid-stats">
+        <div class="grid-stats grid-stats-painel">
           <div class="stat">
             <div class="label">Contatos no mês</div>
             <div class="value num" id="statContatosMes">–</div>
@@ -884,6 +915,11 @@
             <div class="label">NPS médio (mês)</div>
             <div class="value num" id="statNps">–</div>
             <div class="sub" id="statNpsSub"></div>
+          </div>
+          <div class="stat">
+            <div class="label">Atividades realizadas hoje</div>
+            <div class="value num" id="statAtividadesHoje">–</div>
+            <div class="sub" id="statAtividadesHojeSub"></div>
           </div>
         </div>
 
@@ -1893,7 +1929,7 @@
 
 <!-- ===================== MODAL: importar reclamações RA em lote ===================== -->
 <div class="overlay" id="overlayImportarRA">
-  <div class="modal" style="max-width:640px;">
+  <div class="modal" style="max-width:760px;">
     <div class="modal-head">
       <h3>Importar reclamações RA</h3>
       <button class="icon-btn" data-close="overlayImportarRA" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
@@ -1920,7 +1956,7 @@
         <div class="card-head hint" style="padding:10px 0;">Casamento com o cliente cadastrado (por nome) — linhas que não bateram com nenhum cliente precisam ser resolvidas manualmente antes de importar.</div>
         <div class="import-preview-wrap">
           <table>
-            <thead><tr><th>Nome na planilha</th><th>Nº reclamação</th><th>Data abertura</th><th>Cliente no Radar CS</th></tr></thead>
+            <thead><tr><th>Nome na planilha</th><th>Contato do reclamante</th><th>Nº reclamação</th><th>Data abertura</th><th>Cliente no Radar CS</th></tr></thead>
             <tbody id="impRaPreviewBody"></tbody>
           </table>
         </div>
@@ -2444,16 +2480,17 @@
 </div>
 
 <div class="overlay" id="overlayOnboarding">
-  <div class="modal" style="max-width:700px;">
+  <div class="modal">
     <div class="modal-head">
       <h3 id="onbModalTitulo">Onboarding</h3>
       <button class="icon-btn" data-close="overlayOnboarding" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body" id="onbFormBody"></div>
-    <div class="modal-foot">
+    <div class="modal-foot" style="align-items:center;">
       <button class="btn btn-sm btn-danger" id="btnExcluirOnboarding" style="margin-right:auto;">Cancelar onboarding</button>
       <button class="btn" id="btnVoltarFaseOnboarding" style="display:none;">Voltar para fase anterior</button>
       <button class="btn" data-close="overlayOnboarding">Fechar</button>
+      <span class="onb-salvo-msg" id="onbSalvoMsg" role="status" aria-live="polite" style="font-size:12px; font-weight:700;"></span>
       <button class="btn" id="btnSalvarOnboarding">Salvar alterações</button>
       <button class="btn btn-accent" id="btnAvancarFaseOnboarding">Avançar de fase</button>
     </div>
@@ -2463,7 +2500,7 @@
 <div class="overlay" id="overlayValidarTreinamento">
   <div class="modal" style="max-width:620px;">
     <div class="modal-head">
-      <h3>Validar treinamento</h3>
+      <h3 id="treinamentoValidarTitulo">Validar treinamento</h3>
       <button class="icon-btn" data-close="overlayValidarTreinamento" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body" id="treinamentoValidarBody"></div>
@@ -2471,6 +2508,7 @@
       <button class="btn" data-close="overlayValidarTreinamento">Fechar</button>
       <button class="btn" id="btnTreinamentoReagendar">Solicitar Reagendamento</button>
       <button class="btn btn-accent" id="btnTreinamentoValidar">Validar Reunião</button>
+      <button class="btn btn-accent" id="btnTreinamentoSalvarEdicao" style="display:none;">Salvar alterações</button>
     </div>
   </div>
 </div>
@@ -2775,6 +2813,24 @@
   // cliente). Clicar numa fase já concluída no stepper só troca esta
   // variável (visualização), sem alterar a fase real nem salvar nada.
   var onbFaseVisualizada = null;
+  // Em telas estreitas o painel de onboarding empilha "Fase atual" e
+  // "Formulário inicial" em abas (nunca as duas seções juntas ao mesmo
+  // tempo) — esta variável guarda qual das duas está visível. Em telas
+  // largas ela é ignorada (as duas colunas ficam lado a lado sempre).
+  var onbAbaMobileAtiva = 'fase';
+  // Item 9 da spec de correções pós-implantação: log em memória (não
+  // persistido — reinicia a cada carregamento, o que é coerente com a
+  // regra de "zera à meia-noite") das atividades da fila de hoje que
+  // foram concluídas hoje, pra alimentar o cartão "Atividades realizadas
+  // hoje" do Painel do dia. Cada entrada é deduplicada por tipo+chave+dia
+  // pra não contar duas vezes a mesma resolução.
+  var logConclusoesAtividades = [];
+  function registrarConclusaoAtividadeHoje(tipo, chave, csm){
+    var hoje = todayISO();
+    var jaExiste = logConclusoesAtividades.some(function(x){ return x.tipo===tipo && x.chave===chave && x.data===hoje; });
+    if(jaExiste) return;
+    logConclusoesAtividades.push({tipo:tipo, chave:chave, data:hoje, csm:csm||''});
+  }
   // true quando as 3 reuniões fixas + extras já criadas na fase estão
   // expandidas na tela (id da reunião -> bool); ao abrir o cliente, todas
   // começam ocultas, para deixar a fase mais compacta.
@@ -3235,13 +3291,36 @@
   // alguns segundos. Usa um único elemento fixo no rodapé da tela,
   // reaproveitado por qualquer ação de salvar.
   var toastSucessoTimer = null;
-  function mostrarToastSucesso(msg){
+  // tipo 'sucesso' (padrão) ou 'erro' — mesmo elemento fixo, só troca a cor.
+  function mostrarToast(msg, tipo){
     var el = document.getElementById('toastSucesso');
     if(!el) return;
     el.textContent = msg;
+    el.classList.toggle('erro', tipo === 'erro');
     el.classList.add('show');
     clearTimeout(toastSucessoTimer);
     toastSucessoTimer = setTimeout(function(){ el.classList.remove('show'); }, 3200);
+  }
+  function mostrarToastSucesso(msg){ mostrarToast(msg, 'sucesso'); }
+  function mostrarToastErro(msg){ mostrarToast(msg, 'erro'); }
+
+  // Feedback de salvar no painel de onboarding (item 2 da spec de
+  // usabilidade): mensagem fixa perto do botão "Salvar alterações" +
+  // notificação flutuante — nas duas, pra quem está de olho no botão e pra
+  // quem já tirou o olho da tela. Reaproveitado por qualquer ação que
+  // dependa de salvar (avançar de fase, congelar/descongelar etc.).
+  function mostrarSalvoOnboarding(sucesso, msgCustom){
+    var el = document.getElementById('onbSalvoMsg');
+    if(sucesso){
+      var hora = pad(new Date().getHours())+':'+pad(new Date().getMinutes());
+      var msg = msgCustom || ('Alterações salvas com sucesso às '+hora+'.');
+      if(el){ el.textContent = msg; el.classList.remove('erro'); }
+      mostrarToastSucesso(msg);
+    }else{
+      var msgErro = msgCustom || 'Não foi possível salvar as alterações. Tente novamente.';
+      if(el){ el.textContent = msgErro; el.classList.add('erro'); }
+      mostrarToastErro(msgErro);
+    }
   }
 
   // Confirmação de ação no visual do próprio sistema, substituindo o
@@ -3494,7 +3573,7 @@
   var CAMPOS_IMPORT_RA = [
     {key:'clienteNome', label:'Nome do Cliente', syn:['nome','cliente','nome do cliente','nome da clinica','nome da clínica','clinica','clínica','razao social','razão social','empresa']},
     {key:'contatoNome', label:'Nome da pessoa (opcional)', syn:['nome da pessoa','nome do contato','contato','pessoa','quem reclamou','solicitante']},
-    {key:'contatoEmail', label:'E-mail (opcional)', syn:['email','e-mail','email do contato','e-mail do contato']},
+    {key:'contatoEmail', label:'E-mail (opcional)', syn:['email','e mail','email do contato','e mail do contato','email do reclamante','e mail do reclamante']},
     {key:'contatoTelefone', label:'Telefone / WhatsApp (opcional)', syn:['telefone','whatsapp','celular','fone','telefone do contato','numero de telefone','número de telefone']},
     {key:'numeroReclamacao', label:'Número da reclamação', syn:['numero da reclamacao','número da reclamação','numero reclamacao','número reclamação','n reclamacao','nº reclamação','protocolo','numero do protocolo','número do protocolo','numero','número','n reclame aqui','reclame aqui']},
     {key:'dataAbertura', label:'Data de abertura', syn:['data de abertura','data abertura','data','data da reclamacao','data da reclamação']},
@@ -3770,10 +3849,10 @@
   // carteira — quem fosse importar pela primeira vez tinha que adivinhar
   // o formato esperado.
   async function baixarModeloImportacaoRA(){
-    var header = ['Nome do Cliente','Número da reclamação','Data de abertura','Resumo'];
+    var header = ['Nome do Cliente','Nome do Contato','E-mail do Contato','Telefone do Contato','Número da reclamação','Data de abertura','Resumo'];
     var hoje = todayISO().split('-').reverse().join('/');
-    var ex1 = ['Clínica Exemplo Ltda', 'RA-000123', hoje, 'Cliente reclamou de demora no suporte técnico.'];
-    var ex2 = ['Outra Clínica S.A.', '', hoje, 'Cliente reclamou de cobrança indevida na fatura.'];
+    var ex1 = ['Clínica Exemplo Ltda', 'Dra. Fulana de Tal', 'fulana@exemplo.com', '5511999998888', 'RA-000123', hoje, 'Cliente reclamou de demora no suporte técnico.'];
+    var ex2 = ['Outra Clínica S.A.', '', '', '', '', hoje, 'Cliente reclamou de cobrança indevida na fatura.'];
     var csv = [header, ex1, ex2].map(function(r){ return r.map(csvEscape).join(';'); }).join('\n');
     var downloads = null;
     try{ downloads = await claude.use('downloads'); }catch(e){}
@@ -3883,6 +3962,14 @@
       var nomePlanilha = String(getCampoImportRA(row,'clienteNome')||'').trim();
       var numero = String(getCampoImportRA(row,'numeroReclamacao')||'').trim();
       var dataAbertura = parseFlexibleDate(getCampoImportRA(row,'dataAbertura'));
+      var contatoNome = String(getCampoImportRA(row,'contatoNome')||'').trim();
+      var contatoEmail = String(getCampoImportRA(row,'contatoEmail')||'').trim();
+      var contatoTelefoneNorm = normalizeTelefone(getCampoImportRA(row,'contatoTelefone'));
+      var contatoPartes = [];
+      if(contatoNome) contatoPartes.push(esc(contatoNome));
+      if(contatoTelefoneNorm) contatoPartes.push(esc(fmtTelefoneExibicao(contatoTelefoneNorm)));
+      if(contatoEmail) contatoPartes.push(esc(contatoEmail));
+      var contatoResumo = contatoPartes.length ? contatoPartes.join('<br>') : '<span style="color:var(--muted);">— sem dados —</span>';
       if(impRaResolucoes[idx] === undefined){
         var achado = encontrarClientePorNomeRA(nomePlanilha, opcoes);
         impRaResolucoes[idx] = achado ? achado.id : '';
@@ -3894,6 +3981,7 @@
       var semMatch = !selecionado;
       return '<tr'+(semMatch?' style="background:var(--critical-soft);"':'')+'>' +
         '<td style="font-size:12px; white-space:nowrap;">'+esc(nomePlanilha||'—')+'</td>' +
+        '<td style="font-size:11.5px; line-height:1.5;">'+contatoResumo+'</td>' +
         '<td style="font-size:12px; white-space:nowrap;">'+esc(numero||'—')+'</td>' +
         '<td style="font-size:12px; white-space:nowrap;">'+esc(dataAbertura||'—')+'</td>' +
         '<td><select data-ra-imp-cliente="'+idx+'" style="font-size:12px; max-width:220px;">'+options+'</select></td>' +
@@ -5880,6 +5968,15 @@
     }else{
       filaEl.innerHTML = fila.map(function(s, idx){
         var prioCls = s.prioridadeCS==='P1' ? 'pill-critical' : (s.prioridadeCS==='P2' ? 'pill-warning' : 'pill-neutral');
+        // Item 7 da spec de correções pós-implantação: cliente em onboarding
+        // ativo aparece nesta fila por motivos de onboarding (fase vencida,
+        // alinhamento não agendado) — o botão de ação precisa abrir o card
+        // de onboarding, não a tela de registro de contato de pós-venda.
+        var onbAtivoFila = onboardingDoCliente(s.cliente.id);
+        var temOnboardingAtivoFila = onbAtivoFila && onbAtivoFila.tipo !== 'reimplantacao' && onbAtivoFila.faseAtual !== 'concluido';
+        var botaoAcaoFila = temOnboardingAtivoFila
+          ? '<button class="btn btn-sm btn-accent" data-abrir-onboarding="'+esc(s.cliente.id)+'">Abrir</button>'
+          : '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(s.cliente.id)+'">Registrar</button>';
         return '<div class="queue-row">' +
           '<div class="queue-rank num">'+(idx+1)+'</div>' +
           '<div class="health-dot '+s.health+'"></div>' +
@@ -5895,7 +5992,7 @@
           '</div>' +
           '<div class="queue-side">Último: '+(s.last?fmtDate(s.last.data):'nunca')+'</div>' +
           '<div class="queue-actions">' +
-            '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(s.cliente.id)+'">Registrar</button>'+repBotaoCliente(s.cliente.id) +
+            botaoAcaoFila+repBotaoCliente(s.cliente.id) +
           '</div>' +
         '</div>';
       }).join('');
@@ -5955,10 +6052,34 @@
     onboardings.filter(function(o){ return o.tipo !== 'reimplantacao' && noEscopo(o.csm, escopoCsm); }).forEach(function(o){
       atividadesOnboardingCascata = atividadesOnboardingCascata.concat(onboardingAtividadesCascata(o));
     });
+    // Item 6 da spec de correções pós-implantação: CSAT pendente / reagendar
+    // das reuniões de Reimplantação e Tira-dúvida (fora do alcance da
+    // cascata de onboarding acima).
+    atividadesOnboardingCascata = atividadesOnboardingCascata.concat(
+      treinamentoAtividadesForaOnboarding().filter(function(x){ return noEscopo(x.csm, escopoCsm); })
+    );
     var pendentesAtCompleto = atividadesPendentesEscopo(escopoCsm).concat(atividadesOnboardingCascata).sort(function(x,y){
       var px = x.atividade.prazo || '9999-99-99', py = y.atividade.prazo || '9999-99-99';
       return px < py ? -1 : (px > py ? 1 : 0);
     });
+    // Item 9 da spec de correções pós-implantação: cartão "Atividades
+    // realizadas hoje" — quantas atividades da fila de hoje (onboarding,
+    // migração/reimplantação, reuniões de treinamento, planos de ação)
+    // já foram marcadas como concluídas hoje, e quantas ainda estão
+    // pendentes (incluindo atrasadas de dias anteriores que continuam na
+    // fila até serem concluídas). Zera sozinho à meia-noite porque o log
+    // é só em memória e filtrado por todayISO().
+    var concluidasHojeCount = logConclusoesAtividades.filter(function(x){
+      return x.data === hojeISO && noEscopo(x.csm, escopoCsm);
+    }).length;
+    var pendentesHojeCount = pendentesAtCompleto.length;
+    var statAtHojeEl = document.getElementById('statAtividadesHoje');
+    if(statAtHojeEl){
+      statAtHojeEl.textContent = concluidasHojeCount;
+      document.getElementById('statAtividadesHojeSub').textContent = pendentesHojeCount
+        ? (pendentesHojeCount+' ainda pendente'+(pendentesHojeCount===1?'':'s')+' na fila')
+        : 'fila de hoje zerada';
+    }
     var LIMITE_ATIVIDADES_PLANO = 12;
     var pendentesAt = pendentesAtCompleto.slice(0, LIMITE_ATIVIDADES_PLANO);
     var atEl = document.getElementById('atividadesPlano');
@@ -5979,7 +6100,9 @@
           '</div>' +
           '<div class="queue-actions">'+(x.atividade.origemAuto === 'onboardingCascata'
             ? '<button class="btn btn-sm" data-abrir-onboarding="'+esc(x.clienteId)+'">Abrir</button>'
-            : '<button class="btn btn-sm" data-open-historico="'+esc(x.clienteId)+'">Ver</button>')+repBotaoCliente(x.clienteId)+'</div>' +
+            : (x.atividade.origemAuto === 'treinamentoCascata'
+              ? '<button class="btn btn-sm" data-treinamento-abrir="'+esc(x.treinamentoIds)+'">Abrir</button>'
+              : '<button class="btn btn-sm" data-open-historico="'+esc(x.clienteId)+'">Ver</button>'))+repBotaoCliente(x.clienteId)+'</div>' +
         '</div>';
       }).join('');
       // Item 3 da spec de usabilidade: avisar quando a lista foi cortada.
@@ -7498,7 +7621,7 @@
     var ats = p.atividades.map(function(a){ return Object.assign({}, a); });
     var a = ats[idx];
     if(a.status === 'concluida'){ a.status = 'nao_iniciada'; a.concluidoEm = null; }
-    else { a.status = 'concluida'; a.concluidoEm = todayISO(); }
+    else { a.status = 'concluida'; a.concluidoEm = todayISO(); registrarConclusaoAtividadeHoje('planoAcao', planoId+'|'+idx, p.csm); }
     var todasConcluidas = ats.every(function(x){ return x.status === 'concluida' || x.status === 'cancelada'; });
     var body = {
       clienteId: p.clienteId, clienteNome: p.clienteNome, csm: p.csm, titulo: p.titulo,
@@ -8195,6 +8318,34 @@
       : '<div class="meta"><span class="chip c-warn">Alinhamento pendente</span></div>'+(onb.vencimentoContato?'<div class="meta">Prazo da fase: '+fmtDate(onb.vencimentoContato)+'</div>':'');
   }
 
+  // Item 4 da spec de correções pós-implantação (23/09/2026): card da fase
+  // "Construindo o Sucesso" precisa mostrar quantas reuniões de treinamento
+  // já aconteceram — um selo por reunião (1, 2, 3, extras), marcado ✓
+  // quando já passou do horário agendado, mais o contador "X/Y". Mesma
+  // ideia do selo de alinhamento acima, mas pra lista de reuniões.
+  function resumoReunioesConstruindo(onb){
+    var reunioes = onb.reunioes || [];
+    if(!reunioes.length) return '';
+    var realizadas = reunioes.filter(reuniaoJaPassou).length;
+    var selos = reunioes.map(function(r, i){
+      var feita = reuniaoJaPassou(r);
+      var titulo = (r.titulo||('Reunião '+(i+1))) + (r.data ? (' — '+fmtDate(r.data)+(r.horaInicio?(' às '+r.horaInicio):'')) : ' — sem data marcada');
+      return '<span class="chip'+(feita?' c-good':'')+'" title="'+esc(titulo)+'">'+(feita?'✓ ':'')+(i+1)+'</span>';
+    }).join(' ');
+    return '<div class="meta" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:2px;">'+selos+'</div>' +
+      '<div class="meta">Reuniões: '+realizadas+'/'+reunioes.length+'</div>';
+  }
+
+  // Item 5 da spec de correções pós-implantação: card da fase "Momento WOW"
+  // precisa indicar se a reunião de finalização já está marcada — mesmo
+  // padrão visual do selo de alinhamento (item acima).
+  function resumoFinalizacaoOnboarding(onb){
+    var ag = agendamentoFinalizacao(onb.clienteId);
+    return ag
+      ? '<div class="meta"><span class="chip c-good">Finalização agendada</span></div><div class="meta">'+fmtDate(ag.data)+' às '+esc(ag.horaInicio)+(ag.horaFim?'–'+esc(ag.horaFim):'')+'</div>'
+      : '<div class="meta"><span class="chip c-warn">Finalização pendente</span></div>';
+  }
+
   // Reimplantação: documentos próprios na tabela existente de onboarding.
   // Um documento por cliente guarda ciclos separados e preserva o histórico.
   var reimplantacaoDocs = [];
@@ -8395,7 +8546,10 @@
         var reu = repReuniaoPorId(e.target.getAttribute('data-rep-reuniao-id'));
         if(reu){
           reu[reuniaoField] = e.target.value;
-          if((reuniaoField === 'data' || reuniaoField === 'horaInicio') && reu.aguardandoReagendamento) reu.aguardandoReagendamento = false;
+          if((reuniaoField === 'data' || reuniaoField === 'horaInicio') && reu.aguardandoReagendamento){
+            reu.aguardandoReagendamento = false;
+            registrarConclusaoAtividadeHoje('reagendamento', reu.id, (repCliente(repEdit.clienteId)||{}).csm);
+          }
         }
       }
     });
@@ -8403,7 +8557,12 @@
       var reuniaoField = e.target.getAttribute('data-rep-reuniao-field');
       if(reuniaoField != null){
         var reu = repReuniaoPorId(e.target.getAttribute('data-rep-reuniao-id'));
-        if(reu) reu[reuniaoField] = e.target.value;
+        if(reu){
+          if(reuniaoField === 'csat' && reu.csat === 'pendente' && e.target.value !== 'pendente'){
+            registrarConclusaoAtividadeHoje('csatPendente', reu.id, (repCliente(repEdit.clienteId)||{}).csm);
+          }
+          reu[reuniaoField] = e.target.value;
+        }
       }
     });
     repOverlayEl.addEventListener('click', function(e){
@@ -8477,10 +8636,13 @@
         var vencidoTxt = onboardingFaseVencida(o);
         var dias = diasDesde(o.faseEntrouEm || o.dataInicio);
         return '<div class="onb-card" data-abrir-onboarding="'+esc(o.clienteId)+'" draggable="true" data-drag-onb="'+esc(o.clienteId)+'">' +
+          '<div class="onb-card-id">ID '+esc(o.clienteId)+'</div>' +
           '<div class="nm">'+esc(o.clienteNome)+'</div>' +
           '<div class="meta">'+dias+'d nesta fase'+(admin?' · '+esc(o.csm||'Sem CSM'):'')+'</div>' +
           (vencidoTxt ? '<div class="meta crit">Fase vencida</div>' : '') +
           (o.faseAtual === 'contato' ? resumoAlinhamentoOnboarding(o) : '') +
+          (o.faseAtual === 'construindo' ? resumoReunioesConstruindo(o) : '') +
+          (o.faseAtual === 'wow' ? resumoFinalizacaoOnboarding(o) : '') +
           migracaoBadgeHtml(o) +
         '</div>';
       }).join('') || '<div class="empty-note" style="padding:8px 0; font-size:12px;">Vazio</div>';
@@ -8493,6 +8655,7 @@
       (congelados.map(function(o){
         var vencidoTxt = o.congeladoVencimento && diffDays(todayISO(), o.congeladoVencimento) > 0;
         return '<div class="onb-card" data-abrir-onboarding="'+esc(o.clienteId)+'">' +
+          '<div class="onb-card-id">ID '+esc(o.clienteId)+'</div>' +
           '<div class="nm">'+esc(o.clienteNome)+'</div>' +
           '<div class="meta">'+(admin?esc(o.csm||'Sem CSM')+' · ':'')+'Congelado desde '+fmtDate(o.congeladoData)+'</div>' +
           (o.congeladoVencimento ? '<div class="meta'+(vencidoTxt?' crit':'')+'">Vencimento da fase: '+fmtDate(o.congeladoVencimento)+'</div>' : '') +
@@ -8576,7 +8739,10 @@
     };
     onbMostrarAnteriores = false;
     onbFaseVisualizada = null;
+    onbAbaMobileAtiva = 'fase';
     onbReunioesExpandidas = {};
+    var onbSalvoMsgEl = document.getElementById('onbSalvoMsg');
+    if(onbSalvoMsgEl){ onbSalvoMsgEl.textContent = ''; onbSalvoMsgEl.classList.remove('erro'); }
     document.getElementById('onbModalTitulo').textContent = 'Onboarding — ' + existente.clienteNome;
     renderOnboardingFormBody();
     openOverlay('overlayOnboarding');
@@ -8819,7 +8985,9 @@
       '<div class="field"><label>Configurações obrigatórias</label>' +
         '<div class="hint" style="margin-bottom:6px;">Lista informativa — o conteúdo é abordado no primeiro treinamento; é possível enviar material com instruções antes, se o cliente quiser adiantar.</div>' +
         '<div class="onb-checklist onb-checklist-info">' + ONBOARDING_CHECKLIST_CONFIGURACOES.map(function(it){ return '<div class="onb-checklist-item onb-checklist-item-info">• '+esc(it.label)+'</div>'; }).join('') + '</div></div>' +
-      '<div class="field"><label>Requisitos essenciais — Observações</label><textarea data-onb-field="essenciaisObs" placeholder="Justifique o motivo, se o cliente não quiser implantar alguma funcionalidade essencial">'+esc(onb.essenciaisObs||'')+'</textarea></div>' +
+      '<div class="field"><label>Requisitos essenciais</label>' +
+        '<div class="config-banner">As funcionalidades essenciais para a implantação com sucesso são: <strong>Agendamento, Atendimento, Planejamento, Orçamentos e Contratos, Conclusão de Procedimentos, Contas à Receber e Contas à Pagar</strong>. Oriente o cliente sobre a importância de cada uma. Se ele não quiser implantar alguma das funcionalidades acima, justifique o motivo no campo abaixo.</div></div>' +
+      '<div class="field"><label>Observações</label><textarea data-onb-field="essenciaisObs" placeholder="Justifique o motivo, se o cliente não quiser implantar alguma funcionalidade essencial">'+esc(onb.essenciaisObs||'')+'</textarea></div>' +
       '<div class="field"><label>Excedendo as expectativas *</label><textarea data-onb-field="excedendoExpectativas" placeholder="Ex.: integração com WhatsApp, relatórios financeiros">'+esc(onb.excedendoExpectativas||'')+'</textarea></div>' +
       renderOnbAgendarAtividade(onb) +
     '</div>';
@@ -8981,6 +9149,39 @@
     return out;
   }
 
+  // Item 6 da spec de correções pós-implantação (23/09/2026): a cascata de
+  // atividades do onboarding (onboardingAtividadesCascata, mais abaixo) só
+  // enxerga onb.reunioes — as reuniões de Reimplantação (dentro dos ciclos)
+  // e de Tira-dúvida (documento avulso) vivem em formatos diferentes e
+  // nunca geravam atividade nenhuma no Painel do dia, mesmo com CSAT
+  // pendente ou reagendamento solicitado. Esta função cobre exatamente
+  // essas duas categorias, reaproveitando o formato unificado de
+  // treinamentoTodasReunioes() — mesma prioridade CSAT pendente > Reagendar
+  // que a cascata de onboarding usa (uma reunião nunca gera as duas juntas:
+  // reagendar só é possível depois de já ter passado da validação/CSAT).
+  function treinamentoAtividadesForaOnboarding(){
+    var out = [];
+    treinamentoTodasReunioes().filter(function(x){ return x.categoria !== 'onboarding'; }).forEach(function(x){
+      var r = x.r, onb = x.onb;
+      var categoriaLabel = TREINAMENTO_CATEGORIA_LABEL[x.categoria] || x.categoria;
+      var idsAtiv = onb.clienteId+'|'+r.id+'|'+x.categoria;
+      if(r.validada && r.csat === 'pendente'){
+        out.push({
+          planoTitulo: 'CSAT da reunião', treinamentoIds: idsAtiv,
+          clienteId: onb.clienteId, clienteNome: onb.clienteNome, csm: onb.csm,
+          atividade: { titulo: 'Colher o CSAT: '+(r.titulo||categoriaLabel)+(r.horaInicio?' · '+r.horaInicio:''), descricao: r.analista?('Analista: '+r.analista):'', prazo: r.data||null, status:'nao_iniciada', origemAuto:'treinamentoCascata' }
+        });
+      }else if(r.aguardandoReagendamento){
+        out.push({
+          planoTitulo: 'Reagendar reunião', treinamentoIds: idsAtiv,
+          clienteId: onb.clienteId, clienteNome: onb.clienteNome, csm: onb.csm,
+          atividade: { titulo: 'Reagendar: '+(r.titulo||categoriaLabel)+(r.horaInicio?' · '+r.horaInicio:''), descricao: r.analista?('Solicitado por: '+r.analista):'', prazo: r.data||null, status:'nao_iniciada', origemAuto:'treinamentoCascata' }
+        });
+      }
+    });
+    return out;
+  }
+
   function treinamentoFilaLista(){
     var perfil = treinamentoPerfilFiltro;
     var cat = treinamentoCategoriaFiltro;
@@ -9083,11 +9284,18 @@
           var extra = (x.r.participantes || x.r.observacoes)
             ? ('<div class="queue-meta">'+(x.r.participantes?('Participantes: '+esc(x.r.participantes)):'')+(x.r.participantes && x.r.observacoes?' · ':'')+(x.r.observacoes?('Observações: '+esc(x.r.observacoes)):'')+'</div>')
             : '';
+          var idsRow = esc(x.onb.clienteId)+'|'+esc(x.r.id)+'|'+esc(x.categoria);
+          // Editar/Excluir só pra Administrador — analistas seguem só
+          // validando suas próprias reuniões pendentes (item 3 da spec de
+          // correções pós-implantação).
+          var acoesAdmin = isAdmin()
+            ? '<button class="btn btn-sm" data-treinamento-editar="'+idsRow+'">Editar</button><button class="btn btn-sm btn-danger" data-treinamento-excluir="'+idsRow+'">Excluir</button>'
+            : '';
           return '<div class="queue-row"><div class="queue-main">' +
             '<div class="queue-name">'+esc(x.onb.clienteNome)+' <span class="chip" style="margin-left:4px;">'+esc(TREINAMENTO_CATEGORIA_LABEL[x.categoria]||x.categoria)+'</span></div>' +
             '<div class="queue-meta">'+(x.categoria==='tiraduvida'?'Assunto':'Reunião')+': '+esc(x.r.titulo||'')+' · Analista: '+esc(x.r.analista||'—')+' · Validado em '+fmtDate((x.r.validadaEm||'').slice(0,10))+' · CSAT: '+esc(ONBOARDING_CSAT_LABEL[x.r.csat]||x.r.csat)+'</div>' +
             extra +
-          '</div><div class="queue-actions"><button class="btn btn-sm" data-treinamento-abrir="'+esc(x.onb.clienteId)+'|'+esc(x.r.id)+'|'+esc(x.categoria)+'">Abrir</button></div></div>';
+          '</div><div class="queue-actions"><button class="btn btn-sm" data-treinamento-abrir="'+idsRow+'">Abrir</button>'+acoesAdmin+'</div></div>';
         }).join('');
       }
     }
@@ -9116,14 +9324,26 @@
     }
   }
 
-  function abrirValidarTreinamento(clienteId, reuniaoId, categoria){
+  function abrirValidarTreinamento(clienteId, reuniaoId, categoria, modoEdicao){
     categoria = categoria || 'onboarding';
     var item = treinamentoItemPorId(clienteId, reuniaoId, categoria);
     if(!item) return;
     var onb = item.onb, r = item.r;
-    onbTreinamentoValidar = { clienteId: clienteId, reuniaoId: reuniaoId, categoria: categoria };
+    onbTreinamentoValidar = { clienteId: clienteId, reuniaoId: reuniaoId, categoria: categoria, modoEdicao: !!modoEdicao };
     var cliente = clientes.filter(function(c){ return c.id === clienteId; })[0] || {};
     var body = document.getElementById('treinamentoValidarBody');
+    document.getElementById('treinamentoValidarTitulo').textContent = modoEdicao ? 'Editar validação' : 'Validar treinamento';
+    // No modo edição (só Administrador, a partir do Histórico), a analista
+    // já validou — aqui dá pra corrigir o que foi preenchido errado: os
+    // mesmos campos de sempre, mais data/horário e status do CSAT (que na
+    // validação original não são editáveis, só ficam visíveis depois).
+    var camposEdicao = modoEdicao
+      ? '<div class="field-row">' +
+          '<div class="field"><label>Data da reunião</label><input type="date" id="treinamentoEditData" value="'+esc(r.data||'')+'"></div>' +
+          '<div class="field"><label>Horário</label><input type="time" id="treinamentoEditHora" value="'+esc(r.horaInicio||'')+'"></div>' +
+        '</div>' +
+        '<div class="field"><label>Status do CSAT</label><select id="treinamentoEditCsat">'+Object.keys(ONBOARDING_CSAT_LABEL).map(function(k){ return '<option value="'+k+'"'+(r.csat===k?' selected':'')+'>'+ONBOARDING_CSAT_LABEL[k]+'</option>'; }).join('')+'</select></div>'
+      : '';
     body.innerHTML =
       '<div class="onb-fase-section"><h3>Formulário inicial do cliente <span class="chip" style="margin-left:4px;">'+esc(TREINAMENTO_CATEGORIA_LABEL[categoria]||categoria)+'</span></h3>' +
         '<div class="field-row">' +
@@ -9144,11 +9364,15 @@
         '<div class="hint" style="margin-bottom:6px;">'+esc(fmtDate(r.data))+(r.horaInicio?(' às '+esc(r.horaInicio)):'')+' · Analista: '+esc(r.analista||'—')+'</div>' +
         '<div style="font-size:12.5px;">'+esc(r.objetivo||'')+'</div>' +
       '</div>' +
+      camposEdicao +
       '<div class="field"><label>Participantes'+(categoria==='tiraduvida'?'':' da reunião')+'</label><textarea id="treinamentoParticipantes" placeholder="Ex.: Dra. Helena, Ana (recepção), João (financeiro)">'+esc(r.participantes||'')+'</textarea>' +
         '<div class="hint">Ao salvar, preenche o campo Participantes no registro original.</div></div>' +
       '<div class="field"><label>Observações</label><textarea id="treinamentoObservacoes">'+esc(r.observacoes||'')+'</textarea>' +
         '<div class="hint">Ao salvar, preenche o campo Observações no registro original.</div></div>' +
       '<div class="gate-error" id="treinamentoValidarError"></div>';
+    document.getElementById('btnTreinamentoReagendar').style.display = modoEdicao ? 'none' : '';
+    document.getElementById('btnTreinamentoValidar').style.display = modoEdicao ? 'none' : '';
+    document.getElementById('btnTreinamentoSalvarEdicao').style.display = modoEdicao ? '' : 'none';
     openOverlay('overlayValidarTreinamento');
   }
 
@@ -9195,6 +9419,64 @@
     }catch(e){
       if(errEl){ errEl.textContent = 'Não foi possível salvar agora: '+detalheErro(e); errEl.classList.add('show'); }
     }
+  }
+
+  // Salva as correções feitas por um Administrador num registro já
+  // validado (item 3 da spec de correções pós-implantação) — não mexe em
+  // validada/validadaEm/aguardandoReagendamento, só nos campos que podem
+  // ter sido preenchidos errado.
+  async function confirmarEditarValidacaoTreinamento(){
+    if(!onbTreinamentoValidar || !onbTreinamentoValidar.modoEdicao) return;
+    var item = treinamentoItemPorId(onbTreinamentoValidar.clienteId, onbTreinamentoValidar.reuniaoId, onbTreinamentoValidar.categoria);
+    var errEl = document.getElementById('treinamentoValidarError');
+    if(!item){ if(errEl){ errEl.textContent = 'Registro não encontrado — a tela pode estar desatualizada.'; errEl.classList.add('show'); } return; }
+    if(!isAdmin()){ if(errEl){ errEl.textContent = 'Só o Administrador pode editar uma validação já feita.'; errEl.classList.add('show'); } return; }
+    treinamentoCamposComuns(item.r);
+    var dataEl = document.getElementById('treinamentoEditData');
+    var horaEl = document.getElementById('treinamentoEditHora');
+    var csatEl = document.getElementById('treinamentoEditCsat');
+    if(dataEl && dataEl.value) item.r.data = dataEl.value;
+    if(horaEl) item.r.horaInicio = horaEl.value;
+    if(csatEl){
+      if(item.r.csat === 'pendente' && csatEl.value !== 'pendente'){
+        registrarConclusaoAtividadeHoje('csatPendente', item.r.id, item.onb.csm);
+      }
+      item.r.csat = csatEl.value;
+    }
+    try{
+      await persistirItemTreinamento(item);
+      closeOverlay('overlayValidarTreinamento');
+      onbTreinamentoValidar = null;
+      mostrarToastSucesso('Validação corrigida com sucesso.');
+      renderAll();
+    }catch(e){
+      if(errEl){ errEl.textContent = 'Não foi possível salvar agora: '+detalheErro(e); errEl.classList.add('show'); }
+    }
+  }
+
+  // Desfaz a validação de um registro do Histórico (item 3 da spec de
+  // correções pós-implantação) — só Administrador. Devolve a reunião pra
+  // fila de validação (não apaga participantes/observações já registrados,
+  // só o "carimbo" de validada) e reseta o CSAT pra "Pendente", já que a
+  // atividade de CSAT no Painel do dia é recalculada automaticamente a
+  // partir de validada+csat — some sozinha assim que validada vira false, e
+  // volta a aparecer quando a reunião for validada de novo.
+  function excluirValidacaoTreinamento(clienteId, reuniaoId, categoria){
+    if(!isAdmin()) return;
+    var item = treinamentoItemPorId(clienteId, reuniaoId, categoria);
+    if(!item) return;
+    confirmarAcao('Desfazer esta validação? A reunião volta para a Fila de validação. Participantes e observações já registrados não são apagados.', async function(){
+      item.r.validada = false;
+      item.r.validadaEm = null;
+      item.r.csat = 'pendente';
+      try{
+        await persistirItemTreinamento(item);
+        mostrarToastSucesso('Validação desfeita — a reunião voltou para a fila.');
+        renderAll();
+      }catch(e){
+        alert('Não foi possível desfazer agora: '+detalheErro(e));
+      }
+    }, {textoConfirmar:'Desfazer validação'});
   }
 
   // ---------------------------------------------------------------
@@ -9470,16 +9752,37 @@
     var faseMostrada = onbFaseVisualizada;
     if(faseMostrada == null) faseMostrada = onb.congelado ? 'congelado' : onb.faseAtual;
     var idxMostrado = chaves.indexOf(faseMostrada);
-    var html = '<div class="onb-layout"><div class="onb-col-esquerda">' + renderOnbFormularioInicial(onb) + '</div><div class="onb-col-direita">';
-    html += renderOnbProgresso(onb, faseMostrada);
-    if(faseMostrada === 'congelado'){
-      html += renderOnbCongelado(onb);
-    }else if(idxMostrado >= 0 && idxMostrado <= 4){
-      html += ONBOARDING_SECTION_RENDERERS[idxMostrado](onb);
+    var html;
+    if(idxMostrado === 0){
+      // Fase 0 (Criar Registro) é a exceção do layout: ocupa a tela
+      // inteira em coluna única, sem o Formulário Inicial "ao lado" — na
+      // prática ele É o conteúdo desta fase (é isto que se preenche pra
+      // criar o registro), então não faz sentido duplicar em duas colunas.
+      html = '<div class="onb-layout onb-layout-unica">';
+      html += renderOnbProgresso(onb, faseMostrada);
+      html += '<div class="onb-fase-section"><h3>Criar Registro de Novo Cliente</h3>' +
+        '<div class="hint">Preencha os dados abaixo. Campos obrigatórios para avançar: Nome do cliente/clínica, Responsável pela implantação, Telefone do responsável pela implantação e Início do onboarding.</div></div>';
+      html += renderOnbFormularioInicial(onb);
+      html += '</div>';
     }else{
-      html += '<div class="onb-fase-section"><h3>Onboarding concluído</h3><div class="hint">Finalizado em '+(onb.concluidoEm?fmtDate(onb.concluidoEm.slice(0,10)):'—')+'.</div></div>';
+      var abaFase = onbAbaMobileAtiva !== 'formulario';
+      html = '<div class="onb-abas-mobile">' +
+          '<button type="button" class="onb-aba-mobile-btn'+(abaFase?' ativa':'')+'" data-onb-aba-mobile="fase">Fase atual</button>' +
+          '<button type="button" class="onb-aba-mobile-btn'+(!abaFase?' ativa':'')+'" data-onb-aba-mobile="formulario">Formulário inicial</button>' +
+        '</div>' +
+        '<div class="onb-layout">' +
+          '<div class="onb-col-esquerda'+(!abaFase?' onb-aba-ativa':'')+'">' + renderOnbFormularioInicial(onb) + '</div>' +
+          '<div class="onb-col-direita'+(abaFase?' onb-aba-ativa':'')+'">';
+      html += renderOnbProgresso(onb, faseMostrada);
+      if(faseMostrada === 'congelado'){
+        html += renderOnbCongelado(onb);
+      }else if(idxMostrado >= 1 && idxMostrado <= 4){
+        html += ONBOARDING_SECTION_RENDERERS[idxMostrado](onb);
+      }else{
+        html += '<div class="onb-fase-section"><h3>Onboarding concluído</h3><div class="hint">Finalizado em '+(onb.concluidoEm?fmtDate(onb.concluidoEm.slice(0,10)):'—')+'.</div></div>';
+      }
+      html += '</div></div>';
     }
-    html += '</div></div>';
     document.getElementById('onbFormBody').innerHTML = html;
     atualizarRodapeOnboarding();
     estadoOnbAgendaSalvando();
@@ -9528,9 +9831,9 @@
         Object.assign(onb, extra);
         onbFaseVisualizada = null;
         renderOnboardingFormBody();
-        mostrarToastSucesso('Onboarding voltou para a fase "'+faseAnterior.label+'".');
+        mostrarSalvoOnboarding(true);
       }catch(e){
-        alert('Não foi possível voltar de fase agora. Confira a configuração do Supabase e sua conexão.');
+        mostrarSalvoOnboarding(false, 'Não foi possível voltar de fase agora. Tente novamente.');
       }
     }, {textoConfirmar: 'Voltar de fase', perigo: false});
   }
@@ -9551,8 +9854,8 @@
         Object.assign(onb, extra);
         onbFaseVisualizada = null;
         renderAll();renderOnboardingFormBody();
-        mostrarToastSucesso('Cliente congelado.');
-      }catch(e){ alert('Não foi possível congelar agora. '+detalheErro(e)); }
+        mostrarSalvoOnboarding(true);
+      }catch(e){ mostrarSalvoOnboarding(false, 'Não foi possível congelar agora. '+detalheErro(e)); }
     }, {textoConfirmar:'Congelar cliente', perigo: false});
   }
 
@@ -9574,10 +9877,11 @@
       try{
         await persistirOnboarding(onb, extra);
         Object.assign(onb, extra);
+        registrarConclusaoAtividadeHoje('onboardingCongelado', onb.clienteId, onb.csm);
         onbFaseVisualizada = null;
         renderAll();renderOnboardingFormBody();
-        mostrarToastSucesso('Cliente descongelado.');
-      }catch(e){ alert('Não foi possível descongelar agora. '+detalheErro(e)); }
+        mostrarSalvoOnboarding(true);
+      }catch(e){ mostrarSalvoOnboarding(false, 'Não foi possível descongelar agora. '+detalheErro(e)); }
     }, {textoConfirmar:'Descongelar', perigo: false});
   }
 
@@ -9662,8 +9966,9 @@
   async function salvarOnboarding(){
     try{
       await persistirOnboarding(onboardingEdit);
+      mostrarSalvoOnboarding(true);
     }catch(e){
-      alert('Não foi possível salvar agora. Confira a configuração do Supabase e sua conexão.');
+      mostrarSalvoOnboarding(false);
     }
   }
 
@@ -9694,10 +9999,11 @@
           var idxC = clientes.findIndex(function(c){ return c.id === onb.clienteId; });
           if(idxC>-1) clientes[idxC].etapaAtual = 'adocao';
         }
+        registrarConclusaoAtividadeHoje('onboardingFase', onb.clienteId+'|concluido', onb.csm);
         closeOverlay('overlayOnboarding');
-        mostrarToastSucesso('Onboarding finalizado. Cliente movido para Pós-venda.');
+        mostrarSalvoOnboarding(true, 'Onboarding finalizado. Cliente movido para Pós-venda.');
       }catch(e){
-        alert('Não foi possível finalizar agora. Confira a configuração do Supabase e sua conexão.');
+        mostrarSalvoOnboarding(false, 'Não foi possível finalizar agora. Tente novamente.');
       }
       return;
     }
@@ -9714,11 +10020,12 @@
     try{
       await persistirOnboarding(onb, extra);
       Object.assign(onb, extra);
+      registrarConclusaoAtividadeHoje('onboardingFase', onb.clienteId+'|'+chaves[idx], onb.csm);
       onbFaseVisualizada = null;
       renderOnboardingFormBody();
-      mostrarToastSucesso((ONBOARDING_FASE_LABEL[chaves[idx]]||'Fase anterior')+' concluída. Cliente movido para '+proxima.label+'.');
+      mostrarSalvoOnboarding(true, (ONBOARDING_FASE_LABEL[chaves[idx]]||'Fase anterior')+' concluída. Cliente movido para '+proxima.label+'.');
     }catch(e){
-      alert('Não foi possível avançar agora. Confira a configuração do Supabase e sua conexão.');
+      mostrarSalvoOnboarding(false, 'Não foi possível avançar agora. Tente novamente.');
     }
   }
 
@@ -10750,6 +11057,7 @@
     document.getElementById('btnNovaTiraDuvida').addEventListener('click', function(){ abrirTiraDuvida(''); });
     document.getElementById('btnTreinamentoValidar').addEventListener('click', confirmarValidarReuniaoTreinamento);
     document.getElementById('btnTreinamentoReagendar').addEventListener('click', confirmarSolicitarReagendamentoTreinamento);
+    document.getElementById('btnTreinamentoSalvarEdicao').addEventListener('click', confirmarEditarValidacaoTreinamento);
 
     document.getElementById('btnNovoCasoRA').addEventListener('click', abrirNovoCasoRA);
     document.getElementById('btnConfirmarNovoCasoRA').addEventListener('click', confirmarNovoCasoRA);
@@ -10793,7 +11101,10 @@
           reu[reuniaoField] = e.target.value;
           // Regra da spec (Painel do dia, atividade "Reagendar reunião"):
           // some quando o CSM altera a data ou o horário da reunião.
-          if((reuniaoField === 'data' || reuniaoField === 'horaInicio') && reu.aguardandoReagendamento) reu.aguardandoReagendamento = false;
+          if((reuniaoField === 'data' || reuniaoField === 'horaInicio') && reu.aguardandoReagendamento){
+            reu.aguardandoReagendamento = false;
+            registrarConclusaoAtividadeHoje('reagendamento', reu.id, onboardingEdit.csm);
+          }
         }
       }
     });
@@ -10817,10 +11128,21 @@
       var reuniaoField = e.target.getAttribute('data-onb-reuniao-field');
       if(reuniaoField != null){
         var reu = onbReuniaoPorId(e.target.getAttribute('data-onb-reuniao-id'));
-        if(reu) reu[reuniaoField] = e.target.value;
+        if(reu){
+          if(reuniaoField === 'csat' && reu.csat === 'pendente' && e.target.value !== 'pendente'){
+            registrarConclusaoAtividadeHoje('csatPendente', reu.id, onboardingEdit.csm);
+          }
+          reu[reuniaoField] = e.target.value;
+        }
       }
     });
     document.getElementById('onbFormBody').addEventListener('click', function(e){
+      var abaMobile = e.target.closest('[data-onb-aba-mobile]');
+      if(abaMobile){
+        onbAbaMobileAtiva = abaMobile.getAttribute('data-onb-aba-mobile');
+        renderOnboardingFormBody();
+        return;
+      }
       if(e.target.closest('#btnOnbAgendar')){salvarAlinhamentoOnboarding();return;}
       if(e.target.closest('#btnOnbRemoverAgendamento')){removerAgendamentoAlinhamento();return;}
       if(e.target.closest('#btnOnbAgendarFinal')){salvarFinalizacaoOnboarding();return;}
@@ -10974,6 +11296,20 @@
         e.preventDefault();
         var partesTr = treinAbrir.getAttribute('data-treinamento-abrir').split('|');
         abrirValidarTreinamento(partesTr[0], partesTr[1], partesTr[2]);
+        return;
+      }
+      var treinEditar = e.target.closest('[data-treinamento-editar]');
+      if(treinEditar){
+        e.preventDefault();
+        var partesTrEd = treinEditar.getAttribute('data-treinamento-editar').split('|');
+        abrirValidarTreinamento(partesTrEd[0], partesTrEd[1], partesTrEd[2], true);
+        return;
+      }
+      var treinExcluir = e.target.closest('[data-treinamento-excluir]');
+      if(treinExcluir){
+        e.preventDefault();
+        var partesTrEx = treinExcluir.getAttribute('data-treinamento-excluir').split('|');
+        excluirValidacaoTreinamento(partesTrEx[0], partesTrEx[1], partesTrEx[2]);
         return;
       }
       var tdEditar = e.target.closest('[data-tiraduvida-editar]');
@@ -11216,5 +11552,3 @@
 </script>
 </body>
 </html>
-
-  
