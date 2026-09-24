@@ -1615,11 +1615,24 @@
       </div>
       <div class="content">
         <div class="config-banner">Cada pessoa entra com nome + <strong>senha própria</strong> (veja "Alterar senha" no menu lateral). A lista abaixo define o perfil de acesso (CSM ou Admin) e qual carteira cada uma enxerga.</div>
-        <div class="card">
+        <div style="display:flex;gap:8px;margin-bottom:16px;" aria-label="Seção de usuários">
+          <button type="button" class="btn btn-accent" data-usuarios-aba="ativos" aria-pressed="true">Ativos <span id="usuariosAtivosCount"></span></button>
+          <button type="button" class="btn" data-usuarios-aba="excluidos" aria-pressed="false">Usuários excluídos <span id="usuariosExcluidosCount"></span></button>
+        </div>
+        <div class="card" id="cardUsuariosAtivos">
           <div class="table-wrap">
             <table>
               <thead><tr><th>Nome</th><th>Perfil</th><th>Carteira vinculada</th><th></th></tr></thead>
               <tbody id="tabelaUsuarios"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card" id="cardUsuariosExcluidos" hidden>
+          <div class="hint" style="margin-bottom:8px;">Usuários excluídos não conseguem entrar no Radar CS, mas o cadastro fica guardado e pode ser restaurado a qualquer momento.</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Nome</th><th>Perfil</th><th>Excluído em</th><th></th></tr></thead>
+              <tbody id="tabelaUsuariosExcluidos"></tbody>
             </table>
           </div>
         </div>
@@ -2837,6 +2850,8 @@
   var onbReunioesExpandidas = {};
   var onbTreinamentoValidar = null; // {clienteId, reuniaoId, categoria} do item aberto no modal "Validar treinamento"
   var treinamentoAba = 'fila'; // 'fila' (validação) | 'historico'
+  var usuariosAba = 'ativos'; // 'ativos' | 'excluidos'
+  var pendingUsuarioSenhaId = null; // usuário alvo do modal "Alterar senha" (ação rápida, fora da edição completa)
   var treinamentoPerfilFiltro = 'admin'; // 'admin' (vê tudo) | nome de um dos analistas (listaAnalistasTreinamento())
   var treinamentoPerfilFiltroInicializado = false; // ao logar como Analista de Treinamento, cai direto na própria fila
   var treinamentoCategoriaFiltro = 'todas'; // 'todas' | 'onboarding' | 'reimplantacao' | 'tiraduvida'
@@ -2945,7 +2960,7 @@
   // Configurações — cada analista tem login próprio (seção "Analista de
   // Treinamento" da spec), então a lista nunca fica desatualizada.
   function listaAnalistasTreinamento(){
-    return usuarios.filter(function(u){ return u.perfil === 'treinamento'; })
+    return usuariosAtivos().filter(function(u){ return u.perfil === 'treinamento'; })
       .map(function(u){ return u.nome; })
       .sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
   }
@@ -5348,6 +5363,14 @@
   // ---------------------------------------------------------------
   function resolveCurrentUser(){
     currentUser = usuarios.filter(function(u){ return u.id === currentUserId; })[0] || null;
+    // Sessão antiga de um usuário que foi excluído depois de logado: não
+    // deixa continuar autenticado, mesmo que o navegador ainda tenha o id
+    // salvo em localStorage.
+    if(currentUser && currentUser.ativo === false){
+      currentUser = null;
+      currentUserId = '';
+      try{ localStorage.removeItem('radarcs.userId'); }catch(e){}
+    }
   }
   function isAdmin(){ return !!(currentUser && currentUser.perfil === 'admin'); }
   function isCoordenador(){ return !!(currentUser && currentUser.perfil === 'coordenador'); }
@@ -5461,6 +5484,12 @@
           errEl.classList.add('show');
           return;
         }
+        if(linha.data().ativo === false){
+          await auth.signOut();
+          errEl.textContent = 'Este usuário foi excluído do Radar CS. Fale com um administrador se isso for um engano.';
+          errEl.classList.add('show');
+          return;
+        }
         usuarios = [Object.assign({id: resp.data.user.id}, linha.data())];
         entrarComo(resp.data.user.id);
       }catch(e){
@@ -5471,7 +5500,7 @@
     }
 
     var alvo = identificador.toLowerCase();
-    var u = usuarios.filter(function(x){ return String(x.nome||'').trim().toLowerCase() === alvo; })[0];
+    var u = usuariosAtivos().filter(function(x){ return String(x.nome||'').trim().toLowerCase() === alvo; })[0];
 
     if(u && !u.senhaHash){
       // usuário legado sem senha definida ainda: entra e é incentivado a criar uma
@@ -7681,7 +7710,15 @@
   // clientes diretamente (carteira própria) não aparecia nesta lista e
   // a tela de Agenda ficava sem ninguém para selecionar/salvar — por
   // isso inclui também os admins.
-  function csmUsuarios(){ return usuarios.filter(function(u){ return u.perfil === 'csm' || u.perfil === 'admin'; }); }
+  function csmUsuarios(){ return usuariosAtivos().filter(function(u){ return u.perfil === 'csm' || u.perfil === 'admin'; }); }
+
+  // Exclusão de usuário é "soft delete" (u.ativo = false), no mesmo padrão
+  // já usado para clientes (cliente.ativo) — assim dá pra ver quem foi
+  // excluído e restaurar sem perder o cadastro nem precisar recriar a
+  // conta de login. usuarios sem o campo "ativo" contam como ativos
+  // (usuários criados antes desta função existir).
+  function usuariosAtivos(){ return usuarios.filter(function(u){ return u.ativo !== false; }); }
+  function usuariosExcluidos(){ return usuarios.filter(function(u){ return u.ativo === false; }); }
 
   function renderAgendaDiasGrid(disp){
     document.getElementById('agDiasGrid').innerHTML = DIAS_SEMANA.map(function(d){
@@ -10493,38 +10530,80 @@
     renderPrazoCobrancaRAInputs();
     renderPesosScoreInputs();
     renderWaConfigInputs();
-    var body = document.getElementById('tabelaUsuarios');
-    if(!usuarios.length){
-      body.innerHTML = '<tr><td colspan="4"><div class="empty-note">Nenhum usuário cadastrado ainda.</div></td></tr>';
-      return;
-    }
-    body.innerHTML = usuarios.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); }).map(function(u){
+    var ativos = usuariosAtivos();
+    var excluidos = usuariosExcluidos();
+
+    document.querySelectorAll('[data-usuarios-aba]').forEach(function(b){
+      var ativo = b.getAttribute('data-usuarios-aba') === usuariosAba;
+      b.classList.toggle('btn-accent', ativo);
+      b.setAttribute('aria-pressed', String(ativo));
+    });
+    var cardAtivosEl = document.getElementById('cardUsuariosAtivos');
+    var cardExcluidosEl = document.getElementById('cardUsuariosExcluidos');
+    if(cardAtivosEl) cardAtivosEl.hidden = usuariosAba !== 'ativos';
+    if(cardExcluidosEl) cardExcluidosEl.hidden = usuariosAba !== 'excluidos';
+    var countAtivosEl = document.getElementById('usuariosAtivosCount');
+    var countExcluidosEl = document.getElementById('usuariosExcluidosCount');
+    if(countAtivosEl) countAtivosEl.textContent = ativos.length ? '('+ativos.length+')' : '';
+    if(countExcluidosEl) countExcluidosEl.textContent = excluidos.length ? '('+excluidos.length+')' : '';
+
+    function roleInfo(u){
       var eh = u.perfil === 'admin';
       var ehCoord = u.perfil === 'coordenador';
       var ehRenov = u.perfil === 'renovacao';
       var ehTreino = u.perfil === 'treinamento';
       var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : (ehTreino ? 'role-pill-treino' : 'role-pill-csm')));
       var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : (ehTreino ? 'Analista de Treinamento' : 'CSM')));
-      var carteiraTxt = eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
-        (ehCoord ? 'Equipe: ' + ((u.equipeCsm&&u.equipeCsm.length) ? esc(u.equipeCsm.join(', ')) : '<span class="ct" style="color:var(--muted);">nenhum CSM ainda</span>') :
-        (ehRenov ? '<span class="ct" style="color:var(--muted);">Ambiente de renovação</span>' :
-        (ehTreino ? '<span class="ct" style="color:var(--muted);">Treinamento (Onboarding + Reimplantação)</span>' :
-        esc(u.csmVinculado||u.nome))));
-      return '<tr>' +
-        '<td><div class="cell-client"><span class="gate-avatar">'+esc(initials(u.nome))+'</span><div class="nm">'+esc(u.nome)+(u.id===currentUserId?' <span class="ct">(você)</span>':'')+'</div></div></td>' +
-        '<td><span class="role-pill '+roleCls+'">'+roleLbl+'</span></td>' +
-        '<td>'+carteiraTxt+'</td>' +
-        '<td><div style="display:flex; gap:4px; justify-content:flex-end;">' +
-          '<button class="btn btn-sm" data-open-editar-usuario="'+esc(u.id)+'">Editar</button>' +
-        '</div></td>' +
-      '</tr>';
-    }).join('');
+      return {eh:eh, ehCoord:ehCoord, ehRenov:ehRenov, ehTreino:ehTreino, roleCls:roleCls, roleLbl:roleLbl};
+    }
+
+    var bodyAtivos = document.getElementById('tabelaUsuarios');
+    if(!ativos.length){
+      bodyAtivos.innerHTML = '<tr><td colspan="4"><div class="empty-note">Nenhum usuário ativo cadastrado ainda.</div></td></tr>';
+    }else{
+      bodyAtivos.innerHTML = ativos.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); }).map(function(u){
+        var r = roleInfo(u);
+        var carteiraTxt = r.eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
+          (r.ehCoord ? 'Equipe: ' + ((u.equipeCsm&&u.equipeCsm.length) ? esc(u.equipeCsm.join(', ')) : '<span class="ct" style="color:var(--muted);">nenhum CSM ainda</span>') :
+          (r.ehRenov ? '<span class="ct" style="color:var(--muted);">Ambiente de renovação</span>' :
+          (r.ehTreino ? '<span class="ct" style="color:var(--muted);">Treinamento (Onboarding + Reimplantação)</span>' :
+          esc(u.csmVinculado||u.nome))));
+        return '<tr>' +
+          '<td><div class="cell-client"><span class="gate-avatar">'+esc(initials(u.nome))+'</span><div class="nm">'+esc(u.nome)+(u.id===currentUserId?' <span class="ct">(você)</span>':'')+'</div></div></td>' +
+          '<td><span class="role-pill '+r.roleCls+'">'+r.roleLbl+'</span></td>' +
+          '<td>'+carteiraTxt+'</td>' +
+          '<td><div style="display:flex; gap:4px; justify-content:flex-end; flex-wrap:wrap;">' +
+            '<button class="btn btn-sm" data-alterar-senha-usuario="'+esc(u.id)+'">Alterar senha</button>' +
+            '<button class="btn btn-sm" data-open-editar-usuario="'+esc(u.id)+'">Editar</button>' +
+          '</div></td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    var bodyExcluidos = document.getElementById('tabelaUsuariosExcluidos');
+    if(bodyExcluidos){
+      if(!excluidos.length){
+        bodyExcluidos.innerHTML = '<tr><td colspan="4"><div class="empty-note">Nenhum usuário excluído.</div></td></tr>';
+      }else{
+        bodyExcluidos.innerHTML = excluidos.slice().sort(function(a,b){ return (b.excluidoEm||'').localeCompare(a.excluidoEm||''); }).map(function(u){
+          var r = roleInfo(u);
+          return '<tr>' +
+            '<td><div class="cell-client"><span class="gate-avatar">'+esc(initials(u.nome))+'</span><div class="nm">'+esc(u.nome)+'</div></div></td>' +
+            '<td><span class="role-pill '+r.roleCls+'">'+r.roleLbl+'</span></td>' +
+            '<td>'+(u.excluidoEm ? esc(new Date(u.excluidoEm).toLocaleString('pt-BR')) : '—')+'</td>' +
+            '<td><div style="display:flex; gap:4px; justify-content:flex-end;">' +
+              '<button class="btn btn-sm btn-accent" data-restaurar-usuario="'+esc(u.id)+'">Restaurar</button>' +
+            '</div></td>' +
+          '</tr>';
+        }).join('');
+      }
+    }
   }
 
   // Lista de checkboxes com os CSMs cadastrados, para montar a "equipe"
   // de um Coordenador (seção 6 da spec de evolução).
   function renderUiEquipePicker(selecionados){
-    var opcoes = usuarios.filter(function(u){ return u.perfil === 'csm'; })
+    var opcoes = usuariosAtivos().filter(function(u){ return u.perfil === 'csm'; })
       .map(function(u){ return u.csmVinculado || u.nome; })
       .filter(function(n, i, arr){ return n && arr.indexOf(n) === i; })
       .sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
@@ -10607,6 +10686,33 @@
     openOverlay('overlayUsuario');
   }
 
+  // Ação rápida "Alterar senha" na lista de usuários ativos: abre o mesmo
+  // modal de edição (que já resolve os dois modos — senha direta no
+  // Radar CS local, ou e-mail de redefinição quando conectado ao
+  // Supabase Auth), mas focando direto no campo de senha em vez de
+  // deixar a pessoa procurar entre nome/perfil/carteira.
+  function abrirAlterarSenhaAdmin(id){
+    abrirEditarUsuario(id);
+    var online = !!(db && !offline);
+    setTimeout(function(){
+      if(online){
+        var btnEmail = document.getElementById('btnResetSenhaEmailUsuario');
+        var wrap = document.getElementById('uiResetSenhaEmailWrap');
+        if(wrap && wrap.style.display === 'none'){
+          // Usuário sem e-mail cadastrado neste modo: não tem como mandar
+          // link de redefinição — avisa em vez de focar um botão escondido.
+          document.getElementById('usuarioError').textContent = 'Este usuário não tem e-mail cadastrado, então não é possível enviar um link de redefinição de senha. Cadastre um e-mail em "Editar" primeiro.';
+          document.getElementById('usuarioError').classList.add('show');
+          return;
+        }
+        if(btnEmail) btnEmail.focus();
+      }else{
+        var campoSenha = document.getElementById('uiSenha');
+        if(campoSenha){ campoSenha.focus(); campoSenha.scrollIntoView({block:'center'}); }
+      }
+    }, 50);
+  }
+
   async function enviarResetSenhaUsuario(){
     var u = usuarios.filter(function(x){ return x.id===pendingUsuarioEditId; })[0];
     var errEl = document.getElementById('usuarioError');
@@ -10665,6 +10771,11 @@
 
     var id = pendingUsuarioEditId || slugify(nome);
     var body = {nome: nome, perfil: perfil, csmVinculado: perfil==='csm' ? csmVinculado : null, equipeCsm: perfil==='coordenador' ? equipeCsmSelecionadaAtual() : null};
+    // Se o id gerado (slug do nome) coincidir com o de um usuário excluído
+    // antes — mesmo nome —, criar "novo" aqui precisa reativar o registro,
+    // senão a pessoa ficaria com uma conta que parece nova mas continua
+    // bloqueada por causa do soft delete anterior.
+    if(isNovo){ body.ativo = true; body.excluidoEm = null; }
     if(online) body.email = email || (usuarios.filter(function(u){return u.id===id;})[0]||{}).email || null;
     if(!online && senha){
       var salt = randomSalt();
@@ -10709,28 +10820,52 @@
       errEl.classList.add('show');
       return;
     }
-    var admins = usuarios.filter(function(u){ return u.perfil==='admin'; });
+    var admins = usuariosAtivos().filter(function(u){ return u.perfil==='admin'; });
     var alvo = usuarios.filter(function(u){ return u.id===pendingUsuarioEditId; })[0];
     if(alvo && alvo.perfil==='admin' && admins.length<=1){
-      errEl.textContent = 'Este é o único administrador cadastrado. Cadastre outro admin antes de excluir este usuário.';
+      errEl.textContent = 'Este é o único administrador ativo cadastrado. Cadastre outro admin antes de excluir este usuário.';
       errEl.classList.add('show');
       return;
     }
-    var avisoOnline = (db && !offline) ? ' (a conta de login continua existindo no Supabase Auth — para apagá-la de vez, use Authentication > Users no painel do Supabase)' : '';
-    confirmarAcao('Excluir este usuário? A pessoa deixará de conseguir entrar no Radar CS' + avisoOnline + '.', async function(){
+    var avisoOnline = (db && !offline) ? ' A conta de login continua existindo no Supabase Auth, então basta restaurar o usuário aqui para ele voltar a entrar — nada precisa ser refeito no painel do Supabase.' : '';
+    confirmarAcao('Excluir este usuário? A pessoa deixará de conseguir entrar no Radar CS, mas o cadastro fica guardado em "Usuários excluídos" e pode ser restaurado a qualquer momento.' + avisoOnline, async function(){
       try{
+        var extra = {ativo:false, excluidoEm: new Date().toISOString()};
         if(db && !offline){
-          await db.collection('usuarios').doc(pendingUsuarioEditId).delete();
+          await db.collection('usuarios').doc(pendingUsuarioEditId).update(extra);
         }else{
-          usuarios = usuarios.filter(function(u){ return u.id!==pendingUsuarioEditId; });
+          var idx = usuarios.findIndex(function(u){ return u.id===pendingUsuarioEditId; });
+          if(idx>-1) usuarios[idx] = Object.assign({}, usuarios[idx], extra);
           renderAll();
         }
         closeOverlay('overlayUsuario');
+        mostrarToastSucesso('Usuário excluído. Ele pode ser restaurado em "Usuários excluídos".');
       }catch(e){
         errEl.textContent = 'Não foi possível excluir agora. Confira a configuração do Supabase e sua conexão, e tente novamente.';
         errEl.classList.add('show');
       }
     }, {textoConfirmar: 'Excluir usuário'});
+  }
+
+  // Traz de volta um usuário excluído (soft delete): zera o "ativo:false"
+  // e volta a listar/permitir login normalmente. Não pede confirmação —
+  // restaurar não é uma ação destrutiva.
+  async function restaurarUsuario(id){
+    var alvo = usuarios.filter(function(u){ return u.id===id; })[0];
+    if(!alvo) return;
+    var extra = {ativo:true, excluidoEm:null};
+    try{
+      if(db && !offline){
+        await db.collection('usuarios').doc(id).update(extra);
+      }else{
+        var idx = usuarios.findIndex(function(u){ return u.id===id; });
+        if(idx>-1) usuarios[idx] = Object.assign({}, usuarios[idx], extra);
+        renderAll();
+      }
+      mostrarToastSucesso('Usuário "'+alvo.nome+'" restaurado.');
+    }catch(e){
+      mostrarToastErro('Não foi possível restaurar agora: '+detalheErro(e));
+    }
   }
 
   // ---------------------------------------------------------------
@@ -11272,6 +11407,12 @@
       if(openEdit){ e.preventDefault(); abrirEditarCliente(openEdit.getAttribute('data-open-editar')); return; }
       var openEditUsuario = e.target.closest('[data-open-editar-usuario]');
       if(openEditUsuario){ e.preventDefault(); abrirEditarUsuario(openEditUsuario.getAttribute('data-open-editar-usuario')); return; }
+      var usuariosAbaBtn = e.target.closest('[data-usuarios-aba]');
+      if(usuariosAbaBtn){ e.preventDefault(); usuariosAba = usuariosAbaBtn.getAttribute('data-usuarios-aba'); renderConfiguracoes(); return; }
+      var restaurarUsuarioBtn = e.target.closest('[data-restaurar-usuario]');
+      if(restaurarUsuarioBtn){ e.preventDefault(); restaurarUsuario(restaurarUsuarioBtn.getAttribute('data-restaurar-usuario')); return; }
+      var alterarSenhaUsuarioBtn = e.target.closest('[data-alterar-senha-usuario]');
+      if(alterarSenhaUsuarioBtn){ e.preventDefault(); abrirAlterarSenhaAdmin(alterarSenhaUsuarioBtn.getAttribute('data-alterar-senha-usuario')); return; }
       var toggleAt = e.target.closest('[data-toggle-atividade]');
       if(toggleAt){
         e.preventDefault();
