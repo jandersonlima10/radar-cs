@@ -1181,6 +1181,17 @@
           <div class="subtitle">Acompanhamento das 5 fases do processo de onboarding, do cadastro ao Momento WOW.</div>
         </div>
         <div class="topbar-actions">
+          <div>
+            <label for="onbFiltroBusca" class="hint">Buscar</label>
+            <input type="search" id="onbFiltroBusca" placeholder="ID ou nome do cliente..." aria-label="Buscar onboarding por ID ou nome do cliente">
+          </div>
+          <div>
+            <label for="onbFiltroCurva" class="hint">Curva</label>
+            <select id="onbFiltroCurva" aria-label="Filtrar onboarding por curva">
+              <option value="todas">Todas</option>
+              <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+            </select>
+          </div>
           <div id="onbFiltroCsmWrap" data-role-gate="admin" style="display:none;">
             <label for="onbFiltroCsm" class="hint">Filtrar por CSM</label>
             <select id="onbFiltroCsm" aria-label="Filtrar onboarding por CSM"><option value="">Todos os CSMs</option></select>
@@ -1207,6 +1218,21 @@
           <div class="subtitle">Treinamentos de Onboarding, Reimplantação e Tira-dúvida que já passaram do horário agendado, aguardando a analista validar antes de colher o CSAT do cliente.</div>
         </div>
         <div class="topbar-actions">
+          <div>
+            <label for="treinamentoFiltroBusca" class="hint">Buscar</label>
+            <input type="search" id="treinamentoFiltroBusca" placeholder="ID ou nome do cliente..." aria-label="Buscar treinamento por ID ou nome do cliente">
+          </div>
+          <div>
+            <label for="treinamentoFiltroCurva" class="hint">Curva</label>
+            <select id="treinamentoFiltroCurva" aria-label="Filtrar treinamento por curva">
+              <option value="todas">Todas</option>
+              <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option>
+            </select>
+          </div>
+          <div id="treinamentoFiltroCsmWrap" data-role-gate="admin" style="display:none;">
+            <label for="treinamentoFiltroCsm" class="hint">Filtrar por CSM</label>
+            <select id="treinamentoFiltroCsm" aria-label="Filtrar treinamento por CSM"><option value="">Todos os CSMs</option></select>
+          </div>
           <div>
             <label for="treinamentoCategoriaSelect" class="hint">Tipo</label>
             <select id="treinamentoCategoriaSelect" aria-label="Tipo de treinamento"></select>
@@ -2814,6 +2840,9 @@
   var painelDiaSelecionado = null; // ISO yyyy-mm-dd; null = hoje (setado no primeiro renderPainel)
   var filaFiltros = { curva:'todas', criticidade:'todas', valorMin:'', ordenar:'prioridade' };
   var onboardingFiltroCsm = '';
+  var onboardingFiltros = { busca:'', curva:'todas' }; // filtros de pesquisa do quadro de Onboarding (ID/nome do cliente, curva)
+  var treinamentoFiltroCsm = '';
+  var treinamentoFiltros = { busca:'', curva:'todas' }; // filtros de pesquisa da Fila/Histórico de Treinamento (ID/nome do cliente, curva)
   var onbAgendaRascunho = null;
   var onbAgendaSalvando = false;
   var onbAgendamentosPendentes = {};
@@ -8659,6 +8688,19 @@
     if(!admin){
       lista = lista.filter(function(o){ return String(o.csm||'').trim().toLowerCase() === String(meuNome||'').trim().toLowerCase(); });
     }
+    // Filtros de pesquisa (ID/nome do cliente, curva) — item pedido junto
+    // com os mesmos filtros na tela de Treinamento.
+    var buscaEl = document.getElementById('onbFiltroBusca');
+    var curvaEl = document.getElementById('onbFiltroCurva');
+    if(buscaEl && buscaEl.value !== onboardingFiltros.busca) buscaEl.value = onboardingFiltros.busca;
+    if(curvaEl && curvaEl.value !== onboardingFiltros.curva) curvaEl.value = onboardingFiltros.curva;
+    if(onboardingFiltros.busca){
+      var qOnb = onboardingFiltros.busca.trim().toLowerCase();
+      lista = lista.filter(function(o){ return (String(o.clienteId||'')+' '+String(o.clienteNome||'')).toLowerCase().indexOf(qOnb) > -1; });
+    }
+    if(onboardingFiltros.curva !== 'todas'){
+      lista = lista.filter(function(o){ var cli = repCliente(o.clienteId); return cli && cli.curva === onboardingFiltros.curva; });
+    }
     function migracaoBadgeHtml(o){
       if(!o.migracaoDados) return '';
       var status = onboardingStatusMigracao(o);
@@ -9219,11 +9261,30 @@
     return out;
   }
 
+  // Filtros de pesquisa (ID/nome do cliente, curva, CSM) compartilhados
+  // pela Fila e pelo Histórico de Treinamento — item pedido junto com os
+  // mesmos filtros na tela de Onboarding.
+  function treinamentoItemPassaFiltrosPesquisa(x){
+    if(treinamentoFiltroCsm){
+      var csmKey = String(x.onb.csm||'').trim().toLowerCase() || '__sem_csm';
+      if(csmKey !== treinamentoFiltroCsm) return false;
+    }
+    if(treinamentoFiltros.busca){
+      var q = treinamentoFiltros.busca.trim().toLowerCase();
+      if((String(x.onb.clienteId||'')+' '+String(x.onb.clienteNome||'')).toLowerCase().indexOf(q) === -1) return false;
+    }
+    if(treinamentoFiltros.curva !== 'todas'){
+      var cli = repCliente(x.onb.clienteId);
+      if(!cli || cli.curva !== treinamentoFiltros.curva) return false;
+    }
+    return true;
+  }
+
   function treinamentoFilaLista(){
     var perfil = treinamentoPerfilFiltro;
     var cat = treinamentoCategoriaFiltro;
     return treinamentoTodasReunioes().filter(function(x){
-      return reuniaoJaPassou(x.r) && !x.r.validada && !x.r.aguardandoReagendamento && (perfil === 'admin' || x.r.analista === perfil) && (cat === 'todas' || x.categoria === cat);
+      return reuniaoJaPassou(x.r) && !x.r.validada && !x.r.aguardandoReagendamento && (perfil === 'admin' || x.r.analista === perfil) && (cat === 'todas' || x.categoria === cat) && treinamentoItemPassaFiltrosPesquisa(x);
     }).sort(function(a,b){ return (a.r.data+'T'+(a.r.horaInicio||'')).localeCompare(b.r.data+'T'+(b.r.horaInicio||'')); });
   }
 
@@ -9231,7 +9292,7 @@
     var perfil = treinamentoPerfilFiltro;
     var cat = treinamentoCategoriaFiltro;
     return treinamentoTodasReunioes().filter(function(x){
-      return !!x.r.validada && (perfil === 'admin' || x.r.analista === perfil) && (cat === 'todas' || x.categoria === cat);
+      return !!x.r.validada && (perfil === 'admin' || x.r.analista === perfil) && (cat === 'todas' || x.categoria === cat) && treinamentoItemPassaFiltrosPesquisa(x);
     }).sort(function(a,b){ return (b.r.validadaEm||'').localeCompare(a.r.validadaEm||''); });
   }
 
@@ -9275,6 +9336,31 @@
       catSelEl.innerHTML = '<option value="todas">Todos os tipos</option><option value="onboarding">Onboarding</option><option value="reimplantacao">Reimplantação</option><option value="tiraduvida">Tira-dúvida</option>';
     }
     if(catSelEl && catSelEl.value !== treinamentoCategoriaFiltro) catSelEl.value = treinamentoCategoriaFiltro;
+
+    // Filtros de pesquisa (Buscar, Curva, CSM) — mesmos filtros da tela de
+    // Onboarding; o de CSM só aparece para Administrador/Analista de
+    // Treinamento, igual ao onbFiltroCsmWrap.
+    var treinAdmin = isAdmin() || isAnalistaTreinamento();
+    var csmWrapEl = document.getElementById('treinamentoFiltroCsmWrap');
+    if(csmWrapEl) csmWrapEl.style.display = treinAdmin ? '' : 'none';
+    if(treinAdmin){
+      var nomesTr = {};
+      csmUsuarios().forEach(function(u){ var nome = (u.csmVinculado || u.nome || '').trim(); if(nome) nomesTr[nome.toLowerCase()] = nome; });
+      treinamentoTodasReunioes().forEach(function(x){ var nome = (x.onb.csm||'').trim(); if(nome) nomesTr[nome.toLowerCase()] = nome; });
+      var seletorTr = document.getElementById('treinamentoFiltroCsm');
+      if(seletorTr){
+        var csmOpcoesHtml = '<option value="">Todos os CSMs</option><option value="__sem_csm">Sem CSM atribuído</option>' + Object.keys(nomesTr).sort(function(a,b){return nomesTr[a].localeCompare(nomesTr[b],'pt-BR');}).map(function(k){
+          return '<option value="'+esc(k)+'">'+esc(nomesTr[k])+'</option>';
+        }).join('');
+        if(seletorTr.innerHTML !== csmOpcoesHtml) seletorTr.innerHTML = csmOpcoesHtml;
+        if(treinamentoFiltroCsm && treinamentoFiltroCsm !== '__sem_csm' && !nomesTr[treinamentoFiltroCsm]) treinamentoFiltroCsm = '';
+        if(seletorTr.value !== treinamentoFiltroCsm) seletorTr.value = treinamentoFiltroCsm;
+      }
+    }
+    var treinBuscaEl = document.getElementById('treinamentoFiltroBusca');
+    var treinCurvaEl = document.getElementById('treinamentoFiltroCurva');
+    if(treinBuscaEl && treinBuscaEl.value !== treinamentoFiltros.busca) treinBuscaEl.value = treinamentoFiltros.busca;
+    if(treinCurvaEl && treinCurvaEl.value !== treinamentoFiltros.curva) treinCurvaEl.value = treinamentoFiltros.curva;
 
     var fila = treinamentoFilaLista();
     var historico = treinamentoHistoricoLista();
@@ -10757,6 +10843,20 @@
         closeOverlay('overlayUsuario');
         mostrarToastSucesso('Usuário criado com sucesso.');
       }catch(e){
+        // "user_already_exists": o e-mail já tem uma conta no Supabase Auth
+        // — geralmente sobra de uma exclusão de usuário feita ANTES desta
+        // versão (que apagava o cadastro no Radar CS, mas a conta de login
+        // continuava existindo no Supabase). Exclusões feitas depois desta
+        // versão não caem mais aqui: basta restaurar em "Usuários
+        // excluídos" em vez de cadastrar de novo.
+        var codigoErro = (e && (e.code || e.error_code)) || '';
+        if(codigoErro === 'user_already_exists' || /already registered|already exists/i.test((e && e.message) || '')){
+          errEl.innerHTML = 'Já existe uma conta de login com este e-mail no Supabase — provavelmente de uma exclusão de usuário feita antes desta versão do Radar CS (que apagava só o cadastro aqui, não a conta no Supabase). ' +
+            'Pra liberar este e-mail: abra o painel do Supabase → <strong>Authentication → Users</strong>, encontre "' + esc(email) + '", exclua essa conta lá, e cadastre o usuário aqui de novo. ' +
+            '(Exclusões feitas de agora em diante não têm mais esse problema — é só usar "Restaurar" em "Usuários excluídos", sem precisar mexer no Supabase.)';
+          errEl.classList.add('show');
+          return;
+        }
         errEl.textContent = 'Não foi possível criar o usuário: ' + detalheErro(e);
         errEl.classList.add('show');
       }
@@ -11180,6 +11280,8 @@
     document.getElementById('btnSalvarTiraDuvida').addEventListener('click', salvarTiraDuvida);
     document.getElementById('btnExcluirTiraDuvida').addEventListener('click', excluirTiraDuvida);
     document.getElementById('onbFiltroCsm').addEventListener('change', function(e){onboardingFiltroCsm=e.target.value;renderOnboarding();});
+    document.getElementById('onbFiltroBusca').addEventListener('input', function(e){onboardingFiltros.busca=e.target.value;renderOnboarding();});
+    document.getElementById('onbFiltroCurva').addEventListener('change', function(e){onboardingFiltros.curva=e.target.value;renderOnboarding();});
     document.getElementById('btnIniciarOnboarding').addEventListener('click', abrirIniciarOnboarding);
     document.getElementById('btnConfirmarIniciarOnboarding').addEventListener('click', confirmarIniciarOnboarding);
     document.getElementById('btnSalvarOnboarding').addEventListener('click', salvarOnboarding);
@@ -11189,6 +11291,9 @@
 
     document.getElementById('treinamentoPerfilSelect').addEventListener('change', function(e){ treinamentoPerfilFiltro = e.target.value; renderTreinamento(); });
     document.getElementById('treinamentoCategoriaSelect').addEventListener('change', function(e){ treinamentoCategoriaFiltro = e.target.value; renderTreinamento(); });
+    document.getElementById('treinamentoFiltroBusca').addEventListener('input', function(e){ treinamentoFiltros.busca = e.target.value; renderTreinamento(); });
+    document.getElementById('treinamentoFiltroCurva').addEventListener('change', function(e){ treinamentoFiltros.curva = e.target.value; renderTreinamento(); });
+    document.getElementById('treinamentoFiltroCsm').addEventListener('change', function(e){ treinamentoFiltroCsm = e.target.value; renderTreinamento(); });
     document.getElementById('btnNovaTiraDuvida').addEventListener('click', function(){ abrirTiraDuvida(''); });
     document.getElementById('btnTreinamentoValidar').addEventListener('click', confirmarValidarReuniaoTreinamento);
     document.getElementById('btnTreinamentoReagendar').addEventListener('click', confirmarSolicitarReagendamentoTreinamento);
