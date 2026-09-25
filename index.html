@@ -4098,7 +4098,7 @@
         }
         criados++;
       }catch(e){
-        erros.push('Linha '+(i+2)+' ('+body.clienteNome+'): não foi possível salvar.');
+        erros.push('Linha '+(i+2)+' ('+body.clienteNome+'): não foi possível salvar — '+detalheErro(e));
         pulados++;
       }
     }
@@ -11806,3 +11806,5 @@
 </script>
 </body>
 </html>
+
+  
