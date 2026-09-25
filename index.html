@@ -1992,7 +1992,7 @@
       <div id="impRaPasso2" style="display:none;">
         <div class="card-head hint" style="padding:0 0 10px;">Confira se cada campo está ligado à coluna certa da sua planilha (<span id="impRaLinhasCount"></span> linha(s) detectada(s)).</div>
         <div id="impRaMapeamento"></div>
-        <div class="card-head hint" style="padding:10px 0;">Casamento com o cliente cadastrado (por nome) — linhas que não bateram com nenhum cliente precisam ser resolvidas manualmente antes de importar.</div>
+        <div class="card-head hint" style="padding:10px 0;">Casamento com o cliente cadastrado (por nome) — linhas que não bateram com nenhum cliente podem ser importadas mesmo assim, sem cliente vinculado; ajuste aqui se quiser corrigir o casamento.</div>
         <div class="import-preview-wrap">
           <table>
             <thead><tr><th>Nome na planilha</th><th>Contato do reclamante</th><th>Nº reclamação</th><th>Data abertura</th><th>Cliente no Radar CS</th></tr></thead>
@@ -4043,16 +4043,19 @@
     atualizarBotaoImportarRA();
   }
 
+  // O casamento com um cliente cadastrado é só uma sugestão, não um
+  // requisito: linhas sem cliente identificado entram na importação do
+  // mesmo jeito (o caso fica sem cliente/CSM vinculado, e pode ser
+  // corrigido depois direto no caso).
   function atualizarBotaoImportarRA(){
     var btn = document.getElementById('btnImportarRAConfirmar');
     var total = impRaDataRows.length;
     var resolvidos = impRaResolucoes.filter(function(v){ return !!v; }).length;
-    var todosResolvidos = total>0 && resolvidos === total;
-    btn.disabled = !todosResolvidos;
-    btn.style.opacity = todosResolvidos ? '' : '0.5';
-    btn.textContent = todosResolvidos
-      ? 'Importar ' + total + (total===1?' reclamação':' reclamações')
-      : 'Resolva ' + (total-resolvidos) + ' linha(s) sem cliente identificado';
+    var semCliente = total - resolvidos;
+    btn.disabled = total === 0;
+    btn.style.opacity = total === 0 ? '0.5' : '';
+    btn.textContent = 'Importar ' + total + (total===1?' reclamação':' reclamações') +
+      (semCliente ? ' (' + semCliente + ' sem cliente identificado)' : '');
   }
 
   async function executarImportacaoRA(){
@@ -4065,13 +4068,18 @@
       document.getElementById('impRaProgressoFill').style.width = Math.round(((i+1)/total)*100)+'%';
       var row = impRaDataRows[i];
       var clienteId = impRaResolucoes[i];
-      if(!clienteId){ erros.push('Linha '+(i+2)+': sem cliente identificado, foi ignorada.'); pulados++; continue; }
-      var cliente = clientes.filter(function(c){ return c.id === clienteId; })[0];
-      if(!cliente){ erros.push('Linha '+(i+2)+': cliente não encontrado, foi ignorada.'); pulados++; continue; }
+      // O cliente não é mais obrigatório pra importar: uma linha sem
+      // casamento (ou com um id que não existe mais) vira um caso sem
+      // cliente/CSM vinculado, usando o nome que veio da planilha — em vez
+      // de ser ignorada. Dá pra vincular o cliente certo depois, editando
+      // o caso.
+      var cliente = clienteId ? (clientes.filter(function(c){ return c.id === clienteId; })[0] || null) : null;
+      if(clienteId && !cliente) erros.push('Linha '+(i+2)+': cliente selecionado não foi encontrado, o caso foi importado sem cliente vinculado.');
+      var nomePlanilhaLinha = String(getCampoImportRA(row,'clienteNome')||'').trim();
 
       var dataAbertura = parseFlexibleDate(getCampoImportRA(row,'dataAbertura')) || todayISO();
       var body = {
-        clienteId: clienteId, clienteNome: cliente.nome, csm: cliente.csm || '',
+        clienteId: cliente ? cliente.id : '', clienteNome: cliente ? cliente.nome : (nomePlanilhaLinha || 'Cliente não identificado'), csm: cliente ? (cliente.csm || '') : '',
         contatoNome: String(getCampoImportRA(row,'contatoNome')||'').trim(),
         contatoEmail: String(getCampoImportRA(row,'contatoEmail')||'').trim(),
         contatoTelefone: normalizeTelefone(getCampoImportRA(row,'contatoTelefone')),
@@ -4090,7 +4098,7 @@
         }
         criados++;
       }catch(e){
-        erros.push('Linha '+(i+2)+' ('+cliente.nome+'): não foi possível salvar.');
+        erros.push('Linha '+(i+2)+' ('+body.clienteNome+'): não foi possível salvar.');
         pulados++;
       }
     }
