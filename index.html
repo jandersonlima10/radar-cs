@@ -1493,8 +1493,18 @@
         </div>
 
         <div class="card">
-          <div class="card-head"><div><h2>Antecipação — mês seguinte</h2><div class="hint">Licença vence no mês seguinte: contato proativo, antes do aperto do prazo.</div></div></div>
-          <div class="card-body pad-top" id="renovFilaAntecipacao"></div>
+          <div class="card-head"><div><h2>Recomendação de antecipação</h2><div class="hint" id="renovRecomendacaoHint">Clientes da fila "Antecipação (mês seguinte)" que batem os critérios de saúde, risco de churn e valor mínimo de licença configurados em Configurações, até o teto de % do valor da fila.</div></div></div>
+          <div class="card-body pad-top" id="renovRecomendacaoAntecipacao"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Antecipação — mês seguinte</h2><div class="hint">Licença vence no mês seguinte: contato proativo, antes do aperto do prazo.</div></div>
+            <div class="topbar-actions">
+              <button type="button" class="btn btn-sm" id="btnRenovAntecipacaoExpandir" aria-expanded="false" aria-controls="renovFilaAntecipacao">Expandir</button>
+            </div>
+          </div>
+          <div class="card-body pad-top" id="renovFilaAntecipacao" hidden></div>
         </div>
 
         <div class="card">
@@ -1753,6 +1763,39 @@
               <button class="btn btn-sm btn-accent" id="btnSalvarPrazoCobrancaRA">Salvar prazo</button>
             </div>
             <div class="gate-error" id="prazoCobrancaRAError"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div><h2>Recomendação de antecipação (Renovação)</h2><div class="hint">Critérios que decidem quem aparece na lista "Recomendação de antecipação", dentro do grupo de clientes que vencem no mês seguinte.</div></div>
+          </div>
+          <div class="card-body pad-top">
+            <div class="field">
+              <label>Saúde do cliente</label>
+              <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="cfgAntecSaudeCritical" style="width:auto;">Crítica</label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="cfgAntecSaudeWarning" style="width:auto;">Atenção</label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="cfgAntecSaudeGood" style="width:auto;">Boa</label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:10px;">
+              <label>Risco de churn</label>
+              <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="cfgAntecRiscoAlto" style="width:auto;">Alto</label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="cfgAntecRiscoMedio" style="width:auto;">Médio</label>
+                <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="checkbox" id="cfgAntecRiscoBaixo" style="width:auto;">Baixo</label>
+              </div>
+            </div>
+            <div class="field-row" style="grid-template-columns:1fr 1fr; margin-top:10px;">
+              <div class="field"><label for="cfgAntecValorMinimo">Valor mínimo de licença (R$)</label><input id="cfgAntecValorMinimo" type="number" min="0" step="100"></div>
+              <div class="field"><label for="cfgAntecPercentual">Teto — % do valor da fila de antecipação</label><input id="cfgAntecPercentual" type="number" min="0" max="100" step="1"></div>
+            </div>
+            <div class="hint" style="margin-top:2px;">Só entra na recomendação quem bater em TODOS os critérios marcados acima; dentro desses, a lista para de incluir clientes assim que a soma do valor de licença atingir o teto de % configurado — por ordem de prioridade (Priority Score).</div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-sm btn-accent" id="btnSalvarAntecipacaoConfig">Salvar critérios</button>
+            </div>
+            <div class="gate-error" id="antecipacaoConfigError"></div>
           </div>
         </div>
 
@@ -2858,6 +2901,15 @@
   var prazoConfig = { dias: PRAZO_CARTEIRA_PADRAO }; // "rodar a carteira" — calibrável em Configurações
   var PRAZO_COBRANCA_RA_PADRAO = 3;
   var raConfig = { prazoCobranca: PRAZO_COBRANCA_RA_PADRAO }; // dias sem contato até o caso de RA virar pendência de novo — calibrável em Configurações
+  // Critérios da "Recomendação de antecipação" (ambiente de Renovação) —
+  // filtra/prioriza DENTRO do grupo que já vence no mês seguinte: só
+  // entram clientes cuja saúde e risco de churn estejam nos níveis
+  // marcados abaixo e cujo valor de licença seja >= o mínimo, e mesmo
+  // assim a lista para de incluir gente assim que a soma do valor de
+  // licença dos recomendados atingir X% do valor total da fila de
+  // antecipação (não da carteira inteira) — calibrável em Configurações.
+  var ANTECIPACAO_CONFIG_PADRAO = { saudeNiveis:['critical','warning'], riscoNiveis:['alto','medio'], valorMinimo:0, percentualCarteira:30 };
+  var antecipacaoConfig = Object.assign({}, ANTECIPACAO_CONFIG_PADRAO);
   // Pesos usados por computeStats() para montar o Priority Score — os
   // valores abaixo são os mesmos que já estavam fixos no código antes
   // desta virar uma configuração; calibrável em Configurações.
@@ -4421,6 +4473,7 @@
       prazoConfig = Object.assign({dias: PRAZO_CARTEIRA_PADRAO}, d.prazoConfig||{});
       raConfig = Object.assign({prazoCobranca: PRAZO_COBRANCA_RA_PADRAO}, d.raConfig||{});
       pesosScore = Object.assign({}, PESOS_SCORE_PADRAO, d.pesosScore||{});
+      antecipacaoConfig = Object.assign({}, ANTECIPACAO_CONFIG_PADRAO, d.antecipacaoConfig||{});
       setupCompleto = !!d.setupCompleto;
     }).catch(function(){ setupCompleto = false; });
   }
@@ -4486,6 +4539,7 @@
       prazoConfig = Object.assign({dias: PRAZO_CARTEIRA_PADRAO}, d.prazoConfig||{});
       raConfig = Object.assign({prazoCobranca: PRAZO_COBRANCA_RA_PADRAO}, d.raConfig||{});
       pesosScore = Object.assign({}, PESOS_SCORE_PADRAO, d.pesosScore||{});
+      antecipacaoConfig = Object.assign({}, ANTECIPACAO_CONFIG_PADRAO, d.antecipacaoConfig||{});
       renderAll();
     }, function(){});
 
@@ -4760,6 +4814,10 @@
   var renovFiltroCurva = 'todas';
   var renovFiltroBusca = '';
   var renovFiltroRisco = 'todos';
+  // A fila "Antecipação (mês seguinte)" vem recolhida por padrão — a
+  // "Recomendação de antecipação" (abaixo) já traz os casos prioritários
+  // dela em destaque, então a lista bruta fica disponível sob demanda.
+  var renovAntecipacaoExpandida = false;
   // Chave "YYYY-MM" do mês seguinte ao de hoje (não existe helper de
   // soma de meses no restante do código; monthKey() só formata).
   function mesSeguinteKey(){
@@ -4877,6 +4935,71 @@
       }
     });
     return out.sort(function(a,b){ return (a.proximoContato||'').localeCompare(b.proximoContato||''); });
+  }
+
+  // "Recomendação de antecipação" — dentro do grupo que já vence no mês
+  // seguinte (mesma população de filas.antecipacao), filtra por saúde,
+  // risco de churn e valor mínimo de licença (configurados em
+  // Configurações) e corta a lista assim que a soma do valor de licença
+  // dos recomendados atingir o teto de % configurado — esse teto é sobre
+  // o valor da PRÓPRIA fila de antecipação, não da carteira inteira.
+  // Ordenado por Priority Score, do mais urgente pro menos urgente.
+  function recomendacaoAntecipacao(filas){
+    var cfg = antecipacaoConfig || ANTECIPACAO_CONFIG_PADRAO;
+    var base = filas.antecipacao;
+    var totalArrBucket = base.reduce(function(acc,x){ return acc + (Number(x.cliente.arr)||0); }, 0);
+    var limiteArr = totalArrBucket * ((Number(cfg.percentualCarteira)||0) / 100);
+
+    var elegiveis = base.filter(function(x){
+      var saudeOk = (cfg.saudeNiveis||[]).indexOf(x.stats.health) > -1;
+      var riscoOk = (cfg.riscoNiveis||[]).indexOf(x.stats.risco) > -1;
+      var valorOk = (Number(x.cliente.arr)||0) >= (Number(cfg.valorMinimo)||0);
+      return saudeOk && riscoOk && valorOk;
+    }).sort(function(a,b){ return b.stats.score - a.stats.score; });
+
+    // Preenchimento guloso por ordem de prioridade: um cliente cujo valor
+    // sozinho estouraria o teto é PULADO (não interrompe a lista) — senão
+    // um único cliente grande no topo da prioridade zeraria a recomendação
+    // inteira, mesmo havendo vários outros menores que caberiam no teto.
+    var recomendados = [];
+    var arrAcumulado = 0;
+    for(var i=0;i<elegiveis.length;i++){
+      var arrCliente = Number(elegiveis[i].cliente.arr) || 0;
+      if(arrAcumulado + arrCliente > limiteArr) continue;
+      recomendados.push(elegiveis[i]);
+      arrAcumulado += arrCliente;
+    }
+
+    return {
+      recomendados: recomendados, elegiveisTotal: elegiveis.length, baseTotal: base.length,
+      totalArrBucket: totalArrBucket, limiteArr: limiteArr, arrAcumulado: arrAcumulado
+    };
+  }
+
+  function renovRecomendacaoRowHtml(x){
+    var c = x.cliente, s = x.stats;
+    var motivoTxt = motivoRiscoTexto(s.motivoRisco);
+    return '<div class="queue-row">' +
+      '<div class="health-dot '+s.health+'"></div>' +
+      '<div class="queue-main">' +
+        '<div class="queue-name">' +
+          '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
+          '<a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a>' +
+          '<span class="id">'+esc(c.id)+' · '+esc(c.csm||'—')+'</span>' +
+        '</div>' +
+        '<div class="queue-meta">' +
+          healthPill(s.health) +
+          (s.risco === 'alto' ? healthPill('critical','Risco alto'+(motivoTxt?' — '+motivoTxt:'')) : (s.risco==='medio'?healthPill('warning','Risco médio'+(motivoTxt?' — '+motivoTxt:'')):'')) +
+          (c.arr ? '<span class="chip">'+fmtMoney(c.arr)+'</span>' : '') +
+          '<span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="queue-actions">' +
+        '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button>' +
+        '<button class="btn btn-sm" data-abrir-renovar="'+esc(c.id)+'">Renovar</button>' +
+        '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button>' +
+      '</div>' +
+    '</div>';
   }
 
   function renovFollowUpRowHtml(x){
@@ -5145,6 +5268,31 @@
       var el = document.getElementById(par[0]);
       el.innerHTML = par[1].length ? par[1].map(renovQueueRowHtml).join('') : '<div class="empty-note">Nenhum cliente nesta fila agora.</div>';
     });
+
+    // "Antecipação — mês seguinte" vem recolhida por padrão (seção de
+    // evolução do ambiente de Renovação) — a lista bruta fica disponível
+    // num clique, mas quem abre a tela já vê a Recomendação em destaque.
+    var filaAntecipacaoEl = document.getElementById('renovFilaAntecipacao');
+    var btnAntecipacaoExpandir = document.getElementById('btnRenovAntecipacaoExpandir');
+    if(filaAntecipacaoEl && btnAntecipacaoExpandir){
+      filaAntecipacaoEl.hidden = !renovAntecipacaoExpandida;
+      btnAntecipacaoExpandir.textContent = renovAntecipacaoExpandida ? 'Encolher' : 'Expandir';
+      btnAntecipacaoExpandir.setAttribute('aria-expanded', String(renovAntecipacaoExpandida));
+    }
+
+    var recomendacao = recomendacaoAntecipacao(filas);
+    var elRecomendacao = document.getElementById('renovRecomendacaoAntecipacao');
+    if(elRecomendacao){
+      elRecomendacao.innerHTML = recomendacao.recomendados.length
+        ? recomendacao.recomendados.map(renovRecomendacaoRowHtml).join('')
+        : '<div class="empty-note">'+(recomendacao.elegiveisTotal ? 'Nenhum cliente coube dentro do teto de % da carteira configurado — ajuste os critérios em Configurações se quiser recomendar mais.' : 'Nenhum cliente da fila de antecipação bate os critérios configurados em Configurações no momento.')+'</div>';
+      var hintRecomendacaoEl = document.getElementById('renovRecomendacaoHint');
+      if(hintRecomendacaoEl){
+        hintRecomendacaoEl.textContent = recomendacao.baseTotal
+          ? ('Mostrando '+recomendacao.recomendados.length+' de '+recomendacao.baseTotal+' clientes da fila de antecipação ('+recomendacao.elegiveisTotal+' batem os critérios) — '+fmtMoney(recomendacao.arrAcumulado)+' de até '+fmtMoney(recomendacao.limiteArr)+' ('+(antecipacaoConfig.percentualCarteira||0)+'% do valor da fila).')
+          : 'Nenhum cliente vence no mês seguinte ainda.';
+      }
+    }
 
     // Funil (Kanban/Lista): mesma população elegível, mas SEM excluir
     // Renovado/Churn — eles aparecem nas colunas/linhas finais — e com os
@@ -5885,7 +6033,7 @@
         var body = {nome: nome, email: email, perfil: 'admin', csmVinculado: null};
         await db.collection('usuarios').doc(uid).set(body);
         await db.doc('meta/status').update({ setupCompleto: true, setupCompletoEm: new Date().toISOString() }).catch(function(){
-          return db.doc('meta/status').set({ setupCompleto: true, setupCompletoEm: new Date().toISOString(), curvaConfig: curvaConfig, waConfig: waConfig, prazoConfig: prazoConfig, pesosScore: pesosScore });
+          return db.doc('meta/status').set({ setupCompleto: true, setupCompletoEm: new Date().toISOString(), curvaConfig: curvaConfig, waConfig: waConfig, prazoConfig: prazoConfig, pesosScore: pesosScore, antecipacaoConfig: antecipacaoConfig });
         });
         setupCompleto = true;
         usuarios = [Object.assign({id: uid}, body)];
@@ -10901,6 +11049,64 @@
     }
   }
 
+  var ANTECIPACAO_SAUDE_CAMPOS = {cfgAntecSaudeCritical:'critical', cfgAntecSaudeWarning:'warning', cfgAntecSaudeGood:'good'};
+  var ANTECIPACAO_RISCO_CAMPOS = {cfgAntecRiscoAlto:'alto', cfgAntecRiscoMedio:'medio', cfgAntecRiscoBaixo:'baixo'};
+
+  function renderAntecipacaoConfigInputs(){
+    var cfg = antecipacaoConfig || ANTECIPACAO_CONFIG_PADRAO;
+    Object.keys(ANTECIPACAO_SAUDE_CAMPOS).forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el || document.activeElement === el) return;
+      el.checked = (cfg.saudeNiveis||[]).indexOf(ANTECIPACAO_SAUDE_CAMPOS[id]) > -1;
+    });
+    Object.keys(ANTECIPACAO_RISCO_CAMPOS).forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el || document.activeElement === el) return;
+      el.checked = (cfg.riscoNiveis||[]).indexOf(ANTECIPACAO_RISCO_CAMPOS[id]) > -1;
+    });
+    var elValor = document.getElementById('cfgAntecValorMinimo');
+    if(elValor && document.activeElement !== elValor) elValor.value = cfg.valorMinimo || 0;
+    var elPct = document.getElementById('cfgAntecPercentual');
+    if(elPct && document.activeElement !== elPct) elPct.value = cfg.percentualCarteira != null ? cfg.percentualCarteira : ANTECIPACAO_CONFIG_PADRAO.percentualCarteira;
+  }
+
+  async function salvarAntecipacaoConfig(){
+    var errEl = document.getElementById('antecipacaoConfigError');
+    var saudeNiveis = Object.keys(ANTECIPACAO_SAUDE_CAMPOS).filter(function(id){ return document.getElementById(id).checked; }).map(function(id){ return ANTECIPACAO_SAUDE_CAMPOS[id]; });
+    var riscoNiveis = Object.keys(ANTECIPACAO_RISCO_CAMPOS).filter(function(id){ return document.getElementById(id).checked; }).map(function(id){ return ANTECIPACAO_RISCO_CAMPOS[id]; });
+    var valorMinimo = Number(document.getElementById('cfgAntecValorMinimo').value);
+    var percentual = Number(document.getElementById('cfgAntecPercentual').value);
+    if(!saudeNiveis.length || !riscoNiveis.length){
+      errEl.textContent = 'Marque ao menos um nível de saúde e um nível de risco de churn.';
+      errEl.classList.add('show');
+      return;
+    }
+    if(!isFinite(valorMinimo) || valorMinimo < 0){
+      errEl.textContent = 'Informe um valor mínimo de licença válido (maior ou igual a zero).';
+      errEl.classList.add('show');
+      return;
+    }
+    if(!isFinite(percentual) || percentual < 0 || percentual > 100){
+      errEl.textContent = 'O teto de % da carteira precisa estar entre 0 e 100.';
+      errEl.classList.add('show');
+      return;
+    }
+    errEl.classList.remove('show');
+    var novoConfig = {saudeNiveis:saudeNiveis, riscoNiveis:riscoNiveis, valorMinimo:valorMinimo, percentualCarteira:percentual};
+    try{
+      if(db && !offline){
+        await db.doc('meta/status').update({antecipacaoConfig: novoConfig});
+      }else{
+        antecipacaoConfig = novoConfig;
+        renderAll();
+      }
+      mostrarToastSucesso('Critérios de recomendação salvos com sucesso.');
+    }catch(e){
+      errEl.textContent = 'Não foi possível salvar: ' + detalheErro(e);
+      errEl.classList.add('show');
+    }
+  }
+
   var PESOS_SCORE_CAMPOS = {
     cfgPesoCurvaA:'curvaA', cfgPesoCurvaB:'curvaB', cfgPesoCurvaC:'curvaC', cfgPesoCurvaD:'curvaD',
     cfgPesoRiscoBaixo:'riscoBaixo', cfgPesoRiscoMedio:'riscoMedio', cfgPesoRiscoAlto:'riscoAlto',
@@ -10984,6 +11190,7 @@
     renderCurvaConfigInputs();
     renderPrazoConfigInputs();
     renderPrazoCobrancaRAInputs();
+    renderAntecipacaoConfigInputs();
     renderPesosScoreInputs();
     renderWaConfigInputs();
     var ativos = usuariosAtivos();
@@ -11474,6 +11681,10 @@
       radarRenovacaoExpandido = !radarRenovacaoExpandido;
       renderPainel();
     });
+    document.getElementById('btnRenovAntecipacaoExpandir').addEventListener('click', function(){
+      renovAntecipacaoExpandida = !renovAntecipacaoExpandida;
+      renderRenovacao();
+    });
     document.getElementById('btnNovoClienteTopo').addEventListener('click', abrirNovoCliente);
     document.getElementById('btnNovoClienteCarteira').addEventListener('click', abrirNovoCliente);
     document.getElementById('btnSalvarCliente').addEventListener('click', salvarCliente);
@@ -11578,6 +11789,7 @@
     document.getElementById('btnSalvarWaConfig').addEventListener('click', salvarWaConfig);
     document.getElementById('btnSalvarPrazoConfig').addEventListener('click', salvarPrazoConfig);
     document.getElementById('btnSalvarPrazoCobrancaRA').addEventListener('click', salvarPrazoCobrancaRA);
+    document.getElementById('btnSalvarAntecipacaoConfig').addEventListener('click', salvarAntecipacaoConfig);
     document.getElementById('btnSalvarPesosScore').addEventListener('click', salvarPesosScore);
     document.getElementById('btnRestaurarPesosScore').addEventListener('click', restaurarPesosScorePadrao);
     document.getElementById('cfgWaEmpresa').addEventListener('input', renderWaConfigInputs);
@@ -12210,4 +12422,3 @@
 </script>
 </body>
 </html>
-
