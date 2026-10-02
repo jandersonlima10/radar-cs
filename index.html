@@ -1285,6 +1285,11 @@
         </div>
 
         <div class="card">
+          <div class="card-head"><div><h2>Resumo por tipo de alerta</h2><div class="hint">Clique em um tipo para filtrar as listas abaixo — clique de novo (ou em "Todos") para limpar.</div></div></div>
+          <div class="card-body pad-top" id="alertasResumoTipos" style="display:flex; flex-wrap:wrap; gap:8px;"></div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><div><h2>Clientes em risco</h2><div class="hint">Saúde crítica, etapa "Risco" ou alerta sinalizado no cadastro do cliente.</div></div></div>
           <div class="card-body pad-top" id="alertasClientes"></div>
         </div>
@@ -6924,49 +6929,103 @@
   // atividade (ver renderCiAlertaBanner e atsHtml em renderPlanosSecaoHistorico),
   // além deste relatório à parte.
   // ---------------------------------------------------------------
+  // Tipos de alerta (usados tanto no resumo/filtro do topo quanto pra
+  // marcar cada item com o(s) motivo(s) que o trouxe pra cá). Um mesmo
+  // cliente pode ter mais de um tipo ao mesmo tempo (ex.: saúde crítica E
+  // alerta sinalizado) — por isso cada item carrega uma LISTA de tipos,
+  // não um tipo só.
+  var ALERTA_TIPO_LABEL = {
+    saude_critica: 'Saúde crítica',
+    etapa_risco: 'Etapa "Risco"',
+    alerta_cliente: 'Alerta no cliente',
+    alerta_atividade: 'Atividade sinalizada',
+    atividade_atrasada: 'Atividade atrasada'
+  };
+  var ALERTA_TIPO_ORDEM = ['saude_critica','etapa_risco','alerta_cliente','alerta_atividade','atividade_atrasada'];
+  var alertaFiltroTipo = 'todos';
+
   function computeAlertas(){
     var escopoCsm = activeCsmFilterForPanel();
-    var statsRisco = allStats().filter(function(s){
+    var statsRiscoTodos = allStats().filter(function(s){
       if(!noEscopo(s.cliente.csm, escopoCsm)) return false;
       return s.health === 'critical' || s.cliente.etapaAtual === 'risco' || s.cliente.alertaAtivo;
+    }).map(function(s){
+      var tipos = [];
+      if(s.health === 'critical') tipos.push('saude_critica');
+      if(s.cliente.etapaAtual === 'risco') tipos.push('etapa_risco');
+      if(s.cliente.alertaAtivo) tipos.push('alerta_cliente');
+      s.alertaTipos = tipos;
+      return s;
     }).sort(function(a,b){ return b.score - a.score; });
 
-    var atividadesAlerta = [];
+    var atividadesAlertaTodas = [];
     planos.forEach(function(p){
       if(!noEscopo(p.csm, escopoCsm)) return;
       (p.atividades||[]).forEach(function(a, idx){
         if(a.status==='concluida' || a.status==='cancelada') return;
         var atrasada = atividadeAtrasada(a);
         if(a.alertaAtivo || atrasada){
-          atividadesAlerta.push({planoId:p.id, planoTitulo:p.titulo, clienteId:p.clienteId, clienteNome:p.clienteNome, csm:p.csm, idx:idx, atividade:a, atrasada:atrasada});
+          var tipos = [];
+          if(a.alertaAtivo) tipos.push('alerta_atividade');
+          if(atrasada) tipos.push('atividade_atrasada');
+          atividadesAlertaTodas.push({planoId:p.id, planoTitulo:p.titulo, clienteId:p.clienteId, clienteNome:p.clienteNome, csm:p.csm, idx:idx, atividade:a, atrasada:atrasada, alertaTipos:tipos});
         }
       });
     });
-    atividadesAlerta.sort(function(x,y){
+    atividadesAlertaTodas.sort(function(x,y){
       if(!!y.atividade.alertaAtivo !== !!x.atividade.alertaAtivo) return y.atividade.alertaAtivo ? 1 : -1;
       var px = x.atividade.prazo || '9999-99-99', py = y.atividade.prazo || '9999-99-99';
       return px < py ? -1 : (px > py ? 1 : 0);
     });
 
-    var alertasManual = statsRisco.filter(function(s){ return s.cliente.alertaAtivo; }).length + atividadesAlerta.filter(function(a){ return a.atividade.alertaAtivo; }).length;
+    var alertasManual = statsRiscoTodos.filter(function(s){ return s.cliente.alertaAtivo; }).length + atividadesAlertaTodas.filter(function(a){ return a.atividade.alertaAtivo; }).length;
 
-    return { statsRisco: statsRisco, atividadesAlerta: atividadesAlerta, alertasManual: alertasManual };
+    // Contagem por tipo — sempre sobre o conjunto COMPLETO (sem o filtro
+    // de tipo aplicado): o resumo do topo mostra o panorama geral, pra
+    // servir de referência de quanto cada filtro vai trazer.
+    var contagemTipos = {};
+    ALERTA_TIPO_ORDEM.forEach(function(tipo){ contagemTipos[tipo] = 0; });
+    statsRiscoTodos.forEach(function(s){ s.alertaTipos.forEach(function(t){ contagemTipos[t]++; }); });
+    atividadesAlertaTodas.forEach(function(a){ a.alertaTipos.forEach(function(t){ contagemTipos[t]++; }); });
+
+    // Filtro de tipo aplicado só nas DUAS LISTAS exibidas — os números do
+    // topo (tiles gerais + resumo por tipo) continuam mostrando o total
+    // real, não o recorte do filtro.
+    var statsRisco = alertaFiltroTipo === 'todos' ? statsRiscoTodos : statsRiscoTodos.filter(function(s){ return s.alertaTipos.indexOf(alertaFiltroTipo) > -1; });
+    var atividadesAlerta = alertaFiltroTipo === 'todos' ? atividadesAlertaTodas : atividadesAlertaTodas.filter(function(a){ return a.alertaTipos.indexOf(alertaFiltroTipo) > -1; });
+
+    return {
+      statsRiscoTodos: statsRiscoTodos, atividadesAlertaTodas: atividadesAlertaTodas,
+      statsRisco: statsRisco, atividadesAlerta: atividadesAlerta,
+      alertasManual: alertasManual, contagemTipos: contagemTipos,
+      totalGeral: statsRiscoTodos.length + atividadesAlertaTodas.length
+    };
   }
 
   function renderAlertas(){
     var data = computeAlertas();
-    document.getElementById('statAlertaClientes').textContent = data.statsRisco.length;
+    // Tiles gerais do topo e o badge de navegação sempre refletem o total
+    // real (sem o recorte do filtro de tipo) — só as duas listas abaixo
+    // é que são filtradas.
+    document.getElementById('statAlertaClientes').textContent = data.statsRiscoTodos.length;
     document.getElementById('statAlertaManual').textContent = data.alertasManual;
-    document.getElementById('statAlertaAtividades').textContent = data.atividadesAlerta.length;
+    document.getElementById('statAlertaAtividades').textContent = data.atividadesAlertaTodas.length;
 
     var badge = document.getElementById('navAlertasBadge');
-    var totalBadge = data.statsRisco.length + data.atividadesAlerta.length;
-    if(totalBadge > 0){ badge.style.display = 'inline-flex'; badge.textContent = totalBadge; }
+    if(data.totalGeral > 0){ badge.style.display = 'inline-flex'; badge.textContent = data.totalGeral; }
     else{ badge.style.display = 'none'; }
+
+    var elResumo = document.getElementById('alertasResumoTipos');
+    var botoesResumo = ['<button type="button" class="btn btn-sm'+(alertaFiltroTipo==='todos'?' btn-accent':'')+'" data-filtro-alerta-tipo="todos" aria-pressed="'+(alertaFiltroTipo==='todos')+'">Todos ('+data.totalGeral+')</button>'];
+    ALERTA_TIPO_ORDEM.forEach(function(tipo){
+      var ativo = alertaFiltroTipo === tipo;
+      botoesResumo.push('<button type="button" class="btn btn-sm'+(ativo?' btn-accent':'')+'" data-filtro-alerta-tipo="'+tipo+'" aria-pressed="'+ativo+'">'+esc(ALERTA_TIPO_LABEL[tipo])+' ('+data.contagemTipos[tipo]+')</button>');
+    });
+    elResumo.innerHTML = botoesResumo.join('');
 
     var elCli = document.getElementById('alertasClientes');
     if(!data.statsRisco.length){
-      elCli.innerHTML = '<div class="empty-note">Nenhum cliente em risco no momento.</div>';
+      elCli.innerHTML = '<div class="empty-note">'+(data.statsRiscoTodos.length ? 'Nenhum cliente em risco com o tipo de alerta selecionado.' : 'Nenhum cliente em risco no momento.')+'</div>';
     }else{
       elCli.innerHTML = data.statsRisco.map(function(s){
         var c = s.cliente;
@@ -6985,7 +7044,7 @@
 
     var elAt = document.getElementById('alertasAtividades');
     if(!data.atividadesAlerta.length){
-      elAt.innerHTML = '<div class="empty-note">Nenhuma atividade em alerta ou atrasada no momento.</div>';
+      elAt.innerHTML = '<div class="empty-note">'+(data.atividadesAlertaTodas.length ? 'Nenhuma atividade com o tipo de alerta selecionado.' : 'Nenhuma atividade em alerta ou atrasada no momento.')+'</div>';
     }else{
       elAt.innerHTML = data.atividadesAlerta.map(function(item){
         var a = item.atividade;
@@ -11822,6 +11881,15 @@
       if(openContato){ e.preventDefault(); abrirContato(openContato.getAttribute('data-open-contato')); return; }
       var abrirRenovar = e.target.closest('[data-abrir-renovar]');
       if(abrirRenovar){ e.preventDefault(); abrirRenovarCliente(abrirRenovar.getAttribute('data-abrir-renovar')); return; }
+      var filtroAlertaTipoBtn = e.target.closest('[data-filtro-alerta-tipo]');
+      if(filtroAlertaTipoBtn){
+        e.preventDefault();
+        var tipoClicado = filtroAlertaTipoBtn.getAttribute('data-filtro-alerta-tipo');
+        // Clicar de novo no tipo já selecionado funciona como "limpar filtro".
+        alertaFiltroTipo = (alertaFiltroTipo === tipoClicado) ? 'todos' : tipoClicado;
+        renderAlertas();
+        return;
+      }
       var openHist = e.target.closest('[data-open-historico]');
       if(openHist){ e.preventDefault(); abrirHistorico(openHist.getAttribute('data-open-historico')); return; }
       var openEdit = e.target.closest('[data-open-editar]');
@@ -12142,3 +12210,4 @@
 </script>
 </body>
 </html>
+
