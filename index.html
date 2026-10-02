@@ -1418,18 +1418,47 @@
             <div class="label">Vencidas sem renovação</div>
             <div class="value num" id="renovStatVencida">–</div>
           </div>
+          <div class="stat">
+            <div class="label">Churn do mês</div>
+            <div class="value num" id="renovStatChurnMes">–</div>
+            <div class="hint" id="renovChurnMesPctHint" style="margin-top:2px;"></div>
+          </div>
+          <div class="stat">
+            <div class="label">Churn do mês — % da receita</div>
+            <div class="value num" id="renovStatChurnMesPct">–</div>
+          </div>
+          <div class="stat">
+            <div class="label">Previsão de churn — mês seguinte</div>
+            <div class="value num" id="renovStatPrevisaoMesSeguinte">–</div>
+            <div class="hint" id="renovPrevisaoMesSeguinteHint" style="margin-top:2px;"></div>
+          </div>
+          <div class="stat">
+            <div class="label">Previsão de churn — % da receita</div>
+            <div class="value num" id="renovStatPrevisaoMesSeguintePct">–</div>
+            <div class="hint" id="renovPrevisaoMesSeguintePctHint" style="margin-top:2px;"></div>
+          </div>
         </div>
 
         <div class="card">
           <div class="card-head">
             <div><h2>Funil de negociação</h2><div class="hint">Em aberto → Antecipação/Proposta → Título gerado → Renovado, com Churn possível a qualquer momento.</div></div>
             <div class="topbar-actions">
+              <div>
+                <label for="fRenovBusca" class="hint">Buscar</label>
+                <input type="search" id="fRenovBusca" placeholder="ID ou nome do cliente..." aria-label="Buscar renovação por ID ou nome do cliente" style="min-width:180px;">
+              </div>
               <select id="fRenovCurva" style="min-width:130px;">
                 <option value="todas">Todas as curvas</option>
                 <option value="A">Curva A</option>
                 <option value="B">Curva B</option>
                 <option value="C">Curva C</option>
                 <option value="D">Curva D</option>
+              </select>
+              <select id="fRenovRisco" style="min-width:150px;" aria-label="Filtrar por risco de churn">
+                <option value="todos">Todo risco de churn</option>
+                <option value="alto">Risco alto</option>
+                <option value="medio">Risco médio</option>
+                <option value="baixo">Risco baixo</option>
               </select>
               <button type="button" class="btn btn-sm" id="btnRenovModoKanban">Quadro</button>
               <button type="button" class="btn btn-sm" id="btnRenovModoLista">Lista</button>
@@ -1439,11 +1468,16 @@
             <div id="renovFunilKanban" class="kanban-board"></div>
             <div id="renovFunilLista" class="table-wrap" style="display:none;">
               <table>
-                <thead><tr><th>Cliente</th><th>Curva</th><th>CSM</th><th>Vencimento</th><th class="num">Valor da licença</th><th>Contrato assinado</th><th>Status</th><th>Saúde</th><th></th></tr></thead>
+                <thead><tr><th>ID</th><th>Cliente</th><th>Curva</th><th>CSM</th><th>Vencimento</th><th class="num">Valor da licença</th><th>Contrato assinado</th><th>Status</th><th>Saúde</th><th></th></tr></thead>
                 <tbody id="renovFunilListaTabela"></tbody>
               </table>
             </div>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><div><h2>Follow-ups agendados</h2><div class="hint">Próximos contatos combinados com o cliente durante a negociação — atividade comercial do negociador, não entra na Agenda/CSM.</div></div></div>
+          <div class="card-body pad-top" id="renovFollowUps"></div>
         </div>
 
         <div class="card">
@@ -4689,9 +4723,12 @@
     var r = renovacaoDoCliente(cliente);
     return !!(r && r.contratoAssinado);
   }
-  // Filtro por curva do funil de negociação (Quadro e Lista) — seleção
-  // única, compartilhada entre os dois modos de visualização.
+  // Filtros de pesquisa do funil de negociação (Quadro e Lista) — ID/nome
+  // do cliente, curva e risco de churn (do último contato registrado),
+  // compartilhados entre os dois modos de visualização.
   var renovFiltroCurva = 'todas';
+  var renovFiltroBusca = '';
+  var renovFiltroRisco = 'todos';
   // Chave "YYYY-MM" do mês seguinte ao de hoje (não existe helper de
   // soma de meses no restante do código; monthKey() só formata).
   function mesSeguinteKey(){
@@ -4729,6 +4766,110 @@
       antecipacao: elig.filter(function(x){ return x.bucket === 'antecipacao'; }).sort(function(a,b){ return a.stats.diasParaVencimento - b.stats.diasParaVencimento; }),
       vencida: elig.filter(function(x){ return x.bucket === 'vencida'; }).sort(function(a,b){ return a.stats.diasParaVencimento - b.stats.diasParaVencimento; })
     };
+  }
+
+  // Clientes cujo status de renovação virou "Churn" dentro do mês
+  // calendário atual — olha a PRIMEIRA entrada de churn no histórico do
+  // ciclo (um ciclo pode ter voltado e saído de churn, mas o que importa
+  // aqui é quando ele entrou em churn pela primeira vez neste ciclo).
+  function renovacaoChurnDoMes(){
+    var mesAtual = monthKey(todayISO());
+    return renovacoesData.filter(function(r){
+      if(r.status !== 'churn') return false;
+      var entrada = (r.historicoStatus||[]).filter(function(h){ return h.status === 'churn'; })[0];
+      return entrada && entrada.data && monthKey(entrada.data) === mesAtual;
+    });
+  }
+
+  // Churn em percentual de receita: soma o valor de licença (arr) de TODOS
+  // os clientes cujo ciclo vence no mês de referência (população completa,
+  // incluindo quem já renovou ou já deu churn — precisa estar no total pra
+  // o percentual fazer sentido) e divide pela soma de quem, dentro desse
+  // mesmo grupo, se encaixa no critério (classificado como churn, ou em
+  // risco alto na previsão). Mesmo método para "churn do mês" (critério:
+  // já é churn, com a entrada no histórico neste mês) e para "previsão do
+  // mês seguinte" (critério: risco alto no último contato) — só muda o
+  // bucket (mês atual vs. mês seguinte) e o critério.
+  function renovacaoPercentualReceita(bucket, criterioFn){
+    var pop = renovacaoElegiveis().filter(function(x){ return x.bucket === bucket; });
+    var totalArr = 0, criterioArr = 0, criterioQtd = 0;
+    pop.forEach(function(x){
+      var arr = Number(x.cliente.arr) || 0;
+      totalArr += arr;
+      if(criterioFn(x)){ criterioArr += arr; criterioQtd++; }
+    });
+    return {
+      totalClientes: pop.length, criterioClientes: criterioQtd,
+      totalArr: totalArr, criterioArr: criterioArr,
+      pct: totalArr > 0 ? (criterioArr / totalArr * 100) : 0
+    };
+  }
+
+  function renovacaoChurnDoMesReceita(){
+    var mesAtual = monthKey(todayISO());
+    return renovacaoPercentualReceita('vencendo', function(x){
+      if(x.statusRenov !== 'churn') return false;
+      var r = renovacaoDoCliente(x.cliente);
+      var entrada = r && (r.historicoStatus||[]).filter(function(h){ return h.status === 'churn'; })[0];
+      return !!(entrada && entrada.data && monthKey(entrada.data) === mesAtual);
+    });
+  }
+
+  // Previsão de churn do mês seguinte: não existe modelo preditivo no
+  // sistema, então a previsão é simples e auditável — dentre quem vence
+  // no mês seguinte e ainda está pendente (fila de Antecipação), quantos
+  // estão com risco Alto no último contato registrado. O percentual de
+  // receita usa a mesma lógica de renovacaoPercentualReceita() acima, só
+  // que com "risco alto" como critério em vez de "é churn".
+  function renovacaoPrevisaoMesSeguinte(filas){
+    var baseline = filas.antecipacao;
+    var altoRisco = baseline.filter(function(x){ return x.stats.risco === 'alto'; });
+    return { total: baseline.length, altoRisco: altoRisco.length };
+  }
+
+  function renovacaoPrevisaoMesSeguinteReceita(){
+    return renovacaoPercentualReceita('antecipacao', function(x){ return x.stats.risco === 'alto'; });
+  }
+
+  // "Atividades comerciais agendadas" do negociador — o próximo contato
+  // combinado no último contato registrado de cada cliente ainda pendente
+  // no funil (Vencendo/Antecipação/Vencida). Pedido explicitamente como
+  // uma lista de trabalho do negociador, SEM entrar na Agenda/CSM.
+  function renovacaoFollowUps(filas){
+    var todos = filas.vencendo.concat(filas.antecipacao, filas.vencida);
+    var out = [];
+    todos.forEach(function(x){
+      var hist = contatosDoCliente(x.cliente.id);
+      var ultimo = hist.length ? hist[hist.length-1] : null;
+      if(ultimo && ultimo.proximoContato){
+        out.push({ cliente: x.cliente, stats: x.stats, statusRenov: x.statusRenov, proximoContato: ultimo.proximoContato, ultimoContato: ultimo });
+      }
+    });
+    return out.sort(function(a,b){ return (a.proximoContato||'').localeCompare(b.proximoContato||''); });
+  }
+
+  function renovFollowUpRowHtml(x){
+    var c = x.cliente;
+    var dias = diffDays(x.proximoContato, todayISO());
+    var dCls = dias < 0 ? 'pill-critical' : (dias === 0 ? 'pill-warning' : 'pill-neutral');
+    var dTxt = dias < 0 ? ('Atrasado há '+Math.abs(dias)+'d') : (dias === 0 ? 'Hoje' : ('Em '+dias+'d'));
+    return '<div class="queue-row">' +
+      '<div class="queue-main">' +
+        '<div class="queue-name">' +
+          '<span class="curva curva-'+c.curva+'">'+c.curva+'</span>' +
+          '<a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a>' +
+          '<span class="id">'+esc(c.id)+' · '+esc(c.csm||'—')+'</span>' +
+        '</div>' +
+        '<div class="queue-meta">' +
+          '<span class="pill '+dCls+'"><span class="pill-dot"></span>Próximo contato: '+fmtDate(x.proximoContato)+' ('+dTxt+')</span>' +
+          '<span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="queue-actions">' +
+        '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button>' +
+        '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button>' +
+      '</div>' +
+    '</div>';
   }
 
   async function mudarStatusRenovacao(clienteId, novoStatus){
@@ -4856,17 +4997,52 @@
     document.getElementById('renovStatAntecipacao').textContent = filas.antecipacao.length;
     document.getElementById('renovStatVencida').textContent = filas.vencida.length;
 
+    var churnMes = renovacaoChurnDoMes();
+    document.getElementById('renovStatChurnMes').textContent = churnMes.length;
+    var churnReceita = renovacaoChurnDoMesReceita();
+    document.getElementById('renovStatChurnMesPct').textContent = churnReceita.pct.toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%';
+    document.getElementById('renovChurnMesPctHint').textContent = churnReceita.totalArr
+      ? ('Em receita: '+fmtMoney(churnReceita.criterioArr)+' de '+fmtMoney(churnReceita.totalArr)+' em licenças vencendo este mês.')
+      : 'Nenhuma licença com valor cadastrado vencendo este mês.';
+
+    var previsao = renovacaoPrevisaoMesSeguinte(filas);
+    document.getElementById('renovStatPrevisaoMesSeguinte').textContent = previsao.altoRisco + ' de ' + previsao.total;
+    document.getElementById('renovPrevisaoMesSeguinteHint').textContent = previsao.total
+      ? 'Clientes em risco alto, dentre os que vencem no mês seguinte.'
+      : 'Nenhum cliente vence no mês seguinte ainda.';
+    var previsaoReceita = renovacaoPrevisaoMesSeguinteReceita();
+    document.getElementById('renovStatPrevisaoMesSeguintePct').textContent = previsaoReceita.pct.toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%';
+    document.getElementById('renovPrevisaoMesSeguintePctHint').textContent = previsaoReceita.totalArr
+      ? ('Em receita: '+fmtMoney(previsaoReceita.criterioArr)+' de '+fmtMoney(previsaoReceita.totalArr)+' em licenças vencendo no mês seguinte.')
+      : 'Nenhuma licença com valor cadastrado vencendo no mês seguinte.';
+
+    var followUps = renovacaoFollowUps(filas);
+    var followUpsEl = document.getElementById('renovFollowUps');
+    followUpsEl.innerHTML = followUps.length ? followUps.map(renovFollowUpRowHtml).join('') : '<div class="empty-note">Nenhum follow-up combinado com cliente pendente — o próximo contato aparece aqui assim que for registrado em "Registrar".</div>';
+
     [['renovFilaVencendo', filas.vencendo], ['renovFilaAntecipacao', filas.antecipacao], ['renovFilaVencida', filas.vencida]].forEach(function(par){
       var el = document.getElementById(par[0]);
       el.innerHTML = par[1].length ? par[1].map(renovQueueRowHtml).join('') : '<div class="empty-note">Nenhum cliente nesta fila agora.</div>';
     });
 
     // Funil (Kanban/Lista): mesma população elegível, mas SEM excluir
-    // Renovado/Churn — eles aparecem nas colunas/linhas finais — e com o
-    // filtro de curva aplicado (compartilhado entre os dois modos).
+    // Renovado/Churn — eles aparecem nas colunas/linhas finais — e com os
+    // filtros de pesquisa aplicados (ID/nome, curva, risco de churn —
+    // compartilhados entre os dois modos de visualização).
     var elig = renovacaoElegiveis();
     if(renovFiltroCurva !== 'todas'){
       elig = elig.filter(function(x){ return x.cliente.curva === renovFiltroCurva; });
+    }
+    var buscaEl = document.getElementById('fRenovBusca');
+    var riscoEl = document.getElementById('fRenovRisco');
+    if(buscaEl && buscaEl.value !== renovFiltroBusca) buscaEl.value = renovFiltroBusca;
+    if(riscoEl && riscoEl.value !== renovFiltroRisco) riscoEl.value = renovFiltroRisco;
+    if(renovFiltroBusca){
+      var qRenov = renovFiltroBusca.trim().toLowerCase();
+      elig = elig.filter(function(x){ return (String(x.cliente.id||'')+' '+String(x.cliente.nome||'')).toLowerCase().indexOf(qRenov) > -1; });
+    }
+    if(renovFiltroRisco !== 'todos'){
+      elig = elig.filter(function(x){ return x.stats.risco === renovFiltroRisco; });
     }
     var porStatus = {};
     RENOVACAO_STATUS_ORDEM.forEach(function(st){ porStatus[st] = []; });
@@ -4885,13 +5061,14 @@
         (itens.length ? itens.map(function(x){
           var c = x.cliente, s = x.stats;
           return '<div class="kanban-card" draggable="true" data-drag-renov="'+esc(c.id)+'">' +
-            '<div class="nm"><span class="curva curva-'+c.curva+'">'+c.curva+'</span> <a href="#" data-open-historico="'+esc(c.id)+'" draggable="false" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a></div>' +
+            '<div class="nm"><span class="curva curva-'+c.curva+'">'+c.curva+'</span> <a href="#" data-open-historico="'+esc(c.id)+'" draggable="false" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a> <span class="id">'+esc(c.id)+'</span></div>' +
             '<div class="hint">'+esc(c.csm||'—')+' · '+fmtDate(c.vencimento)+(c.arr?' · '+fmtMoney(c.arr):'')+'</div>' +
             healthPill(s.health) +
             contratoChip(c) +
             '<select data-mudar-status-renovacao="'+esc(c.id)+'" draggable="false">' +
               RENOVACAO_STATUS_ORDEM.map(function(st2){ return '<option value="'+st2+'"'+(st===st2?' selected':'')+'>'+esc(RENOVACAO_STATUS_LABEL[st2])+'</option>'; }).join('') +
             '</select>' +
+            '<button type="button" class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'" draggable="false" style="margin-top:6px; width:100%;">Registrar contato</button>' +
           '</div>';
         }).join('') : '<div class="kanban-empty">Nenhum cliente.</div>') +
       '</div>';
@@ -4901,6 +5078,7 @@
     lEl.innerHTML = elig.length ? elig.map(function(x){
       var c = x.cliente, s = x.stats;
       return '<tr>' +
+        '<td>'+esc(c.id)+'</td>' +
         '<td><a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit;">'+esc(c.nome)+'</a></td>' +
         '<td><span class="curva curva-'+c.curva+'">'+c.curva+'</span></td>' +
         '<td>'+esc(c.csm||'—')+'</td>' +
@@ -4909,9 +5087,9 @@
         '<td>'+contratoChip(c)+'</td>' +
         '<td><span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span></td>' +
         '<td>'+healthPill(s.health)+'</td>' +
-        '<td><button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button></td>' +
+        '<td style="white-space:nowrap;"><button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button> <button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button></td>' +
       '</tr>';
-    }).join('') : '<tr><td colspan="9"><div class="empty-note">Nenhum cliente no ciclo atual'+(renovFiltroCurva!=='todas'?' para a curva '+esc(renovFiltroCurva):'')+'.</div></td></tr>';
+    }).join('') : '<tr><td colspan="10"><div class="empty-note">Nenhum cliente encontrado com os filtros atuais.</div></td></tr>';
   }
 
   // ---------------------------------------------------------------
@@ -11604,7 +11782,20 @@
         renderRenovacao();
         return;
       }
+      var selRiscoRenov = e.target.closest('#fRenovRisco');
+      if(selRiscoRenov){
+        renovFiltroRisco = selRiscoRenov.value;
+        renderRenovacao();
+        return;
+      }
     });
+    var buscaRenovEl = document.getElementById('fRenovBusca');
+    if(buscaRenovEl){
+      buscaRenovEl.addEventListener('input', function(e){
+        renovFiltroBusca = e.target.value;
+        renderRenovacao();
+      });
+    }
 
     var btnRenovKanban = document.getElementById('btnRenovModoKanban');
     var btnRenovLista = document.getElementById('btnRenovModoLista');
@@ -11806,5 +11997,3 @@
 </script>
 </body>
 </html>
-
-  
