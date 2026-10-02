@@ -2177,6 +2177,25 @@
   </div>
 </div>
 
+<!-- ===================== MODAL: renovar cliente (atualiza vencimento) ===================== -->
+<div class="overlay" id="overlayRenovarCliente">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Renovar cliente — <span id="renovarClienteNome"></span></h3>
+      <button class="icon-btn" data-close="overlayRenovarCliente" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body">
+      <p class="hint">Vencimento atual: <strong id="renovarVencimentoAtual"></strong>. Ao confirmar, o status deste ciclo passa para "Renovado" e o vencimento da licença é atualizado para a data abaixo.</p>
+      <div class="field"><label for="renovarNovaData">Novo vencimento da licença</label><input id="renovarNovaData" type="date"></div>
+      <div class="gate-error" id="renovarError"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" data-close="overlayRenovarCliente">Cancelar</button>
+      <button class="btn btn-accent" id="btnConfirmarRenovacao">Confirmar renovação</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===================== MODAL: histórico do cliente ===================== -->
 <div class="overlay" id="overlayHistorico">
   <div class="modal" style="max-width:600px;">
@@ -3431,6 +3450,11 @@
   function addDays(s, days){
     var d = parseISO(s);
     d.setDate(d.getDate()+days);
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  function addYears(s, anos){
+    var d = parseISO(s);
+    d.setFullYear(d.getFullYear()+anos);
     return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
   }
   function diffDays(a, b){ // a - b, em dias
@@ -4869,6 +4893,7 @@
       '</div>' +
       '<div class="queue-actions">' +
         '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button>' +
+        '<button class="btn btn-sm" data-abrir-renovar="'+esc(c.id)+'">Renovar</button>' +
         '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button>' +
       '</div>' +
     '</div>';
@@ -4906,6 +4931,87 @@
     }catch(e){
       alert('Não foi possível atualizar o status agora: ' + detalheErro(e));
     }
+  }
+
+  // Renovação "de verdade" (opção do CS Revenue/Admin/Especialista de
+  // Renovação): marcar "Renovado" sozinho (pelo seletor ou arrastando no
+  // Kanban) agora sempre passa por aqui — abre uma confirmação pedindo a
+  // nova data de vencimento antes de aplicar qualquer coisa, pra não
+  // avançar a licença sem querer ao reclassificar o funil.
+  var pendingRenovarClienteId = null;
+  function abrirRenovarCliente(clienteId){
+    var c = clientes.filter(function(x){ return x.id === clienteId; })[0];
+    if(!c) return;
+    pendingRenovarClienteId = clienteId;
+    document.getElementById('renovarClienteNome').textContent = c.nome;
+    document.getElementById('renovarVencimentoAtual').textContent = fmtDate(c.vencimento);
+    document.getElementById('renovarNovaData').value = c.vencimento ? addYears(c.vencimento, 1) : '';
+    document.getElementById('renovarError').classList.remove('show');
+    openOverlay('overlayRenovarCliente');
+    // Reconstrói o funil/filas a partir do estado real — desfaz qualquer
+    // alteração otimista do <select>/Kanban que tenha disparado esta
+    // confirmação (a mudança de verdade só acontece ao confirmar o modal).
+    renderRenovacao();
+  }
+
+  async function confirmarRenovacaoCliente(){
+    var c = clientes.filter(function(x){ return x.id === pendingRenovarClienteId; })[0];
+    var errEl = document.getElementById('renovarError');
+    errEl.classList.remove('show');
+    if(!c){ closeOverlay('overlayRenovarCliente'); return; }
+    var novaData = document.getElementById('renovarNovaData').value;
+    if(!novaData){
+      errEl.textContent = 'Informe a nova data de vencimento da licença.';
+      errEl.classList.add('show');
+      return;
+    }
+    var btn = document.getElementById('btnConfirmarRenovacao');
+    btn.disabled = true;
+    try{
+      await renovarClienteComNovaData(c.id, novaData);
+      closeOverlay('overlayRenovarCliente');
+    }catch(e){
+      errEl.textContent = 'Não foi possível renovar o cliente agora: ' + detalheErro(e);
+      errEl.classList.add('show');
+    }
+    btn.disabled = false;
+  }
+
+  // Marca o ciclo atual como Renovado (igual mudarStatusRenovacao) E, na
+  // mesma ação, avança o vencimento da licença do cliente — o status fica
+  // gravado no ciclo ATUAL (id calculado a partir do vencimento ainda
+  // antigo); só depois o vencimento avança, o que abre sozinho um novo
+  // ciclo "Em aberto" pra esse cliente (ver comentário de renovacaoDocId()).
+  async function renovarClienteComNovaData(clienteId, novaData){
+    var c = clientes.filter(function(x){ return x.id === clienteId; })[0];
+    if(!c) throw new Error('Cliente não encontrado.');
+    var id = renovacaoDocId(c);
+    var atual = renovacoesData.filter(function(r){ return r.id === id; })[0];
+    var historico = (atual && atual.historicoStatus) ? atual.historicoStatus.slice() : [];
+    historico.push({ status: 'renovado', data: todayISO() });
+    var body = {
+      clienteId: c.id,
+      clienteNome: c.nome,
+      csm: c.csm || '',
+      status: 'renovado',
+      historicoStatus: historico,
+      valorNegociado: atual ? (atual.valorNegociado != null ? atual.valorNegociado : null) : null,
+      observacoes: atual ? (atual.observacoes || '') : '',
+      contratoAssinado: atual ? !!atual.contratoAssinado : false,
+      atualizadoEm: new Date().toISOString(),
+      atualizadoPor: currentUser ? currentUser.nome : ''
+    };
+    if(db && !offline){
+      await db.collection('renovacoes').doc(id).set(body);
+      await db.collection('clientes').doc(c.id).update({vencimento: novaData});
+    }else{
+      var idx = renovacoesData.findIndex(function(r){ return r.id === id; });
+      var rec = Object.assign({id:id}, body);
+      if(idx > -1) renovacoesData[idx] = rec; else renovacoesData.push(rec);
+      c.vencimento = novaData;
+      renderAll();
+    }
+    mostrarToastSucesso('Cliente renovado — vencimento atualizado para ' + fmtDate(novaData) + '.');
   }
 
   // Marca/desmarca "contrato assinado" — independente do status do funil
@@ -4987,6 +5093,7 @@
           RENOVACAO_STATUS_ORDEM.map(function(st){ return '<option value="'+st+'"'+(x.statusRenov===st?' selected':'')+'>'+esc(RENOVACAO_STATUS_LABEL[st])+'</option>'; }).join('') +
         '</select>' +
         '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button>' +
+        '<button class="btn btn-sm" data-abrir-renovar="'+esc(c.id)+'">Renovar</button>' +
         '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button>' +
       '</div>' +
     '</div>';
@@ -5078,6 +5185,7 @@
               RENOVACAO_STATUS_ORDEM.map(function(st2){ return '<option value="'+st2+'"'+(st===st2?' selected':'')+'>'+esc(RENOVACAO_STATUS_LABEL[st2])+'</option>'; }).join('') +
             '</select>' +
             '<button type="button" class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'" draggable="false" style="margin-top:6px; width:100%;">Registrar contato</button>' +
+            '<button type="button" class="btn btn-sm" data-abrir-renovar="'+esc(c.id)+'" draggable="false" style="margin-top:6px; width:100%;">Renovar</button>' +
           '</div>';
         }).join('') : '<div class="kanban-empty">Nenhum cliente.</div>') +
       '</div>';
@@ -5096,7 +5204,7 @@
         '<td>'+contratoChip(c)+'</td>' +
         '<td><span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span></td>' +
         '<td>'+healthPill(s.health)+'</td>' +
-        '<td style="white-space:nowrap;"><button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button> <button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button></td>' +
+        '<td style="white-space:nowrap;"><button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Registrar</button> <button class="btn btn-sm" data-abrir-renovar="'+esc(c.id)+'">Renovar</button> <button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Ver</button></td>' +
       '</tr>';
     }).join('') : '<tr><td colspan="10"><div class="empty-note">Nenhum cliente encontrado com os filtros atuais.</div></td></tr>';
   }
@@ -11324,6 +11432,7 @@
     document.getElementById('btnImportarRATrocarArquivo').addEventListener('click', function(){ goToImportStepRA(1); });
     document.getElementById('btnImportarRAConfirmar').addEventListener('click', executarImportacaoRA);
     document.getElementById('btnSalvarContato').addEventListener('click', salvarContato);
+    document.getElementById('btnConfirmarRenovacao').addEventListener('click', confirmarRenovacaoCliente);
     document.getElementById('coPlaybook').addEventListener('change', renderContatoPlaybookPreview);
     document.getElementById('coData').addEventListener('change', renderContatoPlaybookPreview);
     document.getElementById('btnNovoContatoHistorico').addEventListener('click', function(){
@@ -11711,6 +11820,8 @@
       }
       var openContato = e.target.closest('[data-open-contato]');
       if(openContato){ e.preventDefault(); abrirContato(openContato.getAttribute('data-open-contato')); return; }
+      var abrirRenovar = e.target.closest('[data-abrir-renovar]');
+      if(abrirRenovar){ e.preventDefault(); abrirRenovarCliente(abrirRenovar.getAttribute('data-abrir-renovar')); return; }
       var openHist = e.target.closest('[data-open-historico]');
       if(openHist){ e.preventDefault(); abrirHistorico(openHist.getAttribute('data-open-historico')); return; }
       var openEdit = e.target.closest('[data-open-editar]');
@@ -11792,7 +11903,14 @@
     document.body.addEventListener('change', function(e){
       var selStatus = e.target.closest('[data-mudar-status-renovacao]');
       if(selStatus){
-        mudarStatusRenovacao(selStatus.getAttribute('data-mudar-status-renovacao'), selStatus.value);
+        var clienteIdSelStatus = selStatus.getAttribute('data-mudar-status-renovacao');
+        if(selStatus.value === 'renovado'){
+          // "Renovado" sempre passa pela confirmação de renovação (que já
+          // pede a nova data de vencimento) — nunca só pelo seletor direto.
+          abrirRenovarCliente(clienteIdSelStatus);
+        }else{
+          mudarStatusRenovacao(clienteIdSelStatus, selStatus.value);
+        }
         return;
       }
       var selCurvaRenov = e.target.closest('#fRenovCurva');
@@ -11963,7 +12081,15 @@
         e.preventDefault();
         limparDestaquesDrag();
         var novoStatusRenov = colRenov.getAttribute('data-drop-renov');
-        if(novoStatusRenov !== info.origem) mudarStatusRenovacao(info.id, novoStatusRenov);
+        if(novoStatusRenov !== info.origem){
+          if(novoStatusRenov === 'renovado'){
+            // Idem ao seletor: soltar na coluna "Renovado" abre a
+            // confirmação com a nova data, em vez de aplicar direto.
+            abrirRenovarCliente(info.id);
+          }else{
+            mudarStatusRenovacao(info.id, novoStatusRenov);
+          }
+        }
         return;
       }
       var colRa = e.target.closest('[data-drop-ra]');
