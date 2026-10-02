@@ -580,11 +580,13 @@
   .role-pill-coord{ background:var(--warning-soft); color:var(--warning-ink); }
   .role-pill-renov{ background:var(--accent-soft); color:var(--accent); }
   .role-pill-treino{ background:var(--good-soft); color:var(--good-ink); }
+  .role-pill-csrevenue{ background:var(--critical-soft); color:var(--critical-ink); }
   .user-card .role-pill-admin{ background:rgba(255,255,255,0.2); color:#ffffff; }
   .user-card .role-pill-csm{ background:rgba(255,255,255,0.14); color:var(--sidebar-ink-muted); }
   .user-card .role-pill-coord{ background:rgba(255,255,255,0.18); color:#ffffff; }
   .user-card .role-pill-renov{ background:rgba(255,255,255,0.2); color:#ffffff; }
   .user-card .role-pill-treino{ background:rgba(255,255,255,0.2); color:#ffffff; }
+  .user-card .role-pill-csrevenue{ background:rgba(255,255,255,0.2); color:#ffffff; }
 
   .kanban-board{ display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; }
   .kanban-col{ flex:0 0 230px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; max-height:560px; overflow-y:auto; transition:background .15s ease, outline .15s ease; }
@@ -2212,7 +2214,7 @@
       <div class="field"><label for="uiNome">Nome</label><input id="uiNome" type="text" placeholder="Nome completo"></div>
       <div class="field-row">
         <div class="field"><label for="uiPerfil">Perfil de acesso</label>
-          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="renovacao">Especialista de renovação (ambiente próprio)</option><option value="treinamento">Analista de Treinamento (Treinamento + Onboarding + Agenda)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
+          <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="renovacao">Especialista de renovação (ambiente próprio)</option><option value="csrevenue">CS Revenue (renovação + antecipação, todos os clientes)</option><option value="treinamento">Analista de Treinamento (Treinamento + Onboarding + Agenda)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
         </div>
         <div class="field" id="uiCsmVinculadoWrap"><label for="uiCsmVinculado">Carteira vinculada</label><input id="uiCsmVinculado" type="text" placeholder="Nome do CSM na carteira" list="listaCsmsDatalist"></div>
       </div>
@@ -4991,7 +4993,7 @@
   }
 
   function renderRenovacao(){
-    if(!isAdmin() && !isRenovacao()) return;
+    if(!isAdmin() && !isRenovacao() && !isCsRevenue()) return;
     var filas = filasRenovacao();
     document.getElementById('renovStatVencendo').textContent = filas.vencendo.length;
     document.getElementById('renovStatAntecipacao').textContent = filas.antecipacao.length;
@@ -5017,6 +5019,13 @@
       : 'Nenhuma licença com valor cadastrado vencendo no mês seguinte.';
 
     var followUps = renovacaoFollowUps(filas);
+    // CS Revenue: "Follow-ups agendados" é uma lista pessoal — cada
+    // negociador só vê os follow-ups dos contatos que ele mesmo registrou
+    // (não os de outros CS Revenue nem os de CSMs). Admin/Especialista de
+    // renovação continuam vendo a lista completa.
+    if(isCsRevenue()){
+      followUps = followUps.filter(function(x){ return x.ultimoContato && x.ultimoContato.csm === currentUser.nome; });
+    }
     var followUpsEl = document.getElementById('renovFollowUps');
     followUpsEl.innerHTML = followUps.length ? followUps.map(renovFollowUpRowHtml).join('') : '<div class="empty-note">Nenhum follow-up combinado com cliente pendente — o próximo contato aparece aqui assim que for registrado em "Registrar".</div>';
 
@@ -5591,6 +5600,7 @@
   function isCoordenador(){ return !!(currentUser && currentUser.perfil === 'coordenador'); }
   function isRenovacao(){ return !!(currentUser && currentUser.perfil === 'renovacao'); }
   function isAnalistaTreinamento(){ return !!(currentUser && currentUser.perfil === 'treinamento'); }
+  function isCsRevenue(){ return !!(currentUser && currentUser.perfil === 'csrevenue'); }
   function meuCsmVinculado(){ return currentUser ? currentUser.csmVinculado : null; }
 
   function entrarComo(userId){
@@ -5785,6 +5795,7 @@
     var coord = isCoordenador();
     var renov = isRenovacao();
     var treino = isAnalistaTreinamento();
+    var csrev = isCsRevenue();
     document.querySelectorAll('[data-role-gate="admin"]').forEach(function(el){
       el.style.display = admin ? '' : 'none';
     });
@@ -5793,17 +5804,18 @@
     document.querySelectorAll('[data-role-gate="admin-coord"]').forEach(function(el){
       el.style.display = (admin || coord) ? '' : 'none';
     });
-    // "admin-renov": visível para admin OU especialista de renovação —
-    // hoje só o item de menu "Renovação".
+    // "admin-renov": visível para admin, especialista de renovação OU
+    // CS Revenue — hoje só o item de menu "Renovação".
     document.querySelectorAll('[data-role-gate="admin-renov"]').forEach(function(el){
-      el.style.display = (admin || renov) ? '' : 'none';
+      el.style.display = (admin || renov || csrev) ? '' : 'none';
     });
-    // O especialista de renovação tem um ambiente próprio e exclusivo
-    // (seção 3 da spec): nada de Painel do CSM, Carteira, Onboarding,
-    // Alertas, Playbooks ou Agenda no menu dele.
+    // O especialista de renovação e o CS Revenue têm um ambiente próprio
+    // e exclusivo (seção 3 da spec, estendido ao CS Revenue): nada de
+    // Painel do CSM, Carteira, Onboarding, Alertas, Playbooks ou Agenda
+    // no menu deles.
     ['painel','dashboard','carteira','onboarding','treinamento','alertas','playbooks','agenda','reclamacoesRA'].forEach(function(v){
       var el = document.querySelector('.nav-item[data-view="'+v+'"]');
-      if(el) el.style.display = renov ? 'none' : '';
+      if(el) el.style.display = (renov || csrev) ? 'none' : '';
     });
     // Analista de Treinamento: ambiente restrito a Treinamento, Onboarding
     // (que inclui a aba Reimplantação) e Agenda — sem Painel, Dashboard,
@@ -5832,15 +5844,15 @@
       treinamentoPerfilFiltro = currentUser.nome;
       treinamentoPerfilFiltroInicializado = true;
     }
-    if(renov){
+    if(renov || csrev){
       switchView('renovacao');
     }
     if(currentUser){
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
       document.getElementById('userCardNome').textContent = currentUser.nome;
       var roleEl = document.getElementById('userCardRole');
-      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : (renov ? 'Especialista de renovação' : (treino ? 'Analista de Treinamento' : 'CSM')));
-      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : (renov ? 'role-pill-renov' : (treino ? 'role-pill-treino' : 'role-pill-csm'))));
+      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : (renov ? 'Especialista de renovação' : (csrev ? 'CS Revenue' : (treino ? 'Analista de Treinamento' : 'CSM'))));
+      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : (renov ? 'role-pill-renov' : (csrev ? 'role-pill-csrevenue' : (treino ? 'role-pill-treino' : 'role-pill-csm')))));
     }
   }
 
@@ -5858,6 +5870,10 @@
     // Analista de Treinamento atende reuniões de treinamento de toda a
     // carteira, não de um CSM específico — sem restrição de escopo.
     if(isAnalistaTreinamento()) return null;
+    // CS Revenue negocia renovação/antecipação de qualquer cliente perto
+    // do vencimento, não só de uma carteira — sem restrição de escopo
+    // (mesmo raciocínio do Analista de Treinamento acima).
+    if(isCsRevenue()) return null;
     if(isCoordenador()) return (currentUser.equipeCsm||[]).slice();
     return [meuCsmVinculado() || currentUser.nome];
   }
@@ -6903,7 +6919,7 @@
     renderReclamacoesRA();
     if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); renderRenovacao(); backfillClientesCsmId(); }
     else if(isCoordenador()){ renderRelatorios(); }
-    else if(isRenovacao()){ renderRenovacao(); }
+    else if(isRenovacao() || isCsRevenue()){ renderRenovacao(); }
     var histOverlay = document.getElementById('overlayHistorico');
     if(histOverlay && histOverlay.classList.contains('open') && pendingPlanoClienteId){
       renderPlanosSecaoHistorico(pendingPlanoClienteId);
@@ -7041,12 +7057,13 @@
     // "admin-coord") — o guard antigo só liberava admin e por isso
     // mandava o Coordenador de volta pro Painel ao clicar em Relatórios.
     if(view === 'relatorios' && !isAdmin() && !isCoordenador()) view = 'painel';
-    if(view === 'renovacao' && !isAdmin() && !isRenovacao()) view = 'painel';
-    // Especialista de renovação: ambiente próprio e exclusivo — sem
-    // Painel do CSM, Onboarding, Playbooks, Agenda etc. (seção 3 da spec).
-    // Reforçado aqui (e não só escondendo os botões do menu) para que a
-    // restrição valha mesmo se algo tentar navegar direto por fora do menu.
-    if(isRenovacao() && view !== 'renovacao') view = 'renovacao';
+    if(view === 'renovacao' && !isAdmin() && !isRenovacao() && !isCsRevenue()) view = 'painel';
+    // Especialista de renovação e CS Revenue: ambiente próprio e exclusivo —
+    // sem Painel do CSM, Onboarding, Playbooks, Agenda etc. (seção 3 da spec,
+    // estendido ao CS Revenue). Reforçado aqui (e não só escondendo os
+    // botões do menu) para que a restrição valha mesmo se algo tentar
+    // navegar direto por fora do menu.
+    if((isRenovacao() || isCsRevenue()) && view !== 'renovacao') view = 'renovacao';
     // Analista de Treinamento: só Treinamento, Onboarding (+ Reimplantação,
     // que é uma aba dentro de Onboarding) e Agenda — reforçado aqui pelo
     // mesmo motivo do bloco acima.
@@ -8614,7 +8631,7 @@
   function repDocId(clienteId){ return 'reimplantacao-'+clienteId; }
   function repCliente(id){return clientes.filter(function(c){return c.id===id;})[0] || null;}
   function repPodeVer(clienteId, csm){
-    if(!currentUser || isRenovacao()) return false;
+    if(!currentUser || isRenovacao() || isCsRevenue()) return false;
     var c=repCliente(clienteId);
     return noEscopo(c ? c.csm : csm,escopoVisivelCsmNomes());
   }
@@ -10823,10 +10840,11 @@
       var eh = u.perfil === 'admin';
       var ehCoord = u.perfil === 'coordenador';
       var ehRenov = u.perfil === 'renovacao';
+      var ehCsRev = u.perfil === 'csrevenue';
       var ehTreino = u.perfil === 'treinamento';
-      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : (ehTreino ? 'role-pill-treino' : 'role-pill-csm')));
-      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : (ehTreino ? 'Analista de Treinamento' : 'CSM')));
-      return {eh:eh, ehCoord:ehCoord, ehRenov:ehRenov, ehTreino:ehTreino, roleCls:roleCls, roleLbl:roleLbl};
+      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : (ehCsRev ? 'role-pill-csrevenue' : (ehTreino ? 'role-pill-treino' : 'role-pill-csm'))));
+      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : (ehCsRev ? 'CS Revenue' : (ehTreino ? 'Analista de Treinamento' : 'CSM'))));
+      return {eh:eh, ehCoord:ehCoord, ehRenov:ehRenov, ehCsRev:ehCsRev, ehTreino:ehTreino, roleCls:roleCls, roleLbl:roleLbl};
     }
 
     var bodyAtivos = document.getElementById('tabelaUsuarios');
@@ -10838,8 +10856,9 @@
         var carteiraTxt = r.eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
           (r.ehCoord ? 'Equipe: ' + ((u.equipeCsm&&u.equipeCsm.length) ? esc(u.equipeCsm.join(', ')) : '<span class="ct" style="color:var(--muted);">nenhum CSM ainda</span>') :
           (r.ehRenov ? '<span class="ct" style="color:var(--muted);">Ambiente de renovação</span>' :
+          (r.ehCsRev ? '<span class="ct" style="color:var(--muted);">Renovação — todos os clientes</span>' :
           (r.ehTreino ? '<span class="ct" style="color:var(--muted);">Treinamento (Onboarding + Reimplantação)</span>' :
-          esc(u.csmVinculado||u.nome))));
+          esc(u.csmVinculado||u.nome)))));
         return '<tr>' +
           '<td><div class="cell-client"><span class="gate-avatar">'+esc(initials(u.nome))+'</span><div class="nm">'+esc(u.nome)+(u.id===currentUserId?' <span class="ct">(você)</span>':'')+'</div></div></td>' +
           '<td><span class="role-pill '+r.roleCls+'">'+r.roleLbl+'</span></td>' +
