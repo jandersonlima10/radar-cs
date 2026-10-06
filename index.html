@@ -587,6 +587,10 @@
   .user-card .role-pill-renov{ background:rgba(255,255,255,0.2); color:#ffffff; }
   .user-card .role-pill-treino{ background:rgba(255,255,255,0.2); color:#ffffff; }
   .user-card .role-pill-csrevenue{ background:rgba(255,255,255,0.2); color:#ffffff; }
+  /* Indicativo de acesso admin extra (flag) em cima de um perfil não-admin:
+     um contorno sutil por cima da cor do perfil original, sem trocar a cor base. */
+  .role-pill-admin-extra{ outline:1.5px solid var(--accent-strong); outline-offset:1px; }
+  .user-card .role-pill-admin-extra{ outline-color:#ffffff; }
 
   .kanban-board{ display:flex; gap:12px; overflow-x:auto; padding-bottom:6px; }
   .kanban-col{ flex:0 0 230px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:8px; max-height:560px; overflow-y:auto; transition:background .15s ease, outline .15s ease; }
@@ -2284,6 +2288,10 @@
           <select id="uiPerfil"><option value="csm">CSM (só a própria carteira)</option><option value="coordenador">Coordenador (carteira de uma equipe)</option><option value="renovacao">Especialista de renovação (ambiente próprio)</option><option value="csrevenue">CS Revenue (renovação + antecipação, todos os clientes)</option><option value="treinamento">Analista de Treinamento (Treinamento + Onboarding + Agenda)</option><option value="admin">Admin (carteira + relatórios de todos)</option></select>
         </div>
         <div class="field" id="uiCsmVinculadoWrap"><label for="uiCsmVinculado">Carteira vinculada</label><input id="uiCsmVinculado" type="text" placeholder="Nome do CSM na carteira" list="listaCsmsDatalist"></div>
+      </div>
+      <div class="field" id="uiAcessoAdminWrap" style="display:none;">
+        <label style="display:flex; align-items:center; gap:7px; cursor:pointer;"><input id="uiAcessoAdmin" type="checkbox" style="width:auto;"> Acesso admin</label>
+        <div class="hint" style="margin-top:2px;">Dá acesso completo de administrador (Configurações, Relatórios, todos os clientes) mantendo o perfil original da pessoa.</div>
       </div>
       <div class="field" id="uiEquipeWrap" style="display:none;">
         <label>CSMs desta equipe</label>
@@ -5857,11 +5865,22 @@
       try{ localStorage.removeItem('radarcs.userId'); }catch(e){}
     }
   }
-  function isAdmin(){ return !!(currentUser && currentUser.perfil === 'admin'); }
+  // "acessoAdmin" é um flag independente do perfil (seção de evolução:
+  // qualquer perfil cadastrado pode ganhar acesso admin extra, sem precisar
+  // virar literalmente perfil "admin" e perder a identidade/escopo do
+  // perfil original) — isAdmin() já cobre as duas formas de ser admin, e
+  // como quase todo o resto do app decide o que é "admin" chamando
+  // isAdmin(), isso já propaga pra visibilidade de dados, Configurações,
+  // Relatórios etc. sem precisar tocar em cada um desses pontos.
+  function isAdmin(){ return !!(currentUser && (currentUser.perfil === 'admin' || currentUser.acessoAdmin)); }
   function isCoordenador(){ return !!(currentUser && currentUser.perfil === 'coordenador'); }
   function isRenovacao(){ return !!(currentUser && currentUser.perfil === 'renovacao'); }
   function isAnalistaTreinamento(){ return !!(currentUser && currentUser.perfil === 'treinamento'); }
   function isCsRevenue(){ return !!(currentUser && currentUser.perfil === 'csrevenue'); }
+  // true só quando o acesso admin veio do FLAG (perfil original não é
+  // "admin") — usado apenas pra mostrar o indicativo "· Admin" ao lado do
+  // perfil original, sem confundir com quem já é admin "de verdade".
+  function acessoAdminExtra(){ return !!(currentUser && currentUser.perfil !== 'admin' && currentUser.acessoAdmin); }
   function meuCsmVinculado(){ return currentUser ? currentUser.csmVinculado : null; }
 
   function entrarComo(userId){
@@ -6076,14 +6095,14 @@
     // no menu deles.
     ['painel','dashboard','carteira','onboarding','treinamento','alertas','playbooks','agenda','reclamacoesRA'].forEach(function(v){
       var el = document.querySelector('.nav-item[data-view="'+v+'"]');
-      if(el) el.style.display = (renov || csrev) ? 'none' : '';
+      if(el) el.style.display = ((renov || csrev) && !admin) ? 'none' : '';
     });
     // Analista de Treinamento: ambiente restrito a Treinamento, Onboarding
     // (que inclui a aba Reimplantação) e Agenda — sem Painel, Dashboard,
     // Carteira, Alertas, Playbooks ou Reclamações RA no menu dela.
     ['painel','dashboard','carteira','alertas','playbooks','reclamacoesRA'].forEach(function(v){
       var el = document.querySelector('.nav-item[data-view="'+v+'"]');
-      if(el && treino) el.style.display = 'none';
+      if(el && treino && !admin) el.style.display = 'none';
     });
     if(!admin){
       var activeView = document.querySelector('.view.active');
@@ -6105,15 +6124,20 @@
       treinamentoPerfilFiltro = currentUser.nome;
       treinamentoPerfilFiltroInicializado = true;
     }
-    if(renov || csrev){
+    if((renov || csrev) && !admin){
       switchView('renovacao');
     }
     if(currentUser){
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
       document.getElementById('userCardNome').textContent = currentUser.nome;
       var roleEl = document.getElementById('userCardRole');
-      roleEl.textContent = admin ? 'Administrador' : (coord ? 'Coordenador' : (renov ? 'Especialista de renovação' : (csrev ? 'CS Revenue' : (treino ? 'Analista de Treinamento' : 'CSM'))));
-      roleEl.className = 'role-pill ' + (admin ? 'role-pill-admin' : (coord ? 'role-pill-coord' : (renov ? 'role-pill-renov' : (csrev ? 'role-pill-csrevenue' : (treino ? 'role-pill-treino' : 'role-pill-csm')))));
+      // Perfil "de verdade" é admin -> só "Administrador". Já quem ganhou
+      // acesso admin pelo FLAG continua mostrando o perfil original (não
+      // perde a identidade), só com um indicativo "· Admin" ao lado.
+      var baseLabel = currentUser.perfil === 'admin' ? 'Administrador' : (coord ? 'Coordenador' : (renov ? 'Especialista de renovação' : (csrev ? 'CS Revenue' : (treino ? 'Analista de Treinamento' : 'CSM'))));
+      var baseClasse = currentUser.perfil === 'admin' ? 'role-pill-admin' : (coord ? 'role-pill-coord' : (renov ? 'role-pill-renov' : (csrev ? 'role-pill-csrevenue' : (treino ? 'role-pill-treino' : 'role-pill-csm'))));
+      roleEl.textContent = baseLabel + (acessoAdminExtra() ? ' · Admin' : '');
+      roleEl.className = 'role-pill ' + baseClasse + (acessoAdminExtra() ? ' role-pill-admin-extra' : '');
     }
   }
 
@@ -7378,11 +7402,11 @@
     // estendido ao CS Revenue). Reforçado aqui (e não só escondendo os
     // botões do menu) para que a restrição valha mesmo se algo tentar
     // navegar direto por fora do menu.
-    if((isRenovacao() || isCsRevenue()) && view !== 'renovacao') view = 'renovacao';
+    if((isRenovacao() || isCsRevenue()) && !isAdmin() && view !== 'renovacao') view = 'renovacao';
     // Analista de Treinamento: só Treinamento, Onboarding (+ Reimplantação,
     // que é uma aba dentro de Onboarding) e Agenda — reforçado aqui pelo
     // mesmo motivo do bloco acima.
-    if(isAnalistaTreinamento() && ['treinamento','onboarding','agenda'].indexOf(view) === -1) view = 'treinamento';
+    if(isAnalistaTreinamento() && !isAdmin() && ['treinamento','onboarding','agenda'].indexOf(view) === -1) view = 'treinamento';
     document.querySelectorAll('.nav-item[data-view]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-view')===view); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
   }
@@ -11216,9 +11240,12 @@
       var ehRenov = u.perfil === 'renovacao';
       var ehCsRev = u.perfil === 'csrevenue';
       var ehTreino = u.perfil === 'treinamento';
-      var roleCls = eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : (ehCsRev ? 'role-pill-csrevenue' : (ehTreino ? 'role-pill-treino' : 'role-pill-csm'))));
-      var roleLbl = eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : (ehCsRev ? 'CS Revenue' : (ehTreino ? 'Analista de Treinamento' : 'CSM'))));
-      return {eh:eh, ehCoord:ehCoord, ehRenov:ehRenov, ehCsRev:ehCsRev, ehTreino:ehTreino, roleCls:roleCls, roleLbl:roleLbl};
+      // Acesso admin pelo FLAG (perfil original não é "admin"): mantém o
+      // pill/label do perfil original, só acrescenta o indicativo "· Admin".
+      var ehAdminExtra = !eh && !!u.acessoAdmin;
+      var roleCls = (eh ? 'role-pill-admin' : (ehCoord ? 'role-pill-coord' : (ehRenov ? 'role-pill-renov' : (ehCsRev ? 'role-pill-csrevenue' : (ehTreino ? 'role-pill-treino' : 'role-pill-csm'))))) + (ehAdminExtra ? ' role-pill-admin-extra' : '');
+      var roleLbl = (eh ? 'Admin' : (ehCoord ? 'Coordenador' : (ehRenov ? 'Renovação' : (ehCsRev ? 'CS Revenue' : (ehTreino ? 'Analista de Treinamento' : 'CSM'))))) + (ehAdminExtra ? ' · Admin' : '');
+      return {eh:eh, ehCoord:ehCoord, ehRenov:ehRenov, ehCsRev:ehCsRev, ehTreino:ehTreino, ehAdminExtra:ehAdminExtra, roleCls:roleCls, roleLbl:roleLbl};
     }
 
     var bodyAtivos = document.getElementById('tabelaUsuarios');
@@ -11227,7 +11254,7 @@
     }else{
       bodyAtivos.innerHTML = ativos.slice().sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); }).map(function(u){
         var r = roleInfo(u);
-        var carteiraTxt = r.eh ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
+        var carteiraTxt = (r.eh || r.ehAdminExtra) ? '<span class="ct" style="color:var(--muted);">Todas</span>' :
           (r.ehCoord ? 'Equipe: ' + ((u.equipeCsm&&u.equipeCsm.length) ? esc(u.equipeCsm.join(', ')) : '<span class="ct" style="color:var(--muted);">nenhum CSM ainda</span>') :
           (r.ehRenov ? '<span class="ct" style="color:var(--muted);">Ambiente de renovação</span>' :
           (r.ehCsRev ? '<span class="ct" style="color:var(--muted);">Renovação — todos os clientes</span>' :
@@ -11296,6 +11323,9 @@
     document.getElementById('uiCsmVinculadoWrap').style.display = (perfil === 'csm') ? '' : 'none';
     document.getElementById('uiEquipeWrap').style.display = (perfil === 'coordenador') ? '' : 'none';
     if(perfil === 'coordenador') renderUiEquipePicker(equipeAtual||[]);
+    // "Acesso admin" é redundante pra quem já é perfil "admin" de verdade —
+    // escondido nesse caso (não faz sentido marcar o flag em cima do que já é).
+    document.getElementById('uiAcessoAdminWrap').style.display = (perfil === 'admin') ? 'none' : '';
   }
 
   function abrirNovoUsuario(){
@@ -11305,6 +11335,7 @@
     document.getElementById('uiNome').value = '';
     document.getElementById('uiPerfil').value = 'csm';
     document.getElementById('uiCsmVinculado').value = '';
+    document.getElementById('uiAcessoAdmin').checked = false;
     atualizarVisibilidadeCamposUsuario([]);
     document.getElementById('uiEmailWrap').style.display = online ? '' : 'none';
     document.getElementById('uiEmail').value = '';
@@ -11328,6 +11359,7 @@
     document.getElementById('uiNome').value = u.nome||'';
     document.getElementById('uiPerfil').value = u.perfil||'csm';
     document.getElementById('uiCsmVinculado').value = u.csmVinculado||'';
+    document.getElementById('uiAcessoAdmin').checked = !!u.acessoAdmin;
     atualizarVisibilidadeCamposUsuario(u.equipeCsm||[]);
     document.getElementById('uiEmailWrap').style.display = online ? '' : 'none';
     document.getElementById('uiEmail').value = u.email||'';
@@ -11397,6 +11429,7 @@
     var nome = document.getElementById('uiNome').value.trim();
     var perfil = document.getElementById('uiPerfil').value;
     var csmVinculado = document.getElementById('uiCsmVinculado').value.trim() || (perfil==='csm' ? nome : null);
+    var acessoAdmin = perfil !== 'admin' && document.getElementById('uiAcessoAdmin').checked;
     var email = document.getElementById('uiEmail').value.trim();
     var senha = document.getElementById('uiSenha').value;
     var senha2 = document.getElementById('uiSenhaConfirm').value;
@@ -11417,7 +11450,7 @@
         if(resp.error) throw resp.error;
         if(!resp.data || !resp.data.user){ throw new Error('Não foi possível criar a conta.'); }
         var uid = resp.data.user.id;
-        var body = {nome: nome, email: email, perfil: perfil, csmVinculado: perfil==='csm' ? csmVinculado : null, equipeCsm: perfil==='coordenador' ? equipeCsmSelecionadaAtual() : null};
+        var body = {nome: nome, email: email, perfil: perfil, csmVinculado: perfil==='csm' ? csmVinculado : null, equipeCsm: perfil==='coordenador' ? equipeCsmSelecionadaAtual() : null, acessoAdmin: acessoAdmin};
         await db.collection('usuarios').doc(uid).set(body);
         closeOverlay('overlayUsuario');
         mostrarToastSucesso('Usuário criado com sucesso.');
@@ -11449,7 +11482,7 @@
     }
 
     var id = pendingUsuarioEditId || slugify(nome);
-    var body = {nome: nome, perfil: perfil, csmVinculado: perfil==='csm' ? csmVinculado : null, equipeCsm: perfil==='coordenador' ? equipeCsmSelecionadaAtual() : null};
+    var body = {nome: nome, perfil: perfil, csmVinculado: perfil==='csm' ? csmVinculado : null, equipeCsm: perfil==='coordenador' ? equipeCsmSelecionadaAtual() : null, acessoAdmin: acessoAdmin};
     // Se o id gerado (slug do nome) coincidir com o de um usuário excluído
     // antes — mesmo nome —, criar "novo" aqui precisa reativar o registro,
     // senão a pessoa ficaria com uma conta que parece nova mas continua
