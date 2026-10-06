@@ -2250,7 +2250,7 @@
       <button class="icon-btn" data-close="overlayRenovarCliente" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
-      <p class="hint">Vencimento atual: <strong id="renovarVencimentoAtual"></strong>. Ao confirmar, o status deste ciclo passa para "Renovado" e o vencimento da licença é atualizado para a data abaixo.</p>
+      <p class="hint">Vencimento atual: <strong id="renovarVencimentoAtual"></strong>. Ao confirmar, o status deste ciclo passa para "Renovado". Se o contrato já estiver assinado, o vencimento da licença é atualizado para a data abaixo na hora; se não, a data fica guardada e só é aplicada quando o contrato for marcado como assinado.</p>
       <div class="field"><label for="renovarNovaData">Novo vencimento da licença</label><input id="renovarNovaData" type="date"></div>
       <div class="gate-error" id="renovarError"></div>
     </div>
@@ -4825,6 +4825,12 @@
     var r = renovacaoDoCliente(cliente);
     return (r && r.status) || 'aberto';
   }
+  // Nova data de vencimento já definida na renovação mas ainda NÃO aplicada
+  // à licença (contrato não assinado). Só vale enquanto o status é Renovado.
+  function renovDataPendente(cliente){
+    var r = renovacaoDoCliente(cliente);
+    return (r && r.status === 'renovado' && !r.contratoAssinado && r.novaDataVencimento) ? r.novaDataVencimento : '';
+  }
   function contratoAssinado(cliente){
     var r = renovacaoDoCliente(cliente);
     return !!(r && r.contratoAssinado);
@@ -5112,6 +5118,8 @@
       valorNegociado: atual ? (atual.valorNegociado != null ? atual.valorNegociado : null) : null,
       observacoes: atual ? (atual.observacoes || '') : '',
       contratoAssinado: atual ? !!atual.contratoAssinado : false,
+      // Sair de "Renovado" descarta a data de vencimento que estava pendente.
+      novaDataVencimento: (novoStatus === 'renovado' && atual) ? (atual.novaDataVencimento || null) : null,
       atualizadoEm: new Date().toISOString(),
       atualizadoPor: currentUser ? currentUser.nome : ''
     };
@@ -5142,7 +5150,8 @@
     pendingRenovarClienteId = clienteId;
     document.getElementById('renovarClienteNome').textContent = c.nome;
     document.getElementById('renovarVencimentoAtual').textContent = fmtDate(c.vencimento);
-    document.getElementById('renovarNovaData').value = c.vencimento ? addYears(c.vencimento, 1) : '';
+    var pendenteAbrir = renovDataPendente(c);
+    document.getElementById('renovarNovaData').value = pendenteAbrir || (c.vencimento ? addYears(c.vencimento, 1) : '');
     document.getElementById('renovarError').classList.remove('show');
     openOverlay('overlayRenovarCliente');
     // Reconstrói o funil/filas a partir do estado real — desfaz qualquer
@@ -5185,7 +5194,11 @@
     var id = renovacaoDocId(c);
     var atual = renovacoesData.filter(function(r){ return r.id === id; })[0];
     var historico = (atual && atual.historicoStatus) ? atual.historicoStatus.slice() : [];
-    historico.push({ status: 'renovado', data: todayISO() });
+    if(!(atual && atual.status === 'renovado')) historico.push({ status: 'renovado', data: todayISO() });
+    // Contrato ainda não assinado: a data da licença NÃO muda agora — a nova
+    // data fica guardada no ciclo e só é aplicada quando o contrato for
+    // marcado como assinado (ver toggleContratoAssinado()).
+    var assinado = atual ? !!atual.contratoAssinado : false;
     var body = {
       clienteId: c.id,
       clienteNome: c.nome,
@@ -5194,21 +5207,24 @@
       historicoStatus: historico,
       valorNegociado: atual ? (atual.valorNegociado != null ? atual.valorNegociado : null) : null,
       observacoes: atual ? (atual.observacoes || '') : '',
-      contratoAssinado: atual ? !!atual.contratoAssinado : false,
+      contratoAssinado: assinado,
+      novaDataVencimento: assinado ? null : novaData,
       atualizadoEm: new Date().toISOString(),
       atualizadoPor: currentUser ? currentUser.nome : ''
     };
     if(db && !offline){
       await db.collection('renovacoes').doc(id).set(body);
-      await db.collection('clientes').doc(c.id).update({vencimento: novaData});
+      if(assinado) await db.collection('clientes').doc(c.id).update({vencimento: novaData});
     }else{
       var idx = renovacoesData.findIndex(function(r){ return r.id === id; });
       var rec = Object.assign({id:id}, body);
       if(idx > -1) renovacoesData[idx] = rec; else renovacoesData.push(rec);
-      c.vencimento = novaData;
+      if(assinado) c.vencimento = novaData;
       renderAll();
     }
-    mostrarToastSucesso('Cliente renovado — vencimento atualizado para ' + fmtDate(novaData) + '.');
+    mostrarToastSucesso(assinado
+      ? 'Cliente renovado — vencimento atualizado para ' + fmtDate(novaData) + '.'
+      : 'Renovação registrada — o vencimento será atualizado para ' + fmtDate(novaData) + ' quando o contrato for marcado como assinado.');
   }
 
   // Marca/desmarca "contrato assinado" — independente do status do funil
@@ -5228,20 +5244,27 @@
       valorNegociado: atual ? (atual.valorNegociado != null ? atual.valorNegociado : null) : null,
       observacoes: atual ? (atual.observacoes || '') : '',
       contratoAssinado: novoValor,
+      novaDataVencimento: atual ? (atual.novaDataVencimento || null) : null,
       atualizadoEm: new Date().toISOString(),
       atualizadoPor: currentUser ? currentUser.nome : ''
     };
+    // Renovado aguardando assinatura: ao assinar, aplica a data de
+    // vencimento que ficou guardada na renovação (e limpa a pendência).
+    var aplicarData = (novoValor && body.status === 'renovado' && body.novaDataVencimento) ? body.novaDataVencimento : '';
+    if(aplicarData) body.novaDataVencimento = null;
     try{
       if(db && !offline){
         await db.collection('renovacoes').doc(id).set(body);
+        if(aplicarData) await db.collection('clientes').doc(c.id).update({vencimento: aplicarData});
       }else{
         var idx = renovacoesData.findIndex(function(r){ return r.id === id; });
         var rec = Object.assign({id:id}, body);
         if(idx > -1) renovacoesData[idx] = rec; else renovacoesData.push(rec);
+        if(aplicarData) c.vencimento = aplicarData;
         renderAll();
       }
       mostrarToastSucesso(novoValor
-        ? (body.status === 'renovado' ? 'Contrato assinado — renovação concluída, o cliente saiu do funil.' : 'Contrato marcado como assinado.')
+        ? (aplicarData ? 'Contrato assinado — vencimento da licença atualizado para '+fmtDate(aplicarData)+'.' : (body.status === 'renovado' ? 'Contrato assinado — renovação concluída, o cliente saiu do funil.' : 'Contrato marcado como assinado.'))
         : 'Contrato marcado como não assinado.');
     }catch(e){
       alert('Não foi possível atualizar agora: ' + detalheErro(e));
@@ -5437,6 +5460,7 @@
           return '<div class="kanban-card" draggable="true" data-drag-renov="'+esc(c.id)+'">' +
             '<div class="nm"><span class="curva curva-'+c.curva+'">'+c.curva+'</span> <a href="#" data-open-historico="'+esc(c.id)+'" draggable="false" style="color:inherit; text-decoration:none;">'+esc(c.nome)+'</a> <span class="id">'+esc(c.id)+'</span></div>' +
             '<div class="hint">'+esc(c.csm||'—')+' · '+fmtDate(c.vencimento)+(c.arr?' · '+fmtMoney(c.arr):'')+'</div>' +
+            (renovDataPendente(c) ? '<div class="hint" style="color:var(--warning-ink);">Nova data '+fmtDate(renovDataPendente(c))+' — aguarda assinatura do contrato</div>' : '') +
             healthPill(s.health) +
             contratoChip(c) +
             '<select data-mudar-status-renovacao="'+esc(c.id)+'" draggable="false">' +
@@ -5457,7 +5481,7 @@
         '<td><a href="#" data-open-historico="'+esc(c.id)+'" style="color:inherit;">'+esc(c.nome)+'</a></td>' +
         '<td><span class="curva curva-'+c.curva+'">'+c.curva+'</span></td>' +
         '<td>'+esc(c.csm||'—')+'</td>' +
-        '<td class="num">'+fmtDate(c.vencimento)+'</td>' +
+        '<td class="num">'+fmtDate(c.vencimento)+(renovDataPendente(c) ? '<div class="hint" style="color:var(--warning-ink);">Nova: '+fmtDate(renovDataPendente(c))+' (aguarda assinatura)</div>' : '')+'</td>' +
         '<td class="num">'+(c.arr?fmtMoney(c.arr):'—')+'</td>' +
         '<td>'+contratoChip(c)+'</td>' +
         '<td><span class="pill '+(RENOVACAO_STATUS_COR[x.statusRenov]||'pill-neutral')+'"><span class="pill-dot"></span>'+(RENOVACAO_STATUS_LABEL[x.statusRenov]||x.statusRenov)+'</span></td>' +
