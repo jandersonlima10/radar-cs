@@ -1476,6 +1476,19 @@
             </div>
           </div>
           <div class="card-body pad-top">
+            <div id="renovPeriodoBar" style="display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px; margin-bottom:10px;">
+              <div id="renovPeriodoAtalhos" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+              <div>
+                <label for="fRenovDe" class="hint">Vencimento de</label>
+                <input type="date" id="fRenovDe" aria-label="Vencimento a partir de">
+              </div>
+              <div>
+                <label for="fRenovAte" class="hint">até</label>
+                <input type="date" id="fRenovAte" aria-label="Vencimento até">
+              </div>
+              <button type="button" class="btn btn-sm" id="btnRenovPeriodoLimpar">Limpar período</button>
+            </div>
+            <div class="hint" id="renovPeriodoHint" style="margin-bottom:8px;"></div>
             <div id="renovFunilKanban" class="kanban-board"></div>
             <div id="renovFunilLista" class="table-wrap" style="display:none;">
               <table>
@@ -4822,6 +4835,54 @@
   var renovFiltroCurva = 'todas';
   var renovFiltroBusca = '';
   var renovFiltroRisco = 'todos';
+  // Filtro por data de vencimento / período (só no funil Quadro+Lista).
+  // 'todos' = sem filtro de período (população padrão do ciclo atual:
+  // vencidas + este mês + mês seguinte). Qualquer outro valor troca a
+  // população do funil por TODOS os clientes ativos com vencimento dentro
+  // do intervalo — inclusive fora do ciclo atual.
+  var renovFiltroPeriodo = 'todos';
+  var renovFiltroDe = '';
+  var renovFiltroAte = '';
+  var RENOV_PERIODO_ATALHOS = [
+    {key:'vencidas', label:'Vencidas'},
+    {key:'este_mes', label:'Este mês'},
+    {key:'mes_seguinte', label:'Mês seguinte'},
+    {key:'prox30', label:'Próx. 30 dias'},
+    {key:'prox60', label:'Próx. 60 dias'},
+    {key:'prox90', label:'Próx. 90 dias'}
+  ];
+  // Intervalo {de, ate} (ISO, qualquer ponta pode ser '') do filtro atual,
+  // ou null quando não há filtro de período.
+  function renovPeriodoIntervalo(){
+    var hoje = todayISO();
+    var p = hoje.split('-'), ano = Number(p[0]), mes = Number(p[1]);
+    function fimDoMes(a, m){ return a + '-' + pad(m) + '-' + pad(new Date(a, m, 0).getDate()); }
+    switch(renovFiltroPeriodo){
+      case 'vencidas': return {de:'', ate:addDays(hoje, -1)};
+      case 'este_mes': return {de:ano+'-'+pad(mes)+'-01', ate:fimDoMes(ano, mes)};
+      case 'mes_seguinte':
+        var a2 = mes === 12 ? ano+1 : ano, m2 = mes === 12 ? 1 : mes+1;
+        return {de:a2+'-'+pad(m2)+'-01', ate:fimDoMes(a2, m2)};
+      case 'prox30': return {de:hoje, ate:addDays(hoje, 30)};
+      case 'prox60': return {de:hoje, ate:addDays(hoje, 60)};
+      case 'prox90': return {de:hoje, ate:addDays(hoje, 90)};
+      case 'custom': return (renovFiltroDe || renovFiltroAte) ? {de:renovFiltroDe, ate:renovFiltroAte} : null;
+    }
+    return null;
+  }
+  // Clientes ativos com vencimento dentro do intervalo, no mesmo formato
+  // de renovacaoElegiveis() (bucket null: pode estar fora do ciclo atual).
+  function renovacaoPorPeriodo(intervalo){
+    var out = [];
+    clientesAtivos().forEach(function(c){
+      if(!c.vencimento) return;
+      if(intervalo.de && c.vencimento < intervalo.de) return;
+      if(intervalo.ate && c.vencimento > intervalo.ate) return;
+      out.push({ cliente: c, bucket: null, statusRenov: statusRenovacao(c), stats: computeStats(c) });
+    });
+    out.sort(function(a,b){ return a.cliente.vencimento < b.cliente.vencimento ? -1 : (a.cliente.vencimento > b.cliente.vencimento ? 1 : 0); });
+    return out;
+  }
   // A fila "Antecipação (mês seguinte)" vem recolhida por padrão — a
   // "Recomendação de antecipação" (abaixo) já traz os casos prioritários
   // dela em destaque, então a lista bruta fica disponível sob demanda.
@@ -5179,7 +5240,9 @@
         if(idx > -1) renovacoesData[idx] = rec; else renovacoesData.push(rec);
         renderAll();
       }
-      mostrarToastSucesso(novoValor ? 'Contrato marcado como assinado.' : 'Contrato marcado como não assinado.');
+      mostrarToastSucesso(novoValor
+        ? (body.status === 'renovado' ? 'Contrato assinado — renovação concluída, o cliente saiu do funil.' : 'Contrato marcado como assinado.')
+        : 'Contrato marcado como não assinado.');
     }catch(e){
       alert('Não foi possível atualizar agora: ' + detalheErro(e));
     }
@@ -5306,7 +5369,41 @@
     // Renovado/Churn — eles aparecem nas colunas/linhas finais — e com os
     // filtros de pesquisa aplicados (ID/nome, curva, risco de churn —
     // compartilhados entre os dois modos de visualização).
-    var elig = renovacaoElegiveis();
+    var intervaloPeriodo = renovPeriodoIntervalo();
+    var elig;
+    var periodoInvalido = !!(intervaloPeriodo && intervaloPeriodo.de && intervaloPeriodo.ate && intervaloPeriodo.de > intervaloPeriodo.ate);
+    if(periodoInvalido) elig = [];
+    else elig = intervaloPeriodo ? renovacaoPorPeriodo(intervaloPeriodo) : renovacaoElegiveis();
+    // Renovado + contrato assinado = renovação concluída: sai do funil.
+    // Renovado SEM contrato assinado continua na coluna Renovado como
+    // pendência até o contrato ser assinado.
+    elig = elig.filter(function(x){ return !(x.statusRenov === 'renovado' && contratoAssinado(x.cliente)); });
+
+    // Barra de período: atalhos (destacando o ativo), campos De/Até
+    // espelhando o intervalo efetivo e linha de resumo.
+    var atalhosEl = document.getElementById('renovPeriodoAtalhos');
+    if(atalhosEl){
+      atalhosEl.innerHTML = '<button type="button" class="btn btn-sm'+(renovFiltroPeriodo==='todos'?' btn-accent':'')+'" data-renov-periodo="todos">Ciclo atual</button>' +
+        RENOV_PERIODO_ATALHOS.map(function(a){
+          return '<button type="button" class="btn btn-sm'+(renovFiltroPeriodo===a.key?' btn-accent':'')+'" data-renov-periodo="'+a.key+'">'+esc(a.label)+'</button>';
+        }).join('');
+    }
+    var deEl = document.getElementById('fRenovDe'), ateEl = document.getElementById('fRenovAte');
+    var deMostrar = intervaloPeriodo ? intervaloPeriodo.de : '', ateMostrar = intervaloPeriodo ? intervaloPeriodo.ate : '';
+    if(deEl && document.activeElement !== deEl && deEl.value !== deMostrar) deEl.value = deMostrar;
+    if(ateEl && document.activeElement !== ateEl && ateEl.value !== ateMostrar) ateEl.value = ateMostrar;
+    var periodoHintEl = document.getElementById('renovPeriodoHint');
+    if(periodoHintEl){
+      if(periodoInvalido){
+        periodoHintEl.textContent = 'A data inicial é maior que a final — ajuste o período.';
+      }else if(intervaloPeriodo){
+        var txtDe = intervaloPeriodo.de ? fmtDate(intervaloPeriodo.de) : 'o começo';
+        var txtAte = intervaloPeriodo.ate ? fmtDate(intervaloPeriodo.ate) : 'sem data final';
+        periodoHintEl.textContent = 'Mostrando clientes ativos com vencimento de '+txtDe+' até '+txtAte+' (inclui clientes fora do ciclo atual).';
+      }else{
+        periodoHintEl.textContent = 'Sem filtro de período: vencidas, este mês e mês seguinte.';
+      }
+    }
     if(renovFiltroCurva !== 'todas'){
       elig = elig.filter(function(x){ return x.cliente.curva === renovFiltroCurva; });
     }
@@ -12246,6 +12343,35 @@
         renderRenovacao();
       });
     }
+    // Período do funil: atalho (clique), De/Até livres (viram "custom") e limpar.
+    document.body.addEventListener('click', function(e){
+      var btnPeriodo = e.target.closest('[data-renov-periodo]');
+      if(btnPeriodo){
+        var chave = btnPeriodo.getAttribute('data-renov-periodo');
+        // Clicar no atalho já ativo desliga o filtro (volta pro ciclo atual).
+        renovFiltroPeriodo = (chave === renovFiltroPeriodo) ? 'todos' : chave;
+        renovFiltroDe = ''; renovFiltroAte = '';
+        renderRenovacao();
+        return;
+      }
+      if(e.target.closest('#btnRenovPeriodoLimpar')){
+        renovFiltroPeriodo = 'todos'; renovFiltroDe = ''; renovFiltroAte = '';
+        renderRenovacao();
+      }
+    });
+    ['fRenovDe','fRenovAte'].forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      el.addEventListener('change', function(){
+        // Editar um dos campos assume o intervalo efetivo atual (se vinha
+        // de um atalho) e passa pra modo livre.
+        var atual = renovPeriodoIntervalo() || {de:'', ate:''};
+        renovFiltroDe = id === 'fRenovDe' ? el.value : atual.de;
+        renovFiltroAte = id === 'fRenovAte' ? el.value : atual.ate;
+        renovFiltroPeriodo = (renovFiltroDe || renovFiltroAte) ? 'custom' : 'todos';
+        renderRenovacao();
+      });
+    });
 
     var btnRenovKanban = document.getElementById('btnRenovModoKanban');
     var btnRenovLista = document.getElementById('btnRenovModoLista');
