@@ -1430,13 +1430,14 @@
             <div class="value num" id="renovStatVencida">–</div>
           </div>
           <div class="stat">
-            <div class="label">Churn do mês</div>
+            <div class="label">Churn previsto do mês</div>
             <div class="value num" id="renovStatChurnMes">–</div>
             <div class="hint" id="renovChurnMesPctHint" style="margin-top:2px;"></div>
           </div>
           <div class="stat">
-            <div class="label">Churn do mês — % da receita</div>
+            <div class="label">Churn previsto do mês — % da receita</div>
             <div class="value num" id="renovStatChurnMesPct">–</div>
+            <div class="hint" id="renovChurnMesPctReceitaHint" style="margin-top:2px;"></div>
           </div>
           <div class="stat">
             <div class="label">Previsão de churn — mês seguinte</div>
@@ -4932,17 +4933,17 @@
     };
   }
 
-  // Clientes cujo status de renovação virou "Churn" dentro do mês
-  // calendário atual — olha a PRIMEIRA entrada de churn no histórico do
-  // ciclo (um ciclo pode ter voltado e saído de churn, mas o que importa
-  // aqui é quando ele entrou em churn pela primeira vez neste ciclo).
-  function renovacaoChurnDoMes(){
-    var mesAtual = monthKey(todayISO());
-    return renovacoesData.filter(function(r){
-      if(r.status !== 'churn') return false;
-      var entrada = (r.historicoStatus||[]).filter(function(h){ return h.status === 'churn'; })[0];
-      return entrada && entrada.data && monthKey(entrada.data) === mesAtual;
-    });
+  // Churn PREVISTO do mês: todos os clientes cujo ciclo vence neste mês e
+  // estão em risco de churn — risco Alto no último contato registrado (mesmo
+  // critério da previsão do mês seguinte) — mais quem já foi classificado
+  // como Churn. Quem já Renovou não entra, mesmo que o risco do último
+  // contato tenha ficado alto.
+  function renovChurnPrevistoCriterio(x){
+    if(x.statusRenov === 'churn') return true;
+    return x.statusRenov !== 'renovado' && x.stats.risco === 'alto';
+  }
+  function renovacaoChurnPrevistoMes(){
+    return renovacaoElegiveis().filter(function(x){ return x.bucket === 'vencendo' && renovChurnPrevistoCriterio(x); });
   }
 
   // Churn em percentual de receita: soma o valor de licença (arr) de TODOS
@@ -4950,8 +4951,8 @@
   // incluindo quem já renovou ou já deu churn — precisa estar no total pra
   // o percentual fazer sentido) e divide pela soma de quem, dentro desse
   // mesmo grupo, se encaixa no critério (classificado como churn, ou em
-  // risco alto na previsão). Mesmo método para "churn do mês" (critério:
-  // já é churn, com a entrada no histórico neste mês) e para "previsão do
+  // risco alto na previsão). Mesmo método para "churn previsto do mês" (critério:
+  // risco alto ou já classificado como churn) e para "previsão do
   // mês seguinte" (critério: risco alto no último contato) — só muda o
   // bucket (mês atual vs. mês seguinte) e o critério.
   function renovacaoPercentualReceita(bucket, criterioFn){
@@ -4969,14 +4970,8 @@
     };
   }
 
-  function renovacaoChurnDoMesReceita(){
-    var mesAtual = monthKey(todayISO());
-    return renovacaoPercentualReceita('vencendo', function(x){
-      if(x.statusRenov !== 'churn') return false;
-      var r = renovacaoDoCliente(x.cliente);
-      var entrada = r && (r.historicoStatus||[]).filter(function(h){ return h.status === 'churn'; })[0];
-      return !!(entrada && entrada.data && monthKey(entrada.data) === mesAtual);
-    });
+  function renovacaoChurnPrevistoMesReceita(){
+    return renovacaoPercentualReceita('vencendo', renovChurnPrevistoCriterio);
   }
 
   // Previsão de churn do mês seguinte: não existe modelo preditivo no
@@ -5328,11 +5323,14 @@
     document.getElementById('renovStatAntecipacao').textContent = filas.antecipacao.length;
     document.getElementById('renovStatVencida').textContent = filas.vencida.length;
 
-    var churnMes = renovacaoChurnDoMes();
+    var churnMes = renovacaoChurnPrevistoMes();
     document.getElementById('renovStatChurnMes').textContent = churnMes.length;
-    var churnReceita = renovacaoChurnDoMesReceita();
+    var churnReceita = renovacaoChurnPrevistoMesReceita();
     document.getElementById('renovStatChurnMesPct').textContent = churnReceita.pct.toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%';
-    document.getElementById('renovChurnMesPctHint').textContent = churnReceita.totalArr
+    document.getElementById('renovChurnMesPctHint').textContent = churnReceita.totalClientes
+      ? ('Em risco alto ou já em churn, dentre '+churnReceita.totalClientes+' que vencem este mês.')
+      : 'Nenhum cliente vence este mês.';
+    document.getElementById('renovChurnMesPctReceitaHint').textContent = churnReceita.totalArr
       ? ('Em receita: '+fmtMoney(churnReceita.criterioArr)+' de '+fmtMoney(churnReceita.totalArr)+' em licenças vencendo este mês.')
       : 'Nenhuma licença com valor cadastrado vencendo este mês.';
 
