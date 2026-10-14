@@ -929,6 +929,19 @@
           </div>
         </div>
 
+        <div class="grid-stats grid-stats-churn" style="grid-template-columns:repeat(2,1fr); margin-top:-8px;">
+          <div class="stat">
+            <div class="label">Churn previsto do mês</div>
+            <div class="value num" id="statChurnPrevisto">–</div>
+            <div class="sub" id="statChurnPrevistoSub"></div>
+          </div>
+          <div class="stat">
+            <div class="label">Churn real do mês</div>
+            <div class="value num" id="statChurnReal">–</div>
+            <div class="sub" id="statChurnRealSub"></div>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-head">
             <div>
@@ -1440,6 +1453,16 @@
             <div class="hint" id="renovChurnMesPctReceitaHint" style="margin-top:2px;"></div>
           </div>
           <div class="stat">
+            <div class="label">Churn real do mês</div>
+            <div class="value num" id="renovStatChurnReal">–</div>
+            <div class="hint" id="renovChurnRealHint" style="margin-top:2px;"></div>
+          </div>
+          <div class="stat">
+            <div class="label">Churn real do mês — % da receita</div>
+            <div class="value num" id="renovStatChurnRealPct">–</div>
+            <div class="hint" id="renovChurnRealPctHint" style="margin-top:2px;"></div>
+          </div>
+          <div class="stat">
             <div class="label">Previsão de churn — mês seguinte</div>
             <div class="value num" id="renovStatPrevisaoMesSeguinte">–</div>
             <div class="hint" id="renovPrevisaoMesSeguinteHint" style="margin-top:2px;"></div>
@@ -1620,10 +1643,34 @@
         </div>
 
         <div class="card">
+          <div class="card-head"><div><h2>Churn — previsto e real</h2><div class="hint">Mês fechado mostra o churn real; mês em andamento mostra o previsto e o real até agora; meses futuros mostram só o previsto. Previsto = licenças que vencem no mês e estão em risco alto ou já em churn; real = clientes que viraram Churn no mês.</div></div></div>
+          <div class="card-body pad-top">
+            <div class="grid-stats" style="grid-template-columns:repeat(2,1fr); margin-top:0;">
+              <div class="stat">
+                <div class="label">Churn previsto do período</div>
+                <div class="value num" id="relChurnPrevisto">–</div>
+                <div class="sub" id="relChurnPrevistoSub"></div>
+              </div>
+              <div class="stat">
+                <div class="label">Churn real do período</div>
+                <div class="value num" id="relChurnReal">–</div>
+                <div class="sub" id="relChurnRealSub"></div>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Mês</th><th>Situação</th><th class="num">Churn previsto</th><th class="num">Churn real</th></tr></thead>
+                <tbody id="tabelaChurnMeses"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="card-head"><div><h2>Consolidado por CSM</h2><div class="hint">Cobertura e saúde de cada carteira individual.</div></div></div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>CSM</th><th class="num">Clientes</th><th class="num">Contatos no mês</th><th class="num">Únicos no mês</th><th class="num">NPS médio</th><th class="num">Críticos</th></tr></thead>
+              <thead><tr><th>CSM</th><th class="num">Clientes</th><th class="num">Contatos no mês</th><th class="num">Únicos no mês</th><th class="num">NPS médio</th><th class="num">Críticos</th><th class="num">Churn previsto</th><th class="num">Churn real</th></tr></thead>
               <tbody id="tabelaCsm"></tbody>
             </table>
           </div>
@@ -4990,6 +5037,43 @@
     return renovacaoPercentualReceita('antecipacao', function(x){ return x.stats.risco === 'alto'; });
   }
 
+  // ---------------------------------------------------------------
+  // Churn previsto x churn real, por mês (Painel do CSM, Renovação e
+  // Relatórios). Mês "fechado" = já passou (anterior ao mês atual); o
+  // mês atual está em andamento e os posteriores são futuros.
+  //  - PREVISTO do mês M: clientes ativos com vencimento em M que já são
+  //    Churn ou estão com risco Alto no último contato (e ainda não
+  //    renovaram) — mesmo critério de renovChurnPrevistoCriterio().
+  //  - REAL do mês M: ciclos de renovação cujo status é Churn e cuja
+  //    PRIMEIRA entrada em Churn aconteceu em M (independe do vencimento).
+  // escopo: null (todos), nome de um CSM ou array de nomes (noEscopo()).
+  // ---------------------------------------------------------------
+  function mesFechado(mk){ return mk < monthKey(todayISO()); }
+  function mesFuturo(mk){ return mk > monthKey(todayISO()); }
+  function churnPrevistoDoMes(mk, escopo){
+    var qtd = 0, arr = 0, totalQtd = 0, totalArr = 0;
+    clientesAtivos().forEach(function(c){
+      if(!c.vencimento || monthKey(c.vencimento) !== mk || !noEscopo(c.csm, escopo)) return;
+      var valor = Number(c.arr) || 0;
+      totalQtd++; totalArr += valor;
+      if(renovChurnPrevistoCriterio({ statusRenov: statusRenovacao(c), stats: computeStats(c) })){ qtd++; arr += valor; }
+    });
+    return { qtd: qtd, arr: arr, totalQtd: totalQtd, totalArr: totalArr, pct: totalArr > 0 ? (arr / totalArr * 100) : 0 };
+  }
+  function churnRealDoMes(mk, escopo){
+    var qtd = 0, arr = 0;
+    renovacoesData.forEach(function(r){
+      if(r.status !== 'churn') return;
+      var entrada = (r.historicoStatus||[]).filter(function(h){ return h.status === 'churn'; })[0];
+      if(!entrada || !entrada.data || monthKey(entrada.data) !== mk) return;
+      var c = clientes.filter(function(x){ return x.id === r.clienteId; })[0];
+      if(!noEscopo(c ? c.csm : r.csm, escopo)) return;
+      qtd++; arr += c ? (Number(c.arr) || 0) : 0;
+    });
+    return { qtd: qtd, arr: arr };
+  }
+  function pctFmt(n){ return n.toLocaleString('pt-BR', {maximumFractionDigits:1}) + '%'; }
+
   // "Atividades comerciais agendadas" do negociador — o próximo contato
   // combinado no último contato registrado de cada cliente ainda pendente
   // no funil (Vencendo/Antecipação/Vencida). Pedido explicitamente como
@@ -5332,6 +5416,21 @@
       : 'Nenhum cliente vence este mês.';
     document.getElementById('renovChurnMesPctReceitaHint').textContent = churnReceita.totalArr
       ? ('Em receita: '+fmtMoney(churnReceita.criterioArr)+' de '+fmtMoney(churnReceita.totalArr)+' em licenças vencendo este mês.')
+      : 'Nenhuma licença com valor cadastrado vencendo este mês.';
+
+    // Churn REAL do mês: ciclos que viraram Churn neste mês (qualquer
+    // vencimento). O % usa como base a receita das licenças que vencem
+    // no mês, igual ao previsto acima.
+    var mesAtualChurn = monthKey(todayISO());
+    var churnRealMes = churnRealDoMes(mesAtualChurn, null);
+    var churnPrevMes = churnPrevistoDoMes(mesAtualChurn, null);
+    document.getElementById('renovStatChurnReal').textContent = churnRealMes.qtd;
+    document.getElementById('renovChurnRealHint').textContent = churnRealMes.qtd
+      ? ('Em receita: '+fmtMoney(churnRealMes.arr)+' perdidos neste mês.')
+      : 'Nenhum cliente virou Churn neste mês até agora.';
+    document.getElementById('renovStatChurnRealPct').textContent = churnPrevMes.totalArr ? pctFmt(churnRealMes.arr / churnPrevMes.totalArr * 100) : '0%';
+    document.getElementById('renovChurnRealPctHint').textContent = churnPrevMes.totalArr
+      ? ('Sobre '+fmtMoney(churnPrevMes.totalArr)+' em licenças vencendo este mês.')
       : 'Nenhuma licença com valor cadastrado vencendo este mês.';
 
     var previsao = renovacaoPrevisaoMesSeguinte(filas);
@@ -6535,6 +6634,19 @@
     document.getElementById('statNps').textContent = npsMedio == null ? '—' : npsMedio.toFixed(1);
     document.getElementById('statNpsSub').textContent = npsMes.length ? (npsMes.length+' respostas no mês') : 'sem respostas no mês';
 
+    // Churn do mês da carteira em foco: previsto (vencem no mês e estão em
+    // risco alto/já em churn) e real (viraram Churn neste mês).
+    var churnPrevPainel = churnPrevistoDoMes(mesAtual, escopoCsm);
+    var churnRealPainel = churnRealDoMes(mesAtual, escopoCsm);
+    document.getElementById('statChurnPrevisto').textContent = churnPrevPainel.qtd;
+    document.getElementById('statChurnPrevistoSub').textContent = churnPrevPainel.totalQtd
+      ? (fmtMoney(churnPrevPainel.arr)+' em risco · '+pctFmt(churnPrevPainel.pct)+' da receita que vence no mês')
+      : 'nenhuma licença vence no mês';
+    document.getElementById('statChurnReal').textContent = churnRealPainel.qtd;
+    document.getElementById('statChurnRealSub').textContent = churnRealPainel.qtd
+      ? (fmtMoney(churnRealPainel.arr)+' perdidos no mês')
+      : 'nenhum churn no mês até agora';
+
     // meta diária (opção A: fixa) + cobertura da carteira dentro do prazo
     var prazoCarteiraAtual = (prazoConfig && prazoConfig.dias) || PRAZO_CARTEIRA_PADRAO;
     var metaHojeEl = document.getElementById('painelMetaHoje');
@@ -7060,6 +7172,36 @@
       }).join('');
     }
 
+    // churn previsto x real (período = mês selecionado + visão mensal)
+    function churnCelula(qtd, arr){ return '<strong>'+qtd+'</strong> <span class="hint">· '+fmtMoney(arr)+'</span>'; }
+    var fechadoSel = mesFechado(mes), futuroSel = mesFuturo(mes);
+    var prevSel = churnPrevistoDoMes(mes, escopoEfetivo), realSel = churnRealDoMes(mes, escopoEfetivo);
+    document.getElementById('relChurnPrevisto').textContent = fechadoSel ? '—' : prevSel.qtd;
+    document.getElementById('relChurnPrevistoSub').textContent = fechadoSel
+      ? 'Mês fechado — vale o churn real'
+      : (fmtMoney(prevSel.arr)+' em risco · '+pctFmt(prevSel.pct)+' da receita que vence no mês');
+    document.getElementById('relChurnReal').textContent = futuroSel ? '—' : realSel.qtd;
+    document.getElementById('relChurnRealSub').textContent = futuroSel
+      ? 'Mês ainda não ocorreu'
+      : (fmtMoney(realSel.arr)+' perdidos'+(fechadoSel ? ' (mês consolidado)' : ' até agora'));
+    var refChurn = parseISO(mes+'-01');
+    var linhasChurn = [];
+    for(var k=-5;k<=6;k++){
+      var dm = new Date(refChurn.getFullYear(), refChurn.getMonth()+k, 1);
+      var mk = dm.getFullYear()+'-'+pad(dm.getMonth()+1);
+      var fech = mesFechado(mk), fut = mesFuturo(mk);
+      var rotulo = dm.toLocaleDateString('pt-BR',{month:'long', year:'numeric'});
+      var pv = fech ? null : churnPrevistoDoMes(mk, escopoEfetivo);
+      var rl = fut ? null : churnRealDoMes(mk, escopoEfetivo);
+      linhasChurn.push('<tr'+(mk===mes?' style="background:var(--surface-2); font-weight:600;"':'')+'>' +
+        '<td>'+esc(rotulo.charAt(0).toUpperCase()+rotulo.slice(1))+'</td>' +
+        '<td>'+(fech ? 'Fechado' : (fut ? 'Futuro' : 'Em andamento'))+'</td>' +
+        '<td class="num">'+(pv ? churnCelula(pv.qtd, pv.arr) : '—')+'</td>' +
+        '<td class="num">'+(rl ? churnCelula(rl.qtd, rl.arr) : '—')+'</td>' +
+      '</tr>');
+    }
+    document.getElementById('tabelaChurnMeses').innerHTML = linhasChurn.join('');
+
     // consolidado por csm
     var csmsTodos = csmList();
     var teamScope = escopoVisivelCsmNomes();
@@ -7071,6 +7213,7 @@
       var meusUnicos = {}; meusContatosMes.forEach(function(c){ meusUnicos[c.clienteId]=true; });
       var meuCriticos = meuStats.filter(function(s){ return s.health === 'critical'; });
       var meuNps = meusContatosMes.filter(function(c){ return c.nps!=null && c.nps!==''; }).map(function(c){ return Number(c.nps); });
+      var meuChurnPrev = churnPrevistoDoMes(mes, nome), meuChurnReal = churnRealDoMes(mes, nome);
       var meuNpsMedio = meuNps.length ? (meuNps.reduce(function(a,b){return a+b;},0)/meuNps.length).toFixed(1) : '—';
       return '<tr>' +
         '<td>'+esc(nome)+'</td>' +
@@ -7079,9 +7222,11 @@
         '<td class="num">'+Object.keys(meusUnicos).length+'</td>' +
         '<td class="num">'+meuNpsMedio+'</td>' +
         '<td class="num">'+(meuCriticos.length ? '<span class="pill pill-critical"><span class="pill-dot"></span>'+meuCriticos.length+'</span>' : '0')+'</td>' +
+        '<td class="num">'+(fechadoSel ? '—' : churnCelula(meuChurnPrev.qtd, meuChurnPrev.arr))+'</td>' +
+        '<td class="num">'+(futuroSel ? '—' : churnCelula(meuChurnReal.qtd, meuChurnReal.arr))+'</td>' +
       '</tr>';
     });
-    document.getElementById('tabelaCsm').innerHTML = linhasCsm.join('') || '<tr><td colspan="6"><div class="empty-note">Sem CSMs cadastrados.</div></td></tr>';
+    document.getElementById('tabelaCsm').innerHTML = linhasCsm.join('') || '<tr><td colspan="8"><div class="empty-note">Sem CSMs cadastrados.</div></td></tr>';
 
     // distribuição de risco
     var contagem = {baixo:0, medio:0, alto:0};
