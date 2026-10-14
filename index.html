@@ -499,6 +499,17 @@
   .onb-step.done{ background:var(--good-soft); color:var(--good-ink); border-color:transparent; }
   .onb-step.current{ background:var(--accent); color:var(--accent-ink); border-color:transparent; }
   .onb-step.viewing{ outline:2px solid var(--accent); outline-offset:1px; }
+  .onb-stepper{ display:flex; flex-wrap:wrap; gap:6px; }
+  .onb-roteiro{ display:flex; flex-wrap:wrap; align-items:center; gap:4px; }
+  .onb-roteiro .onb-seta{ color:var(--muted); font-size:12px; }
+  .onb-caso{ display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) minmax(0,1.4fr); gap:8px; align-items:center; padding:8px 0; border-top:1px solid var(--border); }
+  .onb-caso:first-of-type{ border-top:none; }
+  @media(max-width:900px){ .onb-caso{ grid-template-columns:1fr; } }
+  .onb-regua{ display:flex; flex-direction:column; gap:6px; }
+  .onb-regua-op{ display:flex; gap:8px; align-items:flex-start; border:1px solid var(--border); border-radius:10px; padding:9px 11px; cursor:pointer; font-size:12.5px; }
+  .onb-regua-op input{ width:auto; margin-top:3px; }
+  .onb-regua-op.sel{ border-color:var(--accent); background:var(--accent-soft); }
+  .onb-col-concluidas{ background:var(--surface-2); }
   .onb-kpi-row{ display:flex; gap:6px; margin-bottom:6px; align-items:center; }
   .onb-kpi-row input{ flex:1; }
   .onb-log-row{ font-size:12px; color:var(--ink-2); padding:5px 0; border-top:1px solid var(--border); }
@@ -1196,8 +1207,8 @@
     <section class="view" id="view-onboarding">
       <div class="topbar">
         <div>
-          <h1>Onboarding</h1>
-          <div class="subtitle">Acompanhamento das 5 fases do processo de onboarding, do cadastro ao Momento WOW.</div>
+          <h1>Onboarding — Implantação Intensiva (5 dias)</h1>
+          <div class="subtitle">Acompanhamento das etapas da Implantação Intensiva: D0, D1, migração, T1 a T3 e Validação, com o plano de rampagem depois.</div>
         </div>
         <div class="topbar-actions">
           <div>
@@ -1218,7 +1229,7 @@
           <button type="button" class="btn btn-accent" id="btnNovaReimplantacao" hidden>Nova reimplantação</button>
           <button class="btn btn-accent" id="btnIniciarOnboarding">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Iniciar onboarding
+            Iniciar implantação
           </button>
         </div>
       </div>
@@ -2674,7 +2685,7 @@
 <div class="overlay" id="overlayIniciarOnboarding">
   <div class="modal">
     <div class="modal-head">
-      <h3>Iniciar onboarding</h3>
+      <h3>Iniciar implantação</h3>
       <button class="icon-btn" data-close="overlayIniciarOnboarding" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="modal-body">
@@ -3139,20 +3150,99 @@
     {key:'sab', label:'Sábado', curto:'Sáb'}
   ];
   // ---------------------------------------------------------------
-  // Onboarding estruturado (5 fases) — ver Documentação do Processo de
-  // Onboarding de Novos Clientes (Mariana Rodrigues). Um documento por
-  // cliente na coleção "onboardings" (id = ID do cliente).
+  // Implantação Intensiva — 5 Dias (internamente: onboarding). Fluxo: D0
+  // (pré-implantação) → D1 (alinhamento e setup) → migração de dados → T1/T2/T3
+  // (treinamentos guiados de 40 min) → Validação (5 casos + régua de sucesso)
+  // → plano de rampagem. Um documento por cliente na coleção "onboardings"
+  // (id = ID do cliente). Registros do fluxo anterior de 5 fases são
+  // convertidos automaticamente em onboardingBackfillCampos().
   // ---------------------------------------------------------------
   var ONBOARDING_FASES = [
-    {key:'cadastro',   label:'Criar Registro'},
-    {key:'contato',    label:'Entrar em Contato'},
-    {key:'planejando', label:'Planejando o Sucesso'},
-    {key:'construindo',label:'Construindo o Sucesso'},
-    {key:'wow',        label:'Momento WOW'},
-    {key:'concluido',  label:'Concluído'}
+    {key:'d0',        label:'D0 · Pré-implantação'},
+    {key:'d1',        label:'D1 · Alinhamento e Setup'},
+    {key:'migracao',  label:'Migração de dados'},
+    {key:'t1',        label:'T1 · Agenda e pacientes'},
+    {key:'t2',        label:'T2 · Atendimento'},
+    {key:'t3',        label:'T3 · Financeiro'},
+    {key:'validacao', label:'Validação'},
+    {key:'concluido', label:'Concluído'}
   ];
   var ONBOARDING_FASE_LABEL = {};
   ONBOARDING_FASES.forEach(function(f){ ONBOARDING_FASE_LABEL[f.key] = f.label; });
+  // Quem conduz cada etapa (documento "Implantação Intensiva — 5 Dias").
+  var ONBOARDING_FASE_RESPONSAVEL = {
+    d0:'CSM', d1:'CSM', migracao:'CSM e área de Migração',
+    t1:'Analista de Treinamento', t2:'Analista de Treinamento', t3:'Analista de Treinamento',
+    validacao:'CSM'
+  };
+  var ONBOARDING_TREINO_FASES = ['t1','t2','t3'];
+  // Fluxo anterior (5 fases) → etapa equivalente do novo fluxo. "construindo"
+  // é refinada pelo nº de reuniões já realizadas (ver onboardingBackfillCampos).
+  var ONBOARDING_FASE_LEGADO = {cadastro:'d0', contato:'d1', planejando:'migracao', construindo:'t1', wow:'validacao', concluido:'concluido'};
+
+  // Formulário de Setup (6 blocos de dados que o cliente devolve ao CSM).
+  var ONBOARDING_SETUP_BLOCOS = [
+    {key:'logomarca', label:'Logomarca', desc:'PNG ou JPEG com fundo transparente, para prontuários, prescrições e recibos'},
+    {key:'colaboradores', label:'Colaboradores', desc:'Nome, CPF e e-mail de cada um, para criar os perfis de acesso'},
+    {key:'agendaProfissionais', label:'Agenda dos profissionais', desc:'Início, fim e intervalo de cada profissional clínico'},
+    {key:'contaBancaria', label:'Conta bancária', desc:'Banco, agência, conta, tipo e titular, para vincular os recebimentos'},
+    {key:'tarifasBancarias', label:'Tarifas bancárias', desc:'Boleto, crédito à vista e parcelado, débito, PIX e outras'},
+    {key:'caixaInterno', label:'Caixa interno', desc:'Se a clínica recebe em dinheiro e em cheque'}
+  ];
+  var ONBOARDING_D0_CHECKS = [
+    {key:'contexto', label:'Contexto da venda recebido do Comercial'},
+    {key:'formulario', label:'Formulário de Setup preenchido recebido do cliente'},
+    {key:'licenca', label:'Licença configurada com os dados do cliente'},
+    {key:'checklistVideo', label:'Checklist de Pré-Implantação e vídeo de configuração enviados'},
+    {key:'dispositivo', label:'Cliente orientado a participar de todas as reuniões por notebook ou tablet'}
+  ];
+  var ONBOARDING_D1_ALINHAMENTO = [
+    {key:'cenario', label:'Cenário da clínica entendido'},
+    {key:'processo', label:'Processo da implantação explicado'},
+    {key:'esforco', label:'Cliente consciente do esforço necessário'}
+  ];
+  var ONBOARDING_D1_SETUP = [
+    {key:'equipe', label:'Equipe'}, {key:'acessos', label:'Acessos'}, {key:'permissoes', label:'Permissões'},
+    {key:'conta', label:'Conta bancária'}, {key:'tarifas', label:'Tarifas'}, {key:'caixa', label:'Caixa'},
+    {key:'tabelaValores', label:'Tabela de valores'}
+  ];
+  // Treinamentos guiados (40 min, o cliente executa na plataforma em tempo real).
+  var ONBOARDING_TREINO = {
+    t1:{titulo:'T1 · Agenda e cadastro de pacientes', foco:'A recepção cadastra e agenda sozinha',
+      roteiro:['Cadastro do paciente','Agendamento','Confirmação','Encaixe e cancelamento','Fluxo do paciente (chegada e retorno)','Prontuário','Recebimento'],
+      objetivo:'O analista orienta e a recepção executa na plataforma, em tempo real, cada etapa: cadastra um paciente, agenda, confirma, faz um encaixe, um cancelamento e marca a chegada e o retorno.',
+      criterio:'A recepção cadastra pacientes e gerencia a agenda sem ajuda.'},
+    t2:{titulo:'T2 · Atendimento', foco:'Do atendimento à conclusão do procedimento',
+      roteiro:['Atendimento','Anamnese','Evolução','Anexos e prescrições','Planejamento','Orçamento','Tratamento','Conclusão do procedimento','Odontograma/periograma','Histórico'],
+      objetivo:'O analista orienta e o profissional executa o caso em tempo real: atende, registra anamnese e evolução, planeja, gera o orçamento e conclui o procedimento, passando por prescrições, anexos, odontograma/periograma e histórico.',
+      criterio:'O profissional conclui o caso sem ajuda e sabe onde consultar o histórico.'},
+    t3:{titulo:'T3 · Financeiro', foco:'Recebimento, pagamento e o reflexo no caixa',
+      roteiro:['Estrutura financeira','Recebimento','Contas a receber','Contas a pagar','Fechamento de caixa','Conciliação bancária','Fluxo de caixa'],
+      objetivo:'O analista orienta e o cliente executa em tempo real: recebe o orçamento aprovado no T2, registra um pagamento da clínica, fecha o caixa, faz a conciliação bancária e localiza o reflexo no fluxo de caixa.',
+      criterio:'O cliente recebe, paga, concilia e identifica onde cada movimentação aparece.'}
+  };
+  var ONBOARDING_VALIDACAO_CASOS = [
+    {key:'c1', area:'Recepção', situacao:'Paciente pediu consulta para amanhã: agende e confirme o horário'},
+    {key:'c2', area:'Atendimento', situacao:'O paciente chegou: registre o atendimento e faça a evolução'},
+    {key:'c3', area:'Orçamento', situacao:'O profissional planejou e precisa apresentar o orçamento ao paciente'},
+    {key:'c4', area:'Financeiro', situacao:'O paciente pagou: registre o recebimento e mostre onde ele aparece'},
+    {key:'c5', area:'Gestão', situacao:'O gestor quer saber como está o fluxo financeiro da clínica'}
+  ];
+  var ONBOARDING_VALIDACAO_RESULTADO = {sozinho:'Resolveu sozinho', com_ajuda:'Resolveu com ajuda', nao_resolveu:'Não resolveu'};
+  // Régua de sucesso: nível atribuído a cada implantação ao fim da Validação.
+  var ONBOARDING_REGUA = {
+    concluida:{label:'Concluída', chip:'c-good',
+      desc:'O cliente executa as principais rotinas sem auxílio.',
+      proximo:'Inicia o plano de rampagem com o CSM, para ampliar o uso: novos recursos e rotinas de gestão.'},
+    em_consolidacao:{label:'Em consolidação', chip:'c-warn',
+      desc:'Usa a plataforma, mas tem dificuldade em alguns processos.',
+      proximo:'Reforço pontual e plano de continuidade antes da transição. A rampagem começa com reforço nos processos com dificuldade apontados na Validação.'},
+    com_risco:{label:'Com risco', chip:'c-crit',
+      desc:'Não fez as configurações, não usa os processos ou depende demais do analista.',
+      proximo:'O CSM escala o caso e combina um plano de recuperação. A rampagem só começa depois dele.'}
+  };
+  // Prazo (em dias úteis) do cliente para devolver o Formulário de Setup e da área de Migração para entregar os dados migrados.
+  var ONBOARDING_PRAZO_DIAS_UTEIS = 2;
 
   // Especificação do Fluxo de Onboarding (Sandbox → Produção, 21/09/2026):
   // checklist de migração com 5 etapas fixas, em ordem — a ordem define qual
@@ -3174,25 +3264,14 @@
       .map(function(u){ return u.nome; })
       .sort(function(a,b){ return a.localeCompare(b,'pt-BR'); });
   }
-  // Reuniões fixas do conteúdo programático (Fase "Construindo o Sucesso") —
-  // título e objetivo pré-definidos; é possível cadastrar reuniões extras
-  // com título/objetivo livres além destas 3.
-  var ONBOARDING_REUNIOES_FIXAS = [
-    {titulo:'Conhecendo a plataforma e configurações iniciais', objetivo:'O cliente compreender a estrutura da plataforma e realizar as configurações básicas necessárias para iniciar a operação.'},
-    {titulo:'Recepção, Atendimento e recursos clínicos', objetivo:'A recepção da clínica conseguir realizar o fluxo de agendamento e consultar as informações do paciente no prontuário, e os profissionais realizarem o atendimento usando corretamente os recursos clínicos disponíveis.'},
-    {titulo:'Financeiro e recebimentos', objetivo:'O cliente compreender e executar corretamente as principais movimentações financeiras da clínica.'}
-  ];
+  // Reuniões fixas do fluxo: T1, T2 e T3 (treinamentos guiados de 40 min) —
+  // é possível cadastrar treinamentos extras (previstos no plano de rampagem).
+  var ONBOARDING_REUNIOES_FIXAS = ONBOARDING_TREINO_FASES.map(function(k){
+    return {titulo: ONBOARDING_TREINO[k].titulo, objetivo: ONBOARDING_TREINO[k].objetivo};
+  });
+  // Títulos do fluxo anterior — usados só para renomear reuniões já existentes.
+  var ONBOARDING_REUNIOES_TITULOS_LEGADOS = ['Conhecendo a plataforma e configurações iniciais', 'Recepção, Atendimento e recursos clínicos', 'Financeiro e recebimentos'];
   var ONBOARDING_CSAT_LABEL = {pendente:'Pendente', enviado:'Enviado', avaliado:'Avaliado'};
-  var ONBOARDING_CHECKLIST_CONFIGURACOES = [
-    {key:'cadastroDadosClinica', label:'Cadastro de Dados da Clínica'},
-    {key:'cadastroColaboradores', label:'Cadastro de Colaboradores'},
-    {key:'criacaoDadosAcesso', label:'Criação de Dados de Acesso'},
-    {key:'aberturaAgendaProfissionais', label:'Abertura de Agenda dos Profissionais'},
-    {key:'cadastroContaBancaria', label:'Cadastro de Conta Bancária'},
-    {key:'cadastroTarifasBancarias', label:'Cadastro de Tarifas Bancárias'},
-    {key:'cadastroCaixaInterno', label:'Cadastro de Caixa Interno'},
-    {key:'tabelaPrecos', label:'Tabela de Preços'}
-  ];
   function onboardingReuniaoVazia(fixa){
     return Object.assign({id: novoId('reu'), fixa: !!fixa, titulo:'', objetivo:'', data:null, horaInicio:null,
       analista:'', participantes:'', observacoes:'', csat:'pendente', validada:false, validadaEm:null,
@@ -3205,32 +3284,77 @@
     });
   }
 
-  function onboardingVazio(cliente){
+  // Soma n dias ÚTEIS (seg–sex) a uma data ISO. Feriados não são considerados.
+  function addDiasUteis(s, n){
+    var d = parseISO(s);
+    var passo = n >= 0 ? 1 : -1;
+    var resta = Math.abs(n);
+    while(resta > 0){
+      d.setDate(d.getDate() + passo);
+      var w = d.getDay();
+      if(w !== 0 && w !== 6) resta--;
+    }
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+
+  // Campos da Implantação Intensiva — usados tanto ao criar um onboarding
+  // novo quanto no backfill dos registros antigos (só preenche o que falta).
+  function onboardingCamposIntensiva(){
+    var setupBlocos = {}, d0Checks = {}, d1Checks = {}, d1SetupChecks = {}, casos = {};
+    ONBOARDING_SETUP_BLOCOS.forEach(function(b){ setupBlocos[b.key] = false; });
+    ONBOARDING_D0_CHECKS.forEach(function(b){ d0Checks[b.key] = false; });
+    ONBOARDING_D1_ALINHAMENTO.forEach(function(b){ d1Checks[b.key] = false; });
+    ONBOARDING_D1_SETUP.forEach(function(b){ d1SetupChecks[b.key] = false; });
+    ONBOARDING_VALIDACAO_CASOS.forEach(function(c){ casos[c.key] = {resultado:'', obs:''}; });
     return {
+      fluxoImplantacao: 'intensiva', vencimentoFase: null,
+      // D0 — contexto da venda, Formulário de Setup e Checklist de Pré-Implantação
+      ctxDor: '', ctxCombinado: '', setupFormEnviadoEm: null, setupFormRecebidoEm: null,
+      setupBlocos: setupBlocos, d0Checks: d0Checks, d0AlertaAcionado: false, d0AlertaMotivo: '',
+      // D1 — Alinhamento (20 min) + Setup (20 min)
+      d1Checks: d1Checks, d1SetupChecks: d1SetupChecks, d1SetupValidado: '', d1Pendencias: '', d1Participantes: '',
+      // Migração de dados (2 dias úteis a partir do recebimento)
+      migDadosRecebidosEm: null,
+      // T1–T3
+      treinoCriterio: {t1:'', t2:'', t3:''}, treinoDificuldades: {t1:'', t2:'', t3:''},
+      // Validação + Régua de sucesso
+      validacaoCasos: casos, validacaoTdi: '', validacaoTdiObs: '', validacaoContinuidade: '', reguaNivel: '',
+      // Plano de rampagem (depois da Validação)
+      rampagem: {objetivo:'', indicador:'', participantes:'', recuperacao:''},
+      avancosComPendencia: [], planoRampagemId: null
+    };
+  }
+  function onboardingPreencherPadroes(alvo, padroes){
+    Object.keys(padroes).forEach(function(k){
+      var p = padroes[k];
+      if(alvo[k] === undefined){ alvo[k] = JSON.parse(JSON.stringify(p === undefined ? null : p)); }
+      else if(p && typeof p === 'object' && !Array.isArray(p) && alvo[k] && typeof alvo[k] === 'object' && !Array.isArray(alvo[k])){
+        onboardingPreencherPadroes(alvo[k], p);
+      }
+    });
+  }
+
+  function onboardingVazio(cliente){
+    var hoje = todayISO();
+    var corpo = {
       clienteId: cliente.id, clienteNome: cliente.nome, csm: cliente.csm || '',
-      faseAtual: 'cadastro',
-      dataInicio: todayISO(), dataPrevistaFinalizacao: null,
-      // Fase 0/1 — Formulário inicial (persistente em todas as fases) + Criar Registro
+      faseAtual: 'd0',
+      // Data da contratação (base do prazo de 2 dias úteis do Formulário de Setup).
+      dataInicio: hoje, dataPrevistaFinalizacao: null,
       outrasUnidades: '', responsavelImplantacao: '', telefoneResponsavelImplantacao: '',
       observacoesCliente: '', responsavelClinica: cliente.contato || '', telefoneResponsavelClinica: cliente.telefone || '',
       migracaoDados: false, migChecks: {coletarDados:false, emMigracao:false, migracaoRealizada:false, correcaoSolicitada:false, correcaoRealizada:false},
-      // Fase 2 (Entrar em Contato)
-      vencimentoContato: null, observacoesContato: '', agendamentoAlinhamentoId: null,
-      // Fase 3 (Planejando o Sucesso)
-      vencimentoPlanejando: null, expectativaPlataforma: '', fluxoOperacional: '',
-      kpisAcompanhamento: [], migracaoAndamento: '', essenciaisObs: '', excedendoExpectativas: '',
-      // Fase 4 (Construindo o Sucesso)
-      proximaAnalise: null, reunioes: onboardingReunioesIniciais(),
-      evolucaoUsabilidade: [], evolucaoKpis: [],
-      // Fase 5 (Momento WOW — Finalização)
-      contatoDate: null, agendamentoFinalizacaoId: null,
-      observacoesReuniaoFinalizacao: '', notaProcessoOnboarding: '', notaTreinamentos: '',
+      agendamentoAlinhamentoId: null,
+      reunioes: onboardingReunioesIniciais(),
+      agendamentoFinalizacaoId: null, observacoesReuniaoFinalizacao: '',
       concluidoEm: null,
-      // Fase especial "Congelado"
       congelado: false, congeladoDe: null, congeladoData: null, congeladoVencimento: null,
       congeladoDiasRestantes: null, congeladoMotivo: '',
       atividadesConcluidas: {}
     };
+    Object.assign(corpo, onboardingCamposIntensiva());
+    corpo.vencimentoFase = addDiasUteis(hoje, ONBOARDING_PRAZO_DIAS_UTEIS);
+    return corpo;
   }
 
   function onboardingDoCliente(clienteId){
@@ -3280,30 +3404,15 @@
         correcaoSolicitada: false, correcaoRealizada: false
       };
     }
-    set('vencimentoContato', o.faseAtual==='contato' ? todayISO() : null);
-    set('observacoesContato', '');
     set('agendamentoAlinhamentoId', null);
-    set('vencimentoPlanejando', o.faseAtual==='planejando' ? todayISO() : null);
-    set('expectativaPlataforma', '');
-    set('fluxoOperacional', '');
-    set('kpisAcompanhamento', []);
-    set('migracaoAndamento', '');
-    set('essenciaisObs', o.observacaoRequisitosNaoImplantados || '');
-    set('excedendoExpectativas', '');
-    set('proximaAnalise', o.faseAtual==='construindo' ? todayISO() : null);
     if(!Array.isArray(o.reunioes)){
       o.reunioes = onboardingReunioesIniciais().map(function(r){
         r.validada = true; r.validadaEm = o.dataInicio || todayISO(); r.csat = 'avaliado';
         return r;
       });
     }
-    set('evolucaoUsabilidade', []);
-    set('evolucaoKpis', []);
-    set('contatoDate', o.faseAtual==='wow' ? todayISO() : null);
     set('agendamentoFinalizacaoId', null);
     set('observacoesReuniaoFinalizacao', o.funcionalidadesCombinadas || '');
-    set('notaProcessoOnboarding', '');
-    set('notaTreinamentos', '');
     set('congelado', false);
     set('congeladoDe', null);
     set('congeladoData', null);
@@ -3311,6 +3420,38 @@
     set('congeladoDiasRestantes', null);
     set('congeladoMotivo', '');
     set('atividadesConcluidas', {});
+
+    // Conversão do fluxo anterior (5 fases) para a Implantação Intensiva.
+    // Roda uma única vez por registro (marcado por fluxoImplantacao) e não
+    // apaga nada: só reposiciona a fase e renomeia as 3 reuniões fixas.
+    if(o.fluxoImplantacao !== 'intensiva'){
+      var antiga = o.faseAtual;
+      var vencLegado = ({contato:o.vencimentoContato, planejando:o.vencimentoPlanejando, construindo:o.proximaAnalise})[antiga] || null;
+      var refinar = function(f){
+        if(f !== 'construindo') return ONBOARDING_FASE_LEGADO[f] || f;
+        var fixas = (o.reunioes||[]).filter(function(r){ return r.fixa; });
+        var feitas = fixas.filter(function(r){ return r.validada || reuniaoJaPassou(r); }).length;
+        return feitas >= 2 ? 't3' : (feitas === 1 ? 't2' : 't1');
+      };
+      if(ONBOARDING_FASE_LEGADO[antiga]){
+        o.faseLegada = antiga;
+        o.faseAtual = refinar(antiga);
+      }else if(!o.faseAtual){
+        o.faseAtual = 'd0';
+      }
+      if(o.congeladoDe && ONBOARDING_FASE_LEGADO[o.congeladoDe]) o.congeladoDe = refinar(o.congeladoDe);
+      o.vencimentoFase = vencLegado;
+      var idxFixa = 0;
+      (o.reunioes||[]).forEach(function(r){
+        if(!r.fixa) return;
+        var novo = ONBOARDING_REUNIOES_FIXAS[idxFixa++];
+        if(novo && (!r.titulo || ONBOARDING_REUNIOES_TITULOS_LEGADOS.indexOf(r.titulo) > -1)){
+          r.titulo = novo.titulo; r.objetivo = novo.objetivo;
+        }
+      });
+      o.fluxoImplantacao = 'intensiva';
+    }
+    onboardingPreencherPadroes(o, onboardingCamposIntensiva());
     return o;
   }
 
@@ -3364,50 +3505,89 @@
     return Math.max(0, diffDays(todayISO(), dataISO));
   }
 
-  // Vencimento de fase ultrapassado — mesmo mecanismo de alerta que o
+  // ---- Implantação Intensiva: prazos, contagens e avisos ----
+  function onboardingContar(mapa, lista){
+    mapa = mapa || {};
+    return lista.filter(function(it){ return !!mapa[it.key]; }).length;
+  }
+  // N-ésima reunião fixa (T1, T2, T3) do onboarding.
+  function reuniaoDaFase(onb, fase){
+    var idx = ONBOARDING_TREINO_FASES.indexOf(fase);
+    if(idx < 0) return null;
+    var fixas = (onb.reunioes||[]).filter(function(r){ return r.fixa; });
+    return fixas[idx] || null;
+  }
+  // Prazo da migração: 2 dias úteis a partir do recebimento dos dados.
+  function onboardingPrazoMigracao(onb){
+    if(!onb || !onb.migracaoDados || !onb.migDadosRecebidosEm) return null;
+    return addDiasUteis(onb.migDadosRecebidosEm, ONBOARDING_PRAZO_DIAS_UTEIS);
+  }
+  // Vencimento padrão de cada etapa ao entrar nela (editável pelo CSM).
+  function onboardingAutoVencimentoFase(onb, fase){
+    var hoje = todayISO();
+    if(fase === 'd0') return addDiasUteis(onb.dataInicio || hoje, ONBOARDING_PRAZO_DIAS_UTEIS);
+    if(fase === 'migracao'){
+      if(!onb.migracaoDados) return null;
+      return onboardingPrazoMigracao(onb) || hoje;
+    }
+    if(fase === 't1'){
+      var prazo = onboardingPrazoMigracao(onb);
+      return (prazo && prazo > hoje) ? prazo : hoje;
+    }
+    if(fase === 'concluido') return null;
+    return hoje;
+  }
+  // Régua sugerida a partir dos 5 casos da Validação.
+  function onboardingReguaSugerida(onb){
+    var casos = onb.validacaoCasos || {};
+    var res = ONBOARDING_VALIDACAO_CASOS.map(function(c){ return (casos[c.key]||{}).resultado || ''; });
+    if(res.some(function(r){ return !r; })) return null;
+    if(res.some(function(r){ return r === 'nao_resolveu'; })) return 'com_risco';
+    if(res.every(function(r){ return r === 'sozinho'; })) return 'concluida';
+    return 'em_consolidacao';
+  }
+
+  // Vencimento de etapa ultrapassado — mesmo mecanismo de alerta que o
   // resto do sistema já usa (cliente.alertaAtivo), só que calculado, não
-  // gravado — assim que a fase avança ou o vencimento é adiado o alerta
-  // some sozinho. Não se aplica enquanto o cliente está Congelado (a fase
-  // fica pausada nesse estado).
+  // gravado — assim que a etapa avança ou o vencimento é adiado o alerta
+  // some sozinho. Não se aplica enquanto o cliente está Congelado.
   function onboardingFaseVencida(onboarding){
     if(!onboarding || onboarding.faseAtual === 'concluido' || onboarding.congelado) return null;
-    // Fase "Entrar em Contato": não conta como vencida se a reunião de
-    // alinhamento já estiver agendada, mesmo que o vencimento já tenha
-    // passado (regra do card do quadro nesta fase).
-    if(onboarding.faseAtual === 'contato' && agendamentoAlinhamento(onboarding.clienteId)) return null;
-    var campoVencimento = {
-      cadastro: null, contato: 'vencimentoContato', planejando: 'vencimentoPlanejando',
-      construindo: 'proximaAnalise', wow: null
-    }[onboarding.faseAtual];
-    if(!campoVencimento) return null;
-    var venc = onboarding[campoVencimento];
+    var fase = onboarding.faseAtual;
+    // Etapas já agendadas não contam como vencidas.
+    if(fase === 'd1' && agendamentoAlinhamento(onboarding.clienteId)) return null;
+    if(fase === 'validacao' && agendamentoFinalizacao(onboarding.clienteId)) return null;
+    if(ONBOARDING_TREINO_FASES.indexOf(fase) > -1){
+      var reu = reuniaoDaFase(onboarding, fase);
+      if(reu && reu.data) return null;
+    }
+    if(fase === 'migracao' && !onboarding.migracaoDados) return null;
+    var venc = onboarding.vencimentoFase;
     if(!venc) return null;
     if(diffDays(todayISO(), venc) > 0){
-      return 'Onboarding: fase "'+ONBOARDING_FASE_LABEL[onboarding.faseAtual]+'" vencida há '+diffDays(todayISO(), venc)+'d';
+      return 'Implantação: etapa "'+(ONBOARDING_FASE_LABEL[fase]||fase)+'" vencida há '+diffDays(todayISO(), venc)+'d';
     }
     return null;
   }
-
-  // Rótulos numerados das fases, usados no fallback genérico do Painel do
-  // dia (ex.: "Fase: 1. Planejando o Sucesso") — espelha a numeração que já
-  // aparece nos títulos das seções dentro do modal de onboarding.
-  var ONBOARDING_FASE_LABEL_NUMERADO = {
-    cadastro: 'Criar Registro', contato: 'Entrar em Contato',
-    planejando: '1. Planejando o Sucesso', construindo: '2. Construindo o Sucesso',
-    wow: '3. Momento WOW', concluido: 'Concluído'
-  };
-
-  function onboardingVencimentoFaseAtual(onb){
-    var campo = {cadastro:null, contato:'vencimentoContato', planejando:'vencimentoPlanejando', construindo:'proximaAnalise', wow:null}[onb.faseAtual];
-    return campo ? (onb[campo] || null) : null;
+  // Alerta de ATENÇÃO do D0: cliente não entregou o formulário/checklist
+  // antes do D1 — o CSM aciona o alerta e o D1 é remarcado.
+  function onboardingAlertaPreD1(onb){
+    if(!onb || onb.congelado || !onb.d0AlertaAcionado) return null;
+    if(onb.faseAtual !== 'd0' && onb.faseAtual !== 'd1') return null;
+    return 'Implantação: alerta de pré-implantação'+(onb.d0AlertaMotivo ? ' — '+onb.d0AlertaMotivo : ' (formulário/checklist pendentes)')+'; D1 a remarcar';
   }
 
-  // Cascata de prioridade do Painel do dia (spec páginas 27-28): para cada
-  // cliente em onboarding, a PRIMEIRA condição que bater nesta ordem é a
-  // única considerada (linhas 1/2 podem gerar várias atividades — uma por
-  // reunião — as demais geram no máximo uma). A atividade #9 (agendada
-  // manualmente na Fase "Planejando o Sucesso") já é coberta pelo mecanismo
-  // existente de planos de ação — não precisa de tratamento especial aqui.
+  // Rótulos usados no fallback genérico do Painel do dia.
+  var ONBOARDING_FASE_LABEL_NUMERADO = ONBOARDING_FASE_LABEL;
+
+  function onboardingVencimentoFaseAtual(onb){
+    return (onb && onb.vencimentoFase) || null;
+  }
+
+  // Cascata de prioridade do Painel do dia: para cada cliente em
+  // implantação, a PRIMEIRA condição que bater nesta ordem é a única
+  // considerada (linhas 1/2 podem gerar várias atividades — uma por
+  // reunião — as demais geram no máximo uma).
   function onboardingAtividadesCascata(onb){
     if(!onb || onb.tipo === 'reimplantacao') return [];
     function item(tipoLabel, titulo, subtitulo, prazo, hora){
@@ -3431,12 +3611,12 @@
         return item('Reagendar reunião', 'Reagendar: '+(r.titulo||'Reunião'), r.analista?('Solicitado por: '+r.analista):'', r.data, r.horaInicio);
       });
     }
-    // 3) Pós-venda — onboarding finalizado há 90+ dias (recriada sempre).
+    // 3) Pós-venda — implantação finalizada há 90+ dias (recriada sempre).
     if(onb.faseAtual === 'concluido'){
       if(onb.concluidoEm){
         var dataConcl = onb.concluidoEm.slice(0,10);
         if(diffDays(todayISO(), dataConcl) >= 90){
-          return [item('Pós-venda', 'Primeiro contato de pós-venda, 90 dias após finalizar o onboarding', 'Onboarding finalizado em '+fmtDate(dataConcl), addDays(dataConcl,90))];
+          return [item('Pós-venda', 'Primeiro contato de pós-venda, 90 dias após finalizar a implantação', 'Implantação finalizada em '+fmtDate(dataConcl), addDays(dataConcl,90))];
         }
       }
       return [];
@@ -3445,25 +3625,26 @@
     if(onb.congelado){
       return onb.congeladoVencimento ? [item('Congelado', 'Vencimento da fase Congelado: verificar o status do cliente', onb.congeladoMotivo||'', onb.congeladoVencimento)] : [];
     }
-    // 5) Reunião de alinhamento — Fase "Entrar em Contato" com reunião marcada.
-    if(onb.faseAtual === 'contato'){
-      var agAlin = agendamentoAlinhamento(onb.clienteId);
-      if(agAlin) return [item('Reunião de alinhamento', 'Reunião de alinhamento agendada', '', agAlin.data, agAlin.horaInicio)];
+    // 5) Alerta de pré-implantação (D0) acionado.
+    var alertaD0 = onboardingAlertaPreD1(onb);
+    if(alertaD0) return [item('Alerta de pré-implantação', 'Remarcar o D1: formulário/checklist pendentes', onb.d0AlertaMotivo||'', onb.vencimentoFase||null)];
+    // 6) D1 agendado.
+    if(onb.faseAtual === 'd0' || onb.faseAtual === 'd1'){
+      var agD1 = agendamentoAlinhamento(onb.clienteId);
+      if(agD1) return [item('D1 · Alinhamento e Setup', 'D1 agendado (Alinhamento e Setup)', '', agD1.data, agD1.horaInicio)];
     }
-    // 6) Reunião de finalização — Fase "Momento WOW" com reunião marcada.
-    if(onb.faseAtual === 'wow'){
-      var agFin = agendamentoFinalizacao(onb.clienteId);
-      if(agFin) return [item('Reunião de finalização', 'Reunião de finalização agendada', '', agFin.data, agFin.horaInicio)];
+    // 7) Validação agendada.
+    if(onb.faseAtual === 'validacao'){
+      var agVal = agendamentoFinalizacao(onb.clienteId);
+      if(agVal) return [item('Validação', 'Reunião de Validação agendada', '', agVal.data, agVal.horaInicio)];
     }
-    // 7) Análise de usabilidade — Fase "Construindo o Sucesso" com próxima análise marcada.
-    if(onb.faseAtual === 'construindo' && onb.proximaAnalise){
-      return [item('Análise de usabilidade', 'Registrar análise de usabilidade', '', onb.proximaAnalise)];
+    // 8) Treinamento (T1–T3) agendado.
+    if(ONBOARDING_TREINO_FASES.indexOf(onb.faseAtual) > -1){
+      var reuT = reuniaoDaFase(onb, onb.faseAtual);
+      if(reuT && reuT.data) return [item('Treinamento '+onb.faseAtual.toUpperCase(), 'Treinamento '+onb.faseAtual.toUpperCase()+' agendado', reuT.analista?('Analista: '+reuT.analista):'', reuT.data, reuT.horaInicio)];
     }
-    // 8) Onboarding (genérica) — fallback para as demais fases ativas.
-    if(onb.faseAtual === 'wow'){
-      return [item('Onboarding', 'Entrar em contato para marcar a reunião de finalização', '', onb.contatoDate||null)];
-    }
-    return [item('Onboarding', 'Fase: '+(ONBOARDING_FASE_LABEL_NUMERADO[onb.faseAtual]||onb.faseAtual), '', onboardingVencimentoFaseAtual(onb))];
+    // 9) Implantação (genérica) — fallback para as demais etapas ativas.
+    return [item('Implantação', 'Etapa: '+(ONBOARDING_FASE_LABEL[onb.faseAtual]||onb.faseAtual), '', onboardingVencimentoFaseAtual(onb))];
   }
 
   function disponibilidadePadrao(){
@@ -3560,7 +3741,9 @@
   var confirmarAcaoPendente = null;
   function confirmarAcao(mensagem, onConfirmar, opts){
     opts = opts || {};
-    document.getElementById('confirmarAcaoTexto').textContent = mensagem;
+    var elConfTxt = document.getElementById('confirmarAcaoTexto');
+    elConfTxt.textContent = mensagem;
+    elConfTxt.style.whiteSpace = 'pre-line';
     var btnOk = document.getElementById('btnConfirmarAcaoOk');
     btnOk.textContent = opts.textoConfirmar || 'Confirmar';
     var perigo = opts.perigo !== false;
@@ -3756,15 +3939,15 @@
       var novoAtId = novoId('at');
       var planoId = novoId('plano');
       db.collection('planosAcao').doc(planoId).set({
-        clienteId: c.id, clienteNome: c.nome, csm: c.csm, titulo: 'Onboarding — agendar alinhamento',
+        clienteId: c.id, clienteNome: c.nome, csm: c.csm, titulo: 'Implantação — agendar o D1 (Alinhamento e Setup)',
         origemPlaybookId: null, origemPlaybookNome: null, criadoEm: todayISO(), status: 'aberto',
         objetivoPrincipal: '', criteriosSucesso: [], diagnostico: {}, recuperacaoRisco: {},
         atividades: [{
-          id: novoAtId, titulo: 'Agendar alinhamento de onboarding com o cliente',
-          descricao: 'Gerado automaticamente: o cliente está em Implantação há mais de 48h sem um alinhamento agendado.',
+          id: novoAtId, titulo: 'Agendar o D1 (Alinhamento e Setup) com o cliente',
+          descricao: 'Gerado automaticamente: o cliente está em Implantação há mais de 48h sem o D1 agendado.',
           causa: 'Cliente de onboarding sem agendamento em 48h', responsavel: c.csm || '',
           prazo: todayISO(), proximoAcompanhamento: todayISO(), status: 'em_andamento', tags: [],
-          alertaAtivo: true, alertaMotivo: 'Cliente de onboarding sem alinhamento agendado em 48h.',
+          alertaAtivo: true, alertaMotivo: 'Cliente de onboarding sem D1 agendado em 48h.',
           concluidoEm: null, origemAuto: 'onboarding48h'
         }]
       }).catch(function(){ delete onboardingAtividadeCriadaPara[c.id]; });
@@ -4743,9 +4926,11 @@
     if(cliente.etapaAtual === 'risco') motivos.push({tipo:'crit', texto:'Etapa: Risco'});
     if(cliente.alertaAtivo) motivos.push({tipo:'crit', texto:'Alerta: '+(cliente.alertaMotivo||'sinalizado')});
     var semAgendamentoOnboarding = onboarding48hSemAgendamento(cliente);
-    if(semAgendamentoOnboarding) motivos.push({tipo:'crit', texto:'Onboarding: alinhamento não agendado (48h)'});
+    if(semAgendamentoOnboarding) motivos.push({tipo:'crit', texto:'Implantação: D1 (alinhamento e setup) não agendado (48h)'});
     var faseVencidaTexto = onboardingFaseVencida(onboardingDoCliente(cliente.id));
     if(faseVencidaTexto) motivos.push({tipo:'crit', texto:faseVencidaTexto});
+    var alertaPreD1Texto = onboardingAlertaPreD1(onboardingDoCliente(cliente.id));
+    if(alertaPreD1Texto) motivos.push({tipo:'crit', texto:alertaPreD1Texto});
 
     var CURVA_PESO = CURVA_PESO_ATUAL();
     var RISCO_PESO = RISCO_PESO_ATUAL();
@@ -9186,36 +9371,69 @@
   function resumoAlinhamentoOnboarding(onb){
     var ag = agendamentoAlinhamento(onb.clienteId);
     return ag
-      ? '<div class="meta"><span class="chip c-good">Alinhamento agendado</span></div><div class="meta">'+fmtDate(ag.data)+' às '+esc(ag.horaInicio)+(ag.horaFim?'–'+esc(ag.horaFim):'')+'</div>'
-      : '<div class="meta"><span class="chip c-warn">Alinhamento pendente</span></div>'+(onb.vencimentoContato?'<div class="meta">Prazo da fase: '+fmtDate(onb.vencimentoContato)+'</div>':'');
+      ? '<div class="meta"><span class="chip c-good">D1 agendado</span></div><div class="meta">'+fmtDate(ag.data)+' às '+esc(ag.horaInicio)+(ag.horaFim?'–'+esc(ag.horaFim):'')+'</div>'
+      : '<div class="meta"><span class="chip c-warn">D1 pendente</span></div>'+(onb.vencimentoFase?'<div class="meta">Prazo da etapa: '+fmtDate(onb.vencimentoFase)+'</div>':'');
   }
 
-  // Item 4 da spec de correções pós-implantação (23/09/2026): card da fase
-  // "Construindo o Sucesso" precisa mostrar quantas reuniões de treinamento
-  // já aconteceram — um selo por reunião (1, 2, 3, extras), marcado ✓
-  // quando já passou do horário agendado, mais o contador "X/Y". Mesma
-  // ideia do selo de alinhamento acima, mas pra lista de reuniões.
-  function resumoReunioesConstruindo(onb){
-    var reunioes = onb.reunioes || [];
-    if(!reunioes.length) return '';
-    var realizadas = reunioes.filter(reuniaoJaPassou).length;
-    var selos = reunioes.map(function(r, i){
-      var feita = reuniaoJaPassou(r);
-      var titulo = (r.titulo||('Reunião '+(i+1))) + (r.data ? (' — '+fmtDate(r.data)+(r.horaInicio?(' às '+r.horaInicio):'')) : ' — sem data marcada');
-      return '<span class="chip'+(feita?' c-good':'')+'" title="'+esc(titulo)+'">'+(feita?'✓ ':'')+(i+1)+'</span>';
-    }).join(' ');
-    return '<div class="meta" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center; margin-top:2px;">'+selos+'</div>' +
-      '<div class="meta">Reuniões: '+realizadas+'/'+reunioes.length+'</div>';
+  // Card do quadro: um selo por treinamento (T1–T3), marcado ✓ quando a
+  // reunião já passou do horário agendado.
+  function resumoTreinoOnboarding(onb){
+    var r = reuniaoDaFase(onb, onb.faseAtual);
+    var rotulo = onb.faseAtual.toUpperCase();
+    if(!r || !r.data) return '<div class="meta"><span class="chip c-warn">'+rotulo+' pendente</span></div>'+(onb.vencimentoFase?'<div class="meta">Prazo da etapa: '+fmtDate(onb.vencimentoFase)+'</div>':'');
+    var feita = reuniaoJaPassou(r);
+    return '<div class="meta"><span class="chip c-good">'+(feita?'✓ ':'')+rotulo+(feita?' realizado':' agendado')+'</span></div>' +
+      '<div class="meta">'+fmtDate(r.data)+(r.horaInicio?' às '+esc(r.horaInicio):'')+(r.analista?' · '+esc(r.analista):'')+'</div>';
   }
 
-  // Item 5 da spec de correções pós-implantação: card da fase "Momento WOW"
-  // precisa indicar se a reunião de finalização já está marcada — mesmo
-  // padrão visual do selo de alinhamento (item acima).
+  // Card da etapa Validação: reunião de Validação agendada ou pendente.
   function resumoFinalizacaoOnboarding(onb){
     var ag = agendamentoFinalizacao(onb.clienteId);
     return ag
-      ? '<div class="meta"><span class="chip c-good">Finalização agendada</span></div><div class="meta">'+fmtDate(ag.data)+' às '+esc(ag.horaInicio)+(ag.horaFim?'–'+esc(ag.horaFim):'')+'</div>'
-      : '<div class="meta"><span class="chip c-warn">Finalização pendente</span></div>';
+      ? '<div class="meta"><span class="chip c-good">Validação agendada</span></div><div class="meta">'+fmtDate(ag.data)+' às '+esc(ag.horaInicio)+(ag.horaFim?'–'+esc(ag.horaFim):'')+'</div>'
+      : '<div class="meta"><span class="chip c-warn">Validação pendente</span></div>';
+  }
+
+  // Resumo por etapa exibido no card do quadro.
+  function resumoFaseOnboarding(o){
+    var f = o.faseAtual;
+    if(f === 'd0'){
+      var nb = onboardingContar(o.setupBlocos, ONBOARDING_SETUP_BLOCOS);
+      var nc = onboardingContar(o.d0Checks, ONBOARDING_D0_CHECKS);
+      return '<div class="meta"><span class="chip '+(nb===ONBOARDING_SETUP_BLOCOS.length?'c-good':'c-warn')+'">Setup '+nb+'/'+ONBOARDING_SETUP_BLOCOS.length+'</span> ' +
+        '<span class="chip '+(nc===ONBOARDING_D0_CHECKS.length?'c-good':'c-warn')+'">Checklist '+nc+'/'+ONBOARDING_D0_CHECKS.length+'</span>' +
+        (o.d0AlertaAcionado ? ' <span class="chip c-crit" title="'+esc(o.d0AlertaMotivo||'')+'">Alerta de atenção</span>' : '') + '</div>' + resumoAlinhamentoOnboarding(o);
+    }
+    if(f === 'd1'){
+      var chipSetup = o.d1SetupValidado === 'sim' ? '<span class="chip c-good">Setup validado</span>'
+        : (o.d1SetupValidado === 'nao' ? '<span class="chip c-crit">Setup com pendências</span>' : '<span class="chip c-warn">Setup a validar</span>');
+      return resumoAlinhamentoOnboarding(o) + '<div class="meta">'+chipSetup+'</div>';
+    }
+    if(f === 'migracao'){
+      if(!o.migracaoDados) return '<div class="meta"><span class="chip">Sem migração</span></div>';
+      var pz = onboardingPrazoMigracao(o);
+      return '<div class="meta">'+(o.migDadosRecebidosEm ? ('Dados recebidos em '+fmtDate(o.migDadosRecebidosEm)) : '<span class="chip c-warn">Dados não recebidos</span>')+'</div>' +
+        (pz ? '<div class="meta'+(pz < todayISO() ? ' crit' : '')+'">Prazo da migração: '+fmtDate(pz)+'</div>' : '');
+    }
+    if(ONBOARDING_TREINO_FASES.indexOf(f) > -1) return resumoTreinoOnboarding(o);
+    if(f === 'validacao'){
+      var rg = ONBOARDING_REGUA[o.reguaNivel];
+      return resumoFinalizacaoOnboarding(o) + (rg ? '<div class="meta"><span class="chip '+rg.chip+'">Régua: '+rg.label+'</span></div>' : '');
+    }
+    return '';
+  }
+
+  // Card da coluna "Concluídas": régua de sucesso e situação do plano de rampagem.
+  function resumoConcluidaOnboarding(o){
+    var rg = ONBOARDING_REGUA[o.reguaNivel];
+    var r = o.rampagem || {};
+    var comRisco = o.reguaNivel === 'com_risco';
+    var pronto = comRisco ? !!String(r.recuperacao||'').trim() && !!String(r.objetivo||'').trim() : !!String(r.objetivo||'').trim();
+    var extras = (o.reunioes||[]).filter(function(x){ return !x.fixa; }).length;
+    return '<div class="meta">Concluída em '+(o.concluidoEm ? fmtDate(o.concluidoEm.slice(0,10)) : '—')+'</div>' +
+      '<div class="meta">'+(rg ? '<span class="chip '+rg.chip+'">'+rg.label+'</span>' : '<span class="chip">Sem nível na régua</span>')+
+      ' <span class="chip '+(pronto?'c-good':'c-warn')+'">'+(comRisco && !String(r.recuperacao||'').trim() ? 'Plano de recuperação a montar' : (pronto ? 'Rampagem definida' : 'Rampagem a montar'))+'</span></div>' +
+      (extras ? '<div class="meta">'+extras+' treinamento(s) previsto(s)</div>' : '');
   }
 
   // Reimplantação: documentos próprios na tabela existente de onboarding.
@@ -9477,7 +9695,7 @@
     // igual ao admin — o trabalho dela cruza todos os CSMs.
     var admin = isAdmin() || isAnalistaTreinamento();
     var meuNome = meuCsmVinculado() || currentUser.nome;
-    var lista = onboardings.filter(function(o){ return o.faseAtual !== 'concluido'; });
+    var lista = onboardings.slice();
     document.getElementById('onbFiltroCsmWrap').style.display = admin ? '' : 'none';
     if(admin){
       var nomes = {};
@@ -9514,6 +9732,11 @@
       var titulo = marcadas.length ? ('Etapas marcadas: '+marcadas.join(', ')) : 'Nenhuma etapa marcada ainda';
       return '<div class="meta"><span class="chip c-warn" title="'+esc(titulo)+'">Migração · '+esc(status)+'</span></div>';
     }
+    // Concluídas ficam numa coluna própria (plano de rampagem); só entram as
+    // que passaram pela régua do novo fluxo.
+    var concluidas = lista.filter(function(o){ return o.faseAtual === 'concluido' && !!o.reguaNivel; })
+      .sort(function(a,b){ return String(b.concluidoEm||'').localeCompare(String(a.concluidoEm||'')); });
+    lista = lista.filter(function(o){ return o.faseAtual !== 'concluido'; });
     var colunas = ONBOARDING_FASES.filter(function(f){ return f.key !== 'concluido'; });
     var htmlColunas = colunas.map(function(f){
       var doColuna = lista.filter(function(o){ return o.faseAtual === f.key && !o.congelado; });
@@ -9525,10 +9748,8 @@
           '<div class="nm">'+esc(o.clienteNome)+'</div>' +
           '<div class="meta">'+dias+'d nesta fase'+(admin?' · '+esc(o.csm||'Sem CSM'):'')+'</div>' +
           (vencidoTxt ? '<div class="meta crit">Fase vencida</div>' : '') +
-          (o.faseAtual === 'contato' ? resumoAlinhamentoOnboarding(o) : '') +
-          (o.faseAtual === 'construindo' ? resumoReunioesConstruindo(o) : '') +
-          (o.faseAtual === 'wow' ? resumoFinalizacaoOnboarding(o) : '') +
-          migracaoBadgeHtml(o) +
+          resumoFaseOnboarding(o) +
+          (o.faseAtual !== 'migracao' ? migracaoBadgeHtml(o) : '') +
         '</div>';
       }).join('') || '<div class="empty-note" style="padding:8px 0; font-size:12px;">Vazio</div>';
       return '<div class="onb-col" data-drop-onb="'+f.key+'"><div class="onb-col-head"><span>'+esc(f.label)+'</span><span class="cnt">'+doColuna.length+'</span></div>'+cards+'</div>';
@@ -9548,6 +9769,18 @@
           migracaoBadgeHtml(o) +
         '</div>';
       }).join('') || '<div class="empty-note" style="padding:8px 0; font-size:12px;">Vazio</div>') +
+    '</div>';
+    var LIMITE_CONCLUIDAS = 30;
+    htmlColunas += '<div class="onb-col onb-col-concluidas"><div class="onb-col-head"><span>Concluídas · plano de rampagem</span><span class="cnt">'+concluidas.length+'</span></div>' +
+      (concluidas.slice(0, LIMITE_CONCLUIDAS).map(function(o){
+        return '<div class="onb-card" data-abrir-onboarding="'+esc(o.clienteId)+'">' +
+          '<div class="onb-card-id">ID '+esc(o.clienteId)+'</div>' +
+          '<div class="nm">'+esc(o.clienteNome)+'</div>' +
+          (admin ? '<div class="meta">'+esc(o.csm||'Sem CSM')+'</div>' : '') +
+          resumoConcluidaOnboarding(o) +
+        '</div>';
+      }).join('') || '<div class="empty-note" style="padding:8px 0; font-size:12px;">Vazio</div>') +
+      (concluidas.length > LIMITE_CONCLUIDAS ? '<div class="empty-note" style="padding:6px 0; font-size:11.5px;">+ '+(concluidas.length-LIMITE_CONCLUIDAS)+' mais antigas (use a busca)</div>' : '') +
     '</div>';
     document.getElementById('onbBoard').innerHTML = htmlColunas;
     renderReimplantacao();
@@ -9628,7 +9861,7 @@
     onbReunioesExpandidas = {};
     var onbSalvoMsgEl = document.getElementById('onbSalvoMsg');
     if(onbSalvoMsgEl){ onbSalvoMsgEl.textContent = ''; onbSalvoMsgEl.classList.remove('erro'); }
-    document.getElementById('onbModalTitulo').textContent = 'Onboarding — ' + existente.clienteNome;
+    document.getElementById('onbModalTitulo').textContent = 'Implantação Intensiva — ' + existente.clienteNome;
     renderOnboardingFormBody();
     openOverlay('overlayOnboarding');
   }
@@ -9647,7 +9880,8 @@
       }).join('') + '</div>';
   }
 
-  function renderOnbFormularioInicial(onb){
+  function renderOnbFormularioInicial(onb, opts){
+    opts = opts || {};
     var cliente = clientes.filter(function(c){ return c.id === onb.clienteId; })[0] || {};
     var statusMig = onboardingStatusMigracao(onb);
     var pendenteColeta = onb.migracaoDados && statusMig === 'Pendente Coleta de Dados';
@@ -9669,42 +9903,146 @@
       '</div>' +
       '<div class="field"><label>Sistema anterior</label><input type="text" placeholder="Se houver" value="'+esc(cliente.sistemaAnterior||'')+'" disabled></div>' +
       '<div class="hint" style="margin:10px 0 2px;"><strong>Dados da implantação</strong></div>' +
-      '<div class="field"><label>Início do onboarding *</label><input type="date" data-onb-field="dataInicio" value="'+esc(onb.dataInicio||'')+'"><div class="hint">Base do vencimento da implantação (60 dias a partir desta data).</div></div>' +
+      '<div class="field"><label>Data da contratação *</label><input type="date" data-onb-field="dataInicio" value="'+esc(onb.dataInicio||'')+'"><div class="hint">Início da Implantação Intensiva. Base do prazo de 2 dias úteis para o cliente devolver o Formulário de Setup.</div></div>' +
       '<div class="field-row">' +
         '<div class="field"><label>Responsável pela implantação *</label><input type="text" data-onb-field="responsavelImplantacao" value="'+esc(onb.responsavelImplantacao||'')+'"></div>' +
         '<div class="field"><label>Telefone do responsável pela implantação *</label><input type="text" data-onb-field="telefoneResponsavelImplantacao" value="'+esc(onb.telefoneResponsavelImplantacao||'')+'"></div>' +
       '</div>' +
       '<div class="field"><label>Outras unidades</label><input type="text" placeholder="Outras unidades da rede, se houver" data-onb-field="outrasUnidades" value="'+esc(onb.outrasUnidades||'')+'"></div>' +
       '<div class="field"><label>Há migração?</label><select data-onb-field="migracaoDadosSelect"><option value="nao"'+(!onb.migracaoDados?' selected':'')+'>Não</option><option value="sim"'+(onb.migracaoDados?' selected':'')+'>Sim</option></select>' +
-        '<div class="hint">O status e as etapas marcadas ficam salvos e aparecem no card do quadro, em qualquer fase.</div></div>' +
-      (onb.migracaoDados ? renderOnbMigChecklist(onb) : '') +
+        '<div class="hint">O status e as etapas marcadas ficam salvos e aparecem no card do quadro, em qualquer etapa.</div></div>' +
+      (onb.migracaoDados && !opts.semMigChecklist ? renderOnbMigChecklist(onb) : '') +
       (onb.faseAtual !== 'concluido' ? ('<div style="margin-top:14px;">'+(onb.congelado
         ? '<button type="button" class="btn btn-accent" id="btnOnbDescongelar">Descongelar</button>'
         : '<button type="button" class="btn" id="btnOnbCongelar">Congelar cliente</button>') + '</div>') : '') +
     '</div>';
   }
 
-  function renderOnbFase1(onb){
-    return '<div class="onb-fase-section">' +
-      '<h3>Criar Registro de Novo Cliente</h3>' +
-      '<div class="hint">Preencha o formulário inicial ao lado. Campos obrigatórios para avançar: Nome do cliente/clínica, Responsável pela implantação, Telefone do responsável pela implantação e Início do onboarding.</div>' +
+  // ---------------------------------------------------------------
+  // Implantação Intensiva — seções de cada etapa
+  // ---------------------------------------------------------------
+  function onbChipResponsavel(fase){
+    return '<span class="chip" style="font-weight:600; vertical-align:middle;">Responsável: '+esc(ONBOARDING_FASE_RESPONSAVEL[fase]||'—')+'</span>';
+  }
+  function onbChecklistHtml(onb, caminho, itens){
+    var mapa = getDeepField(onb, caminho) || {};
+    return '<div class="onb-checklist">' + itens.map(function(it){
+      return '<label class="onb-checklist-item"><input type="checkbox" data-onb-check="'+caminho+'.'+it.key+'" '+(mapa[it.key]?'checked':'')+'> <span>'+esc(it.label)+(it.desc?' <span class="hint" style="margin:0;">— '+esc(it.desc)+'</span>':'')+'</span></label>';
+    }).join('') + '</div>';
+  }
+  function onbCampoVencimentoFase(onb, dica){
+    return '<div class="field"><label>Prazo da etapa</label><input type="date" data-onb-field="vencimentoFase" value="'+esc(onb.vencimentoFase||'')+'"><div class="hint">'+esc(dica||'Se passar desta data sem a etapa avançar, o cliente aparece como vencido no quadro e no Painel do dia.')+'</div></div>';
+  }
+  function onbCampoMigRecebimento(onb){
+    if(!onb.migracaoDados){
+      return '<div class="hint" style="margin:6px 0 10px;">Sem migração de dados nesta implantação (altere em "Há migração?" no formulário inicial).</div>';
+    }
+    var prazo = onboardingPrazoMigracao(onb);
+    return '<div class="field-row">' +
+      '<div class="field"><label>Dados para migração recebidos em</label><input type="date" data-onb-field="migDadosRecebidosEm" value="'+esc(onb.migDadosRecebidosEm||'')+'"><div class="hint">O cliente envia os dados em Excel para migracao@aplicativo.net até o dia do Alinhamento.</div></div>' +
+      '<div class="field"><label>Prazo da migração (2 dias úteis)</label><input type="text" disabled value="'+esc(prazo ? fmtDate(prazo) : '—')+'"><div class="hint">Contado a partir do recebimento dos dados. O T1 deve ser agendado para depois desta data.</div></div>' +
     '</div>';
   }
 
-  function renderOnbFase2(onb){
+  function renderOnbD0(onb){
+    var prazoForm = addDiasUteis(onb.dataInicio || todayISO(), ONBOARDING_PRAZO_DIAS_UTEIS);
+    var nBlocos = onboardingContar(onb.setupBlocos, ONBOARDING_SETUP_BLOCOS);
+    var nChecks = onboardingContar(onb.d0Checks, ONBOARDING_D0_CHECKS);
     var ag = agendamentoAlinhamento(onb.clienteId);
-    var agInfo = ag
-      ? ('Agendada para '+fmtDate(ag.data)+' às '+ag.horaInicio+(ag.data > todayISO() ? ' (avanço liberado a partir de '+fmtDate(ag.data)+', dia da reunião de alinhamento)' : ''))
-      : 'Alinhamento pendente. Agende abaixo, sem sair desta tela.';
+    var ativo = onb.faseAtual === 'd0' || onb.faseAtual === 'd1';
     return '<div class="onb-fase-section">' +
-      '<h3>Entrar em Contato</h3>' +
-      '<div class="hint" style="margin-bottom:10px;">Entre em contato para se apresentar e marcar a primeira reunião de alinhamento. O cliente só avança de fase quando a reunião acontece.</div>' +
-      '<div class="field-row">' +
-        '<div class="field"><label>Vencimento da fase Entrar em Contato</label><input type="date" data-onb-field="vencimentoContato" value="'+esc(onb.vencimentoContato||'')+'"><div class="hint">Preenchida com a data de hoje ao entrar na fase. Altere se precisar entrar em contato mais tarde.</div></div>' +
-        '<div class="field"><label>Reunião de alinhamento</label><div class="hint" style="margin-top:8px;">'+esc(agInfo)+'</div></div>' +
+      '<h3>D0 · Pré-implantação '+onbChipResponsavel('d0')+'</h3>' +
+      '<div class="hint" style="margin-bottom:10px;">A implantação começa no fechamento da venda. O cliente recebe orientação, acessa a plataforma e reúne as informações necessárias; o objetivo do D0 é a licença chegar pronta e configurada ao primeiro encontro (D1).</div>' +
+      '<div class="field"><label>Contexto da venda (passado pelo Comercial)</label>' +
+        '<textarea data-onb-field="ctxDor" placeholder="Qual dor levou o cliente a contratar?">'+esc(onb.ctxDor||'')+'</textarea>' +
+        '<textarea data-onb-field="ctxCombinado" style="margin-top:6px;" placeholder="O que foi combinado na venda?">'+esc(onb.ctxCombinado||'')+'</textarea>' +
+        '<div class="hint">O responsável pela clínica e o responsável pela implantação ficam no formulário inicial.</div></div>' +
+      '<div class="field"><label>Formulário de Setup <span class="chip '+(nBlocos===ONBOARDING_SETUP_BLOCOS.length?'c-good':'c-warn')+'">'+nBlocos+'/'+ONBOARDING_SETUP_BLOCOS.length+' blocos</span></label>' +
+        '<div class="field-row">' +
+          '<div class="field"><label>Enviado ao cliente em</label><input type="date" data-onb-field="setupFormEnviadoEm" value="'+esc(onb.setupFormEnviadoEm||'')+'"></div>' +
+          '<div class="field"><label>Devolvido pelo cliente em</label><input type="date" data-onb-field="setupFormRecebidoEm" value="'+esc(onb.setupFormRecebidoEm||'')+'"><div class="hint">Prazo do cliente: '+fmtDate(prazoForm)+' (2 dias úteis após a contratação).</div></div>' +
+        '</div>' +
+        onbChecklistHtml(onb, 'setupBlocos', ONBOARDING_SETUP_BLOCOS) + '</div>' +
+      '<div class="field"><label>Checklist do D0 <span class="chip '+(nChecks===ONBOARDING_D0_CHECKS.length?'c-good':'c-warn')+'">'+nChecks+'/'+ONBOARDING_D0_CHECKS.length+'</span></label>' +
+        onbChecklistHtml(onb, 'd0Checks', ONBOARDING_D0_CHECKS) + '</div>' +
+      '<div class="config-banner" style="margin-bottom:12px;"><strong>Alerta de ATENÇÃO</strong> — se o cliente não entregar o formulário e não concluir a checklist antes do D1, acione o alerta e remarque o D1.' +
+        '<label class="onb-checklist-item" style="margin-top:8px;"><input type="checkbox" data-onb-check="d0AlertaAcionado" '+(onb.d0AlertaAcionado?'checked':'')+'> Acionar alerta (o D1 será remarcado)</label>' +
+        (onb.d0AlertaAcionado ? '<textarea data-onb-field="d0AlertaMotivo" style="margin-top:6px;" placeholder="O que o cliente ainda não entregou?">'+esc(onb.d0AlertaMotivo||'')+'</textarea>' : '') +
       '</div>' +
-      '<div class="field"><label>Observações da fase</label><textarea data-onb-field="observacoesContato" placeholder="Descreva as tentativas de contato para agendar o alinhamento">'+esc(onb.observacoesContato||'')+'</textarea></div>' +
-      (onb.faseAtual === 'contato' ? renderOnbAgendaInline(onb, ag) : '') +
+      onbCampoVencimentoFase(onb, 'Preenchido com 2 dias úteis após a contratação. Altere se o prazo do cliente mudar.') +
+      '<div class="field"><label>Reunião D1 (Alinhamento e Setup)</label><div class="hint">'+(ag ? ('Agendada para '+fmtDate(ag.data)+' às '+esc(ag.horaInicio)) : 'D1 ainda não agendado. Agende abaixo, sem sair desta tela.')+'</div></div>' +
+      (ativo ? renderOnbAgendaInline(onb, ag) : '') +
+      renderOnbAgendarAtividade(onb) +
+    '</div>';
+  }
+
+  function renderOnbD1(onb){
+    var ag = agendamentoAlinhamento(onb.clienteId);
+    var ativo = onb.faseAtual === 'd0' || onb.faseAtual === 'd1';
+    var prazo = onboardingPrazoMigracao(onb);
+    var nSetup = onboardingContar(onb.d1SetupChecks, ONBOARDING_D1_SETUP);
+    return '<div class="onb-fase-section">' +
+      '<h3>D1 · Alinhamento e Setup '+onbChipResponsavel('d1')+'</h3>' +
+      '<div class="hint" style="margin-bottom:10px;">40 minutos: 20 min de Alinhamento + 20 min de Setup. Alinhar expectativas e parametrizar a base. '+(ag ? ('Agendado para <strong>'+fmtDate(ag.data)+' às '+esc(ag.horaInicio)+'</strong>.') : 'Ainda não agendado.')+'</div>' +
+      '<div class="field"><label>Alinhamento (20 min)</label>' + onbChecklistHtml(onb, 'd1Checks', ONBOARDING_D1_ALINHAMENTO) + '</div>' +
+      '<div class="field"><label>Setup (20 min) — revisar e completar a configuração <span class="chip '+(nSetup===ONBOARDING_D1_SETUP.length?'c-good':'c-warn')+'">'+nSetup+'/'+ONBOARDING_D1_SETUP.length+'</span></label>' + onbChecklistHtml(onb, 'd1SetupChecks', ONBOARDING_D1_SETUP) + '</div>' +
+      '<div class="field"><label>Validação obrigatória: tudo o que precisamos para operar está configurado? *</label>' +
+        '<select data-onb-field="d1SetupValidado"><option value=""'+(!onb.d1SetupValidado?' selected':'')+'>— Selecione —</option>' +
+        '<option value="sim"'+(onb.d1SetupValidado==='sim'?' selected':'')+'>Sim — segue para a migração e o T1</option>' +
+        '<option value="nao"'+(onb.d1SetupValidado==='nao'?' selected':'')+'>Não — o cliente recebe a lista de pendências</option></select></div>' +
+      (onb.d1SetupValidado === 'nao' ? '<div class="field"><div class="config-banner">O T1 só acontece depois que o cliente resolver as pendências abaixo.</div><textarea data-onb-field="d1Pendencias" style="margin-top:6px;" placeholder="Lista de pendências enviada ao cliente">'+esc(onb.d1Pendencias||'')+'</textarea></div>' : '') +
+      '<div class="field"><label>Agenda da semana</label>' +
+        '<div class="hint" style="margin-bottom:6px;">Receber os dados para migração e agendar T1 a T3 após o prazo de 2 dias úteis, indicando quem participa.</div>' +
+        onbCampoMigRecebimento(onb) +
+        (prazo ? '<div class="hint" style="margin-bottom:6px;">T1 a partir de <strong>'+fmtDate(prazo)+'</strong>.</div>' : '') +
+        '<textarea data-onb-field="d1Participantes" placeholder="Quem participa de cada treinamento (T1: recepção; T2: profissionais; T3: financeiro)">'+esc(onb.d1Participantes||'')+'</textarea></div>' +
+      onbCampoVencimentoFase(onb) +
+      (ativo ? renderOnbAgendaInline(onb, ag) : '') +
+      renderOnbAgendarAtividade(onb) +
+    '</div>';
+  }
+
+  function renderOnbMigracao(onb){
+    var prazo = onboardingPrazoMigracao(onb);
+    return '<div class="onb-fase-section">' +
+      '<h3>Migração de dados '+onbChipResponsavel('migracao')+'</h3>' +
+      '<div class="hint" style="margin-bottom:10px;">Os dados são migrados antes do primeiro treinamento: 2 dias úteis a partir do recebimento dos dados do cliente. O CSM acompanha com a área de Migração e garante a entrega antes do T1, para o cliente treinar já com os próprios pacientes.</div>' +
+      (onb.migracaoDados
+        ? (onbCampoMigRecebimento(onb) +
+           '<div class="field"><label>Etapas da migração</label>' + renderOnbMigChecklist(onb) + '</div>' +
+           (prazo ? '<div class="hint" style="margin-bottom:10px;">Status: <strong>'+esc(onboardingStatusMigracao(onb))+'</strong> · prazo '+fmtDate(prazo)+(prazo < todayISO() ? ' <span class="chip c-crit">prazo vencido</span>' : '')+'</div>' : ''))
+        : '<div class="config-banner" style="margin-bottom:10px;">Esta implantação não tem migração de dados. Siga para o T1. (Se houver, marque "Há migração?" = Sim no formulário inicial.)</div>') +
+      onbCampoVencimentoFase(onb) +
+      renderOnbAgendarAtividade(onb) +
+    '</div>';
+  }
+
+  function renderOnbTreino(onb, fase){
+    var cfg = ONBOARDING_TREINO[fase];
+    var r = reuniaoDaFase(onb, fase);
+    var idx = ONBOARDING_TREINO_FASES.indexOf(fase);
+    if(r && onbReunioesExpandidas[r.id] === undefined) onbReunioesExpandidas[r.id] = true;
+    var prazoMig = onboardingPrazoMigracao(onb);
+    var aviso = '';
+    if(fase === 't1' && prazoMig){
+      aviso = '<div class="config-banner" style="margin-bottom:10px;">Migração com prazo até <strong>'+fmtDate(prazoMig)+'</strong>: agende o T1 para depois dessa data.'+(r && r.data && r.data <= prazoMig ? ' <strong>O T1 está agendado antes do fim do prazo.</strong>' : '')+'</div>';
+    }
+    return '<div class="onb-fase-section">' +
+      '<h3>'+esc(cfg.titulo)+' '+onbChipResponsavel(fase)+'</h3>' +
+      '<div class="hint" style="margin-bottom:8px;"><strong>'+esc(cfg.foco)+'</strong> · 40 min de treinamento guiado, todo na prática.</div>' +
+      '<div class="onb-roteiro">' + cfg.roteiro.map(function(it){ return '<span class="chip">'+esc(it)+'</span>'; }).join('<span class="onb-seta">→</span>') + '</div>' +
+      '<div class="hint" style="margin:8px 0 10px;">'+esc(cfg.objetivo)+'</div>' +
+      aviso +
+      (onb.d1Participantes ? '<div class="hint" style="margin-bottom:10px;"><strong>Participantes combinados no D1:</strong> '+esc(onb.d1Participantes)+'</div>' : '') +
+      '<div class="field"><label>Reunião de treinamento</label><div class="hint" style="margin-bottom:6px;">Depois do horário agendado, a reunião entra na fila de validação da aba Treinamento antes de a atividade de CSAT ser criada.</div>' +
+        (r ? renderOnbReuniao(r, idx) : '<div class="empty-note">Reunião não encontrada.</div>') + '</div>' +
+      '<div class="field"><label>Critério de saída</label><div class="config-banner" style="margin-bottom:6px;">'+esc(cfg.criterio)+'</div>' +
+        '<select data-onb-field="treinoCriterio.'+fase+'"><option value=""'+(!(onb.treinoCriterio||{})[fase]?' selected':'')+'>— Selecione —</option>' +
+        '<option value="sim"'+((onb.treinoCriterio||{})[fase]==='sim'?' selected':'')+'>Critério atingido</option>' +
+        '<option value="nao"'+((onb.treinoCriterio||{})[fase]==='nao'?' selected':'')+'>Ainda não atingido</option></select></div>' +
+      '<div class="field"><label>Dificuldades observadas pelo analista</label><textarea data-onb-field="treinoDificuldades.'+fase+'" placeholder="O analista observa, corrige na hora e registra as dificuldades">'+esc((onb.treinoDificuldades||{})[fase]||'')+'</textarea></div>' +
+      onbCampoVencimentoFase(onb) +
+      renderOnbAgendarAtividade(onb) +
     '</div>';
   }
 
@@ -9712,7 +10050,7 @@
     var r = onbAgendaRascunho || {};
     var pendente = onbAgendamentosPendentes[onb.clienteId];
     return '<div style="border:1px solid var(--border); border-radius:10px; padding:14px; margin-top:12px;">' +
-      '<h3>'+(ag?'Editar agendamento de alinhamento':'Agendar alinhamento')+'</h3>' +
+      '<h3>'+(ag?'Editar agendamento do D1 (Alinhamento e Setup — 40 min)':'Agendar o D1 (Alinhamento e Setup — 20 min + 20 min)')+'</h3>' +
       '<div class="hint" style="margin-bottom:10px;">Agenda do CSM: '+esc(onb.csm||'Sem CSM atribuído')+'. Ao agendar, as alterações desta fase também serão salvas. O agendamento pode ser editado a qualquer momento, inclusive com datas passadas — o avanço é liberado no dia da reunião, sem esperar o horário terminar.</div>' +
       '<div class="field-row"><div class="field"><label for="onbAgData">Data</label><input id="onbAgData" data-onb-agenda="data" type="date" value="'+esc(r.data||'')+'"></div>' +
       '<div class="field"><label for="onbAgInicio">Início</label><input id="onbAgInicio" data-onb-agenda="horaInicio" type="time" value="'+esc(r.horaInicio||'')+'"></div>' +
@@ -9721,9 +10059,18 @@
       '<div class="field"><label for="onbAgTelefone">WhatsApp (opcional)</label><input id="onbAgTelefone" data-onb-agenda="contatoTelefone" type="text" value="'+esc(r.contatoTelefone||'')+'"></div></div>' +
       '<div class="retroativo-aviso" id="onbAgRetroativo" role="status"'+(horarioJaPassou(r.data,r.horaInicio)?'':' hidden')+'>⚠ Agendamento retroativo: a data e o horário escolhidos já passaram.</div>' +
       '<div class="gate-error'+(pendente?' show':'')+'" id="onbAgError">'+(pendente?'Há um salvamento pendente. Tente novamente para concluir sem duplicar a reunião.':'')+'</div>' +
-      '<button type="button" class="btn btn-accent" id="btnOnbAgendar">'+(pendente?'Tentar novamente':(ag?'Salvar agendamento':'Agendar alinhamento'))+'</button>' +
+      '<button type="button" class="btn btn-accent" id="btnOnbAgendar">'+(pendente?'Tentar novamente':(ag?'Salvar agendamento':'Agendar D1'))+'</button>' +
       (ag ? ' <button type="button" class="btn" id="btnOnbRemoverAgendamento">Remover agendamento</button>' : '') +
       '</div>';
+  }
+
+  function preencherHoraFimSugerida(rascunho, inputId, horaInicio, minutos){
+    var total = hhmmParaMinutos(horaInicio) + minutos;
+    if(total >= 24*60) return;
+    var fim = pad(Math.floor(total/60)) + ':' + pad(total%60);
+    rascunho.horaFim = fim;
+    var el = document.getElementById(inputId);
+    if(el) el.value = fim;
   }
 
   function atualizarOnbAgendaRascunho(e){
@@ -9731,6 +10078,8 @@
     if(campo){
       if(!onbAgendaRascunho) onbAgendaRascunho = {};
       onbAgendaRascunho[campo] = e.target.value;
+      // D1 dura 40 min (20 alinhamento + 20 setup): sugere o horário de fim.
+      if(campo === 'horaInicio' && e.target.value && !onbAgendaRascunho.horaFim) preencherHoraFimSugerida(onbAgendaRascunho, 'onbAgFim', e.target.value, 40);
       var aviso = document.getElementById('onbAgRetroativo');
       if(aviso) aviso.hidden = !horarioJaPassou(onbAgendaRascunho.data,onbAgendaRascunho.horaInicio);
       return;
@@ -9739,6 +10088,8 @@
     if(campoFinal){
       if(!onbAgendaFinalRascunho) onbAgendaFinalRascunho = {};
       onbAgendaFinalRascunho[campoFinal] = e.target.value;
+      // Validação dura 1 hora.
+      if(campoFinal === 'horaInicio' && e.target.value && !onbAgendaFinalRascunho.horaFim) preencherHoraFimSugerida(onbAgendaFinalRascunho, 'onbAgFinalFim', e.target.value, 60);
       var avisoFinal = document.getElementById('onbAgFinalRetroativo');
       if(avisoFinal) avisoFinal.hidden = !horarioJaPassou(onbAgendaFinalRascunho.data,onbAgendaFinalRascunho.horaInicio);
     }
@@ -9761,7 +10112,7 @@
   }
 
   async function salvarAlinhamentoOnboarding(){
-    if(onbAgendaSalvando || !onboardingEdit || onboardingEdit.faseAtual !== 'contato') return;
+    if(onbAgendaSalvando || !onboardingEdit || (onboardingEdit.faseAtual !== 'd0' && onboardingEdit.faseAtual !== 'd1')) return;
     var err = document.getElementById('onbAgError');
     err.classList.remove('show');
     var clienteId = onboardingEdit.clienteId;
@@ -9813,7 +10164,7 @@
       delete onbAgendamentosPendentes[clienteId];
       onbAgendaSalvando = false;
       renderAll();renderOnboardingFormBody();
-      mostrarToastSucesso('Alinhamento agendado para '+fmtDate(recAg.data)+' às '+recAg.horaInicio+'.');
+      mostrarToastSucesso('D1 agendado para '+fmtDate(recAg.data)+' às '+recAg.horaInicio+'.');
     }catch(e){
       err.textContent = (pendente.agendaSalva?'A reunião foi salva na Agenda, mas o vínculo com o onboarding ainda não foi confirmado. ':'Não foi possível confirmar o agendamento. ')+'Clique em Tentar novamente para concluir sem duplicar. '+detalheErro(e);
       err.classList.add('show');
@@ -9827,7 +10178,7 @@
     if(!onb) return;
     var ag = agendamentoAlinhamento(onb.clienteId);
     if(!ag) return;
-    confirmarAcao('Remover o agendamento de alinhamento deste cliente?', async function(){
+    confirmarAcao('Remover o agendamento do D1 deste cliente?', async function(){
       try{
         if(db && !offline){ await db.collection('agendamentos').doc(ag.id).update({status:'cancelado'}); }
         else{ var idx = agendamentos.findIndex(function(a){return a.id===ag.id;}); if(idx>-1) agendamentos[idx].status='cancelado'; }
@@ -9835,47 +10186,9 @@
         await persistirOnboarding(onb, {agendamentoAlinhamentoId:null});
         onbAgendaRascunho = {data:todayISO(),horaInicio:'',horaFim:'',contatoNome:onb.clienteNome||'',contatoTelefone:''};
         renderAll();renderOnboardingFormBody();
-        mostrarToastSucesso('Agendamento de alinhamento removido.');
+        mostrarToastSucesso('Agendamento do D1 removido.');
       }catch(e){ alert('Não foi possível remover o agendamento agora. '+detalheErro(e)); }
     }, {textoConfirmar:'Remover agendamento'});
-  }
-
-  function renderOnbFase3(onb){
-    var kpiRows = (onb.kpisAcompanhamento||[]).map(function(k, idx){
-      return '<div class="onb-kpi-row"><input type="text" placeholder="Indicador" data-onb-kpi-field="nome" data-onb-kpi-idx="'+idx+'" value="'+esc(k.nome||'')+'">' +
-        '<input type="text" placeholder="Valor atual" data-onb-kpi-field="valorAtual" data-onb-kpi-idx="'+idx+'" value="'+esc(k.valorAtual||'')+'">' +
-        '<button type="button" class="icon-btn" data-onb-kpi-remove="'+idx+'" aria-label="Remover"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>';
-    }).join('');
-    return '<div class="onb-fase-section">' +
-      '<h3>1. Planejando o Sucesso</h3>' +
-      '<div class="hint" style="margin-bottom:10px; border:1px solid var(--border); border-radius:8px; padding:10px;">' +
-        '<strong>Escopo da reunião de alinhamento</strong>' +
-        '<ol style="margin:6px 0 0 18px; padding:0;">' +
-          '<li><strong>Planejando o Sucesso</strong>'+(onb.faseAtual==='planejando'?' <span class="chip c-accent">Fase atual</span>':'')+' — alinhar expectativas e montar o roteiro de implantação sob medida.</li>' +
-          '<li><strong>Construindo o Sucesso</strong>'+(onb.faseAtual==='construindo'?' <span class="chip c-accent">Fase atual</span>':'')+' — o cliente ganha fluência na plataforma até começar a ver os frutos do esforço.</li>' +
-          '<li><strong>Momento WOW</strong>'+(onb.faseAtual==='wow'?' <span class="chip c-accent">Fase atual</span>':'')+' — plataforma implantada e resultados percebidos.</li>' +
-        '</ol>' +
-      '</div>' +
-      '<div class="field"><label>Vencimento da fase Planejando o Sucesso</label><input type="date" data-onb-field="vencimentoPlanejando" value="'+esc(onb.vencimentoPlanejando||'')+'"><div class="hint">Mude de acordo com os dias necessários para o cliente finalizar as configurações iniciais.</div></div>' +
-      '<div class="field"><label>Qual a expectativa em relação à plataforma? *</label><textarea data-onb-field="expectativaPlataforma" placeholder="Motivo de ter contratado a plataforma">'+esc(onb.expectativaPlataforma||'')+'</textarea></div>' +
-      '<div class="field"><label>Qual o fluxo operacional da clínica? *</label><textarea data-onb-field="fluxoOperacional" placeholder="Fluxo que o paciente segue desde o agendamento e quantas pessoas por setor na clínica.">'+esc(onb.fluxoOperacional||'')+'</textarea></div>' +
-      '<div class="field"><label>KPIs de Acompanhamento *</label><div class="hint" style="margin-bottom:4px;">Indicadores que serão verificados no Momento WOW. Informe o valor atual ou aproximado.</div>' + kpiRows +
-        '<button type="button" class="btn btn-sm" id="btnAddOnbKpi">+ Adicionar indicador</button></div>' +
-      '<div class="field"><label>Tem migração em andamento? *</label>' +
-        '<select data-onb-field="migracaoAndamento"><option value=""'+(!onb.migracaoAndamento?' selected':'')+'>—</option>' +
-        '<option value="nao_tem"'+(onb.migracaoAndamento==='nao_tem'?' selected':'')+'>Não tem migração em andamento</option>' +
-        '<option value="antes"'+(onb.migracaoAndamento==='antes'?' selected':'')+'>Antes da implantação</option>' +
-        '<option value="durante"'+(onb.migracaoAndamento==='durante'?' selected':'')+'>Durante a implantação</option>' +
-        '<option value="apos"'+(onb.migracaoAndamento==='apos'?' selected':'')+'>Após a implantação</option></select></div>' +
-      '<div class="field"><label>Configurações obrigatórias</label>' +
-        '<div class="hint" style="margin-bottom:6px;">Lista informativa — o conteúdo é abordado no primeiro treinamento; é possível enviar material com instruções antes, se o cliente quiser adiantar.</div>' +
-        '<div class="onb-checklist onb-checklist-info">' + ONBOARDING_CHECKLIST_CONFIGURACOES.map(function(it){ return '<div class="onb-checklist-item onb-checklist-item-info">• '+esc(it.label)+'</div>'; }).join('') + '</div></div>' +
-      '<div class="field"><label>Requisitos essenciais</label>' +
-        '<div class="config-banner">As funcionalidades essenciais para a implantação com sucesso são: <strong>Agendamento, Atendimento, Planejamento, Orçamentos e Contratos, Conclusão de Procedimentos, Contas à Receber e Contas à Pagar</strong>. Oriente o cliente sobre a importância de cada uma. Se ele não quiser implantar alguma das funcionalidades acima, justifique o motivo no campo abaixo.</div></div>' +
-      '<div class="field"><label>Observações</label><textarea data-onb-field="essenciaisObs" placeholder="Justifique o motivo, se o cliente não quiser implantar alguma funcionalidade essencial">'+esc(onb.essenciaisObs||'')+'</textarea></div>' +
-      '<div class="field"><label>Excedendo as expectativas *</label><textarea data-onb-field="excedendoExpectativas" placeholder="Ex.: integração com WhatsApp, relatórios financeiros">'+esc(onb.excedendoExpectativas||'')+'</textarea></div>' +
-      renderOnbAgendarAtividade(onb) +
-    '</div>';
   }
 
   // CR-05 (Change Request 14/09/2026): relato da CSM Samylle — depois da
@@ -10502,126 +10815,12 @@
     }, {textoConfirmar:'Excluir'});
   }
 
-  function renderOnbFase4(onb){
-    // CR-08 (Change Request 14/09/2026): cada registro pode ter um print
-    // anexado (guardado no bucket "onboarding-anexos" do Supabase
-    // Storage) — quando existe, aparece como um link "Ver print" logo
-    // depois do registro no histórico.
-    var usaLog = (onb.evolucaoUsabilidade||[]).slice().reverse().map(function(l){
-      return '<div class="onb-log-row">'+fmtDate(l.data)+' — <strong>'+(l.status==='utilizando'?'Utilizando':'Não utilizando')+'</strong>'+(l.nota?' — '+esc(l.nota):'')+(l.anexoUrl?' — <a href="'+esc(l.anexoUrl)+'" target="_blank" rel="noopener">Ver print</a>':'')+'</div>';
-    }).join('') || '<div class="empty-note" style="padding:6px 0; font-size:12px;">Nenhum registro ainda.</div>';
-    var kpiLog = (onb.evolucaoKpis||[]).slice().reverse().map(function(l){
-      return '<div class="onb-log-row">'+fmtDate(l.data)+' — '+esc(l.kpiNome)+': <strong>'+esc(l.valor)+'</strong></div>';
-    }).join('') || '<div class="empty-note" style="padding:6px 0; font-size:12px;">Nenhum registro ainda.</div>';
-    var opcoesKpi = (onb.kpisAcompanhamento||[]).filter(function(k){return k.nome;}).map(function(k){ return '<option value="'+esc(k.nome)+'">'+esc(k.nome)+'</option>'; }).join('');
-    var reunioes = onb.reunioes || [];
-    return '<div class="onb-fase-section">' +
-      '<h3>2. Construindo o Sucesso</h3>' +
-      '<div class="field-row">' +
-        '<div class="field"><label>Data da próxima análise</label><input type="date" data-onb-field="proximaAnalise" value="'+esc(onb.proximaAnalise||'')+'"><div class="hint">Altere conforme os treinamentos e a evolução do cliente. Aparece no Painel do dia.</div></div>' +
-        '<div class="field"><label>Data de vencimento da implantação</label><input type="text" value="'+esc(onb.dataInicio ? fmtDate(addDays(onb.dataInicio,60)) : '—')+'" disabled><div class="hint">Automática: 60 dias a partir do início do onboarding.</div></div>' +
-      '</div>' +
-      '<div class="field"><label>Funcionalidades extras da implantação</label><div class="hint">'+(onb.excedendoExpectativas ? esc(onb.excedendoExpectativas) : 'Nada registrado na fase anterior.')+'</div></div>' +
-      '<div class="field"><label>Conteúdo programático</label>' +
-        '<div class="hint" style="margin-bottom:6px;">Reuniões de treinamento com a analista. Depois do horário de cada reunião agendada, ela entra na fila de validação da aba Treinamento antes de a atividade de CSAT ser criada.</div>' +
-        '<div style="margin-bottom:8px; display:flex; gap:6px; flex-wrap:wrap;">' +
-          '<button type="button" class="btn btn-sm" id="btnOnbReunioesExpandirTodas">Expandir todas</button>' +
-          '<button type="button" class="btn btn-sm" id="btnOnbReunioesOcultarTodas">Ocultar todas</button>' +
-          '<button type="button" class="btn btn-sm" id="btnOnbAddReuniao">+ Adicionar reunião</button>' +
-        '</div>' +
-        reunioes.map(renderOnbReuniao).join('') +
-      '</div>' +
-      '<div class="field"><label>Evolução da Usabilidade *</label>' + usaLog +
-        '<div class="onb-add-row">' +
-          '<select id="onbNovaUsabilidadeStatus"><option value="utilizando">Utilizando</option><option value="nao_utilizando">Não utilizando</option></select>' +
-          '<input type="text" id="onbNovaUsabilidadeNota" placeholder="Nota (opcional)">' +
-          '<input type="file" id="onbNovaUsabilidadeArquivo" accept="image/*" style="max-width:180px;">' +
-          '<button type="button" class="btn btn-sm" id="btnAddOnbUsabilidade">+ Registrar</button>' +
-        '</div>' +
-        (offline ? '<div class="hint" style="margin-top:4px;">Pré-visualização local: não é possível anexar print agora (precisa estar conectado ao banco de dados real).</div>' : '') +
-      '</div>' +
-      '<div class="field"><label>Evolução dos KPIs</label>' + kpiLog +
-        '<div class="onb-add-row">' +
-          '<select id="onbNovoKpiNome">'+ (opcoesKpi || '<option value="">Cadastre indicadores na Fase 3</option>') +'</select>' +
-          '<input type="text" id="onbNovoKpiValor" placeholder="Valor">' +
-          '<button type="button" class="btn btn-sm" id="btnAddOnbKpiLog">+ Registrar</button>' +
-        '</div></div>' +
-    '</div>';
-  }
-
-  // CR-08 (Change Request 14/09/2026): sobe o print (se um arquivo foi
-  // selecionado) para o bucket "onboarding-anexos" do Supabase Storage
-  // antes de gravar o registro — a equipe combinou que o CSM sempre anexa
-  // o print da análise de usabilidade, e o campo antes só aceitava
-  // status/nota, sem suporte a imagem.
-  async function registrarEvolucaoUsabilidade(){
-    var status = document.getElementById('onbNovaUsabilidadeStatus').value;
-    var nota = document.getElementById('onbNovaUsabilidadeNota').value.trim();
-    var arquivoEl = document.getElementById('onbNovaUsabilidadeArquivo');
-    var arquivo = arquivoEl && arquivoEl.files && arquivoEl.files[0];
-    var registro = {data: todayISO(), status: status, nota: nota};
-
-    if(arquivo){
-      if(offline || !db){
-        alert('Não é possível anexar print na pré-visualização local — o registro será salvo sem o print. Conecte ao banco de dados real (RADAR_CS_SUPABASE) para anexar imagens.');
-      }else{
-        try{
-          var storage = await claude.use('storage');
-          if(!storage) throw new Error('Storage indisponível');
-          var caminho = onboardingEdit.clienteId + '/' + Date.now() + '-' + arquivo.name.replace(/[^a-zA-Z0-9_.-]/g,'_');
-          var up = await storage.from('onboarding-anexos').upload(caminho, arquivo);
-          if(up.error) throw up.error;
-          var pub = storage.from('onboarding-anexos').getPublicUrl(caminho);
-          registro.anexoUrl = pub && pub.data ? pub.data.publicUrl : null;
-        }catch(e){
-          alert('Não foi possível anexar o print agora (' + detalheErro(e) + '). O registro será salvo sem o print — tente anexar de novo depois.');
-        }
-      }
-    }
-
-    onboardingEdit.evolucaoUsabilidade = onboardingEdit.evolucaoUsabilidade || [];
-    onboardingEdit.evolucaoUsabilidade.push(registro);
-    renderOnboardingFormBody();
-  }
-
-  function renderOnbFase5(onb){
-    var agFinal = agendamentoFinalizacao(onb.clienteId);
-    var usabLog = onb.evolucaoUsabilidade||[];
-    var ultimaUsab = usabLog.length ? usabLog[usabLog.length-1] : null;
-    var kpiResumo = (onb.kpisAcompanhamento||[]).filter(function(k){return k.nome;}).map(function(k){
-      var logsDoKpi = (onb.evolucaoKpis||[]).filter(function(l){return l.kpiNome===k.nome;});
-      var ultimo = logsDoKpi.length ? logsDoKpi[logsDoKpi.length-1] : null;
-      return '<div class="onb-log-row">'+esc(k.nome)+': '+esc(k.valorAtual||'—')+' → '+(ultimo?esc(ultimo.valor):'—')+'</div>';
-    }).join('') || '<div class="empty-note" style="padding:6px 0; font-size:12px;">Nenhum KPI cadastrado.</div>';
-    return '<div class="onb-fase-section">' +
-      '<h3>3. Momento WOW — Finalização</h3>' +
-      '<div class="hint" style="margin-bottom:10px;">Vamos finalizar o onboarding e evoluir a clínica: rever o que foi combinado e onde chegamos.</div>' +
-      '<div class="field-row">' +
-        '<div class="field"><label>Data de vencimento da fase</label><input type="date" data-onb-field="contatoDate" value="'+esc(onb.contatoDate||'')+'"><div class="hint">Enquanto não houver reunião de finalização marcada, gera uma atividade no Painel do dia.</div></div>' +
-        '<div class="field"><label>Responsável</label><input type="text" value="'+esc(onb.csm||'')+'" disabled></div>' +
-      '</div>' +
-      '<div class="field"><label>Dias em onboarding</label><input type="text" value="'+diffDays(todayISO(), onb.dataInicio)+'" disabled></div>' +
-      (onb.faseAtual === 'wow' ? renderOnbAgendaFinalInline(onb, agFinal) :
-        '<div class="field"><label>Reunião de finalização</label><div class="hint">'+(agFinal ? ('Agendada para '+fmtDate(agFinal.data)+' às '+agFinal.horaInicio) : 'Ainda não agendada.')+'</div></div>') +
-      '<div class="field"><label>Resumo da implantação</label>' +
-        '<div class="hint"><strong>Funcionalidades extras da implantação:</strong> '+(onb.excedendoExpectativas?esc(onb.excedendoExpectativas):'Nada registrado.')+'</div>' +
-        '<div class="hint" style="margin-top:4px;"><strong>Última análise de usabilidade:</strong> '+(ultimaUsab ? (fmtDate(ultimaUsab.data)+' — '+(ultimaUsab.status==='utilizando'?'Utilizando':'Não utilizando')+(ultimaUsab.nota?' — '+esc(ultimaUsab.nota):'')) : 'Nenhum registro.')+'</div>' +
-        '<div class="hint" style="margin-top:4px;"><strong>KPIs — Construindo o Sucesso:</strong></div>' + kpiResumo +
-      '</div>' +
-      '<div class="field"><label>Observações da reunião de finalização</label><textarea data-onb-field="observacoesReuniaoFinalizacao">'+esc(onb.observacoesReuniaoFinalizacao||'')+'</textarea></div>' +
-      '<div class="field-row">' +
-        '<div class="field"><label>Nota do processo de onboarding (0–10)</label><input type="number" min="0" max="10" data-onb-field="notaProcessoOnboarding" value="'+esc(onb.notaProcessoOnboarding||'')+'"></div>' +
-        '<div class="field"><label>Nota referente aos treinamentos (0–10)</label><input type="number" min="0" max="10" data-onb-field="notaTreinamentos" value="'+esc(onb.notaTreinamentos||'')+'"></div>' +
-      '</div>' +
-    '</div>';
-  }
-
   function renderOnbAgendaFinalInline(onb, ag){
     var r = onbAgendaFinalRascunho || {};
     var pendente = onbAgendamentosFinalPendentes[onb.clienteId];
     return '<div style="border:1px solid var(--border); border-radius:10px; padding:14px; margin:6px 0 12px;">' +
-      '<h3>'+(ag?'Editar reunião de finalização':'Agendar reunião de finalização')+' *</h3>' +
-      '<div class="hint" style="margin-bottom:10px;">Agenda do CSM: '+esc(onb.csm||'Sem CSM atribuído')+'. Obrigatória para finalizar o onboarding.</div>' +
+      '<h3>'+(ag?'Editar reunião de Validação (1h)':'Agendar reunião de Validação (1h)')+'</h3>' +
+      '<div class="hint" style="margin-bottom:10px;">Agenda do CSM: '+esc(onb.csm||'Sem CSM atribuído')+'. 40 min de casos práticos + 20 min de dúvidas e TDI.</div>' +
       '<div class="field-row"><div class="field"><label for="onbAgFinalData">Data</label><input id="onbAgFinalData" data-onb-agenda-final="data" type="date" value="'+esc(r.data||'')+'"></div>' +
       '<div class="field"><label for="onbAgFinalInicio">Início</label><input id="onbAgFinalInicio" data-onb-agenda-final="horaInicio" type="time" value="'+esc(r.horaInicio||'')+'"></div>' +
       '<div class="field"><label for="onbAgFinalFim">Fim</label><input id="onbAgFinalFim" data-onb-agenda-final="horaFim" type="time" value="'+esc(r.horaFim||'')+'"></div></div>' +
@@ -10629,37 +10828,120 @@
       '<div class="field"><label for="onbAgFinalTelefone">WhatsApp (opcional)</label><input id="onbAgFinalTelefone" data-onb-agenda-final="contatoTelefone" type="text" value="'+esc(r.contatoTelefone||'')+'"></div></div>' +
       '<div class="retroativo-aviso" id="onbAgFinalRetroativo" role="status"'+(horarioJaPassou(r.data,r.horaInicio)?'':' hidden')+'>⚠ Agendamento retroativo: a data e o horário escolhidos já passaram.</div>' +
       '<div class="gate-error'+(pendente?' show':'')+'" id="onbAgFinalError">'+(pendente?'Há um salvamento pendente. Tente novamente para concluir sem duplicar a reunião.':'')+'</div>' +
-      '<button type="button" class="btn btn-accent" id="btnOnbAgendarFinal">'+(pendente?'Tentar novamente':(ag?'Salvar agendamento':'Agendar finalização'))+'</button>' +
+      '<button type="button" class="btn btn-accent" id="btnOnbAgendarFinal">'+(pendente?'Tentar novamente':(ag?'Salvar agendamento':'Agendar Validação'))+'</button>' +
       (ag ? ' <button type="button" class="btn" id="btnOnbRemoverAgendamentoFinal">Remover agendamento</button>' : '') +
       '</div>';
   }
 
-  var ONBOARDING_SECTION_RENDERERS = [renderOnbFase1, renderOnbFase2, renderOnbFase3, renderOnbFase4, renderOnbFase5];
+  function renderOnbValidacao(onb){
+    var agFinal = agendamentoFinalizacao(onb.clienteId);
+    var sug = onboardingReguaSugerida(onb);
+    var casos = onb.validacaoCasos || {};
+    var linhas = ONBOARDING_VALIDACAO_CASOS.map(function(c, i){
+      var cv = casos[c.key] || {};
+      return '<div class="onb-caso">' +
+        '<div class="onb-caso-txt"><strong>Caso '+(i+1)+' · '+esc(c.area)+'</strong><div class="hint" style="margin:2px 0 0;">'+esc(c.situacao)+'</div></div>' +
+        '<select data-onb-field="validacaoCasos.'+c.key+'.resultado" aria-label="Resultado do caso '+(i+1)+'"><option value=""'+(!cv.resultado?' selected':'')+'>— Resultado —</option>' +
+          Object.keys(ONBOARDING_VALIDACAO_RESULTADO).map(function(k){ return '<option value="'+k+'"'+(cv.resultado===k?' selected':'')+'>'+ONBOARDING_VALIDACAO_RESULTADO[k]+'</option>'; }).join('') + '</select>' +
+        '<input type="text" data-onb-field="validacaoCasos.'+c.key+'.obs" placeholder="Observação (quanto de ajuda foi necessário)" value="'+esc(cv.obs||'')+'">' +
+      '</div>';
+    }).join('');
+    var reguaOpcoes = Object.keys(ONBOARDING_REGUA).map(function(k){
+      var rg = ONBOARDING_REGUA[k];
+      return '<label class="onb-regua-op'+(onb.reguaNivel===k?' sel':'')+'"><input type="radio" name="onbRegua" data-onb-regua="'+k+'"'+(onb.reguaNivel===k?' checked':'')+'> ' +
+        '<span><strong>'+rg.label+'</strong> — '+esc(rg.desc)+'<span class="hint" style="display:block; margin:2px 0 0;">Próximo passo: '+esc(rg.proximo)+'</span></span></label>';
+    }).join('');
+    return '<div class="onb-fase-section">' +
+      '<h3>Validação de Implantação '+onbChipResponsavel('validacao')+'</h3>' +
+      '<div class="hint" style="margin-bottom:10px;">Cinco situações reais no lugar de "ficou alguma dúvida?". Reunião de 1 hora: 40 min de casos práticos (o CSM observa quanto o cliente precisa de ajuda) + 20 min de dúvidas e TDI (corrigir gaps).</div>' +
+      (onb.faseAtual === 'validacao' ? renderOnbAgendaFinalInline(onb, agFinal) :
+        '<div class="field"><label>Reunião de Validação</label><div class="hint">'+(agFinal ? ('Agendada para '+fmtDate(agFinal.data)+' às '+esc(agFinal.horaInicio)) : 'Ainda não agendada.')+'</div></div>') +
+      '<div class="field"><label>Os 5 casos práticos</label>' + linhas + '</div>' +
+      '<div class="field"><label>Dúvidas e TDI (20 min)</label>' +
+        '<select data-onb-field="validacaoTdi"><option value=""'+(!onb.validacaoTdi?' selected':'')+'>Ainda há TDI? — Selecione —</option>' +
+        '<option value="nao"'+(onb.validacaoTdi==='nao'?' selected':'')+'>Não há TDI</option><option value="sim"'+(onb.validacaoTdi==='sim'?' selected':'')+'>Ainda há TDI</option></select>' +
+        '<textarea data-onb-field="validacaoTdiObs" style="margin-top:6px;" placeholder="Gaps corrigidos e o que ainda ficou em aberto">'+esc(onb.validacaoTdiObs||'')+'</textarea>' +
+        '<textarea data-onb-field="validacaoContinuidade" style="margin-top:6px;" placeholder="Utilização real verificada, processos críticos revisados e plano de continuidade combinado">'+esc(onb.validacaoContinuidade||'')+'</textarea></div>' +
+      '<div class="field"><label>Régua de sucesso *</label>' +
+        '<div class="hint" style="margin-bottom:6px;">'+(sug ? ('Sugestão pelo resultado dos casos: <span class="chip '+ONBOARDING_REGUA[sug].chip+'">'+ONBOARDING_REGUA[sug].label+'</span>. A decisão final é do CSM.') : 'Preencha o resultado dos 5 casos para ver a sugestão.')+'</div>' +
+        '<div class="onb-regua">' + reguaOpcoes + '</div></div>' +
+      '<div class="field"><label>Observações da reunião de Validação</label><textarea data-onb-field="observacoesReuniaoFinalizacao">'+esc(onb.observacoesReuniaoFinalizacao||'')+'</textarea></div>' +
+      onbCampoVencimentoFase(onb) +
+      renderOnbAgendarAtividade(onb) +
+    '</div>';
+  }
+
+  function renderOnbConcluido(onb){
+    var rg = ONBOARDING_REGUA[onb.reguaNivel];
+    var r = onb.rampagem || {};
+    var comRisco = onb.reguaNivel === 'com_risco';
+    var recuperacaoOk = !comRisco || !!String(r.recuperacao||'').trim();
+    var casos = onb.validacaoCasos || {};
+    var dificuldades = ONBOARDING_VALIDACAO_CASOS.filter(function(c){ var res = (casos[c.key]||{}).resultado; return res && res !== 'sozinho'; })
+      .map(function(c){ return c.area + ' (' + ONBOARDING_VALIDACAO_RESULTADO[casos[c.key].resultado].toLowerCase() + ')'; });
+    var extras = (onb.reunioes||[]).filter(function(x){ return !x.fixa; });
+    var plano = onb.planoRampagemId ? planos.filter(function(p){ return p.id === onb.planoRampagemId; })[0] : null;
+    return '<div class="onb-fase-section">' +
+      '<h3>Implantação concluída</h3>' +
+      '<div class="hint" style="margin-bottom:10px;">Finalizada em '+(onb.concluidoEm?fmtDate(onb.concluidoEm.slice(0,10)):'—')+'. Cinco dias não significam um cliente 100% maduro: agora entra o acompanhamento de usabilidade pelo CS, a partir do plano de rampagem.</div>' +
+      '<div class="field"><label>Nível na régua de sucesso</label>' +
+        (rg ? ('<div><span class="chip '+rg.chip+'">'+rg.label+'</span> <span class="hint" style="margin:0;">'+esc(rg.desc)+'</span></div><div class="hint" style="margin-top:4px;">Próximo passo: '+esc(rg.proximo)+'</div>')
+            : '<div class="hint">Nível não registrado (implantação concluída no fluxo anterior).</div>') + '</div>' +
+      (dificuldades.length ? '<div class="field"><label>Dificuldades apontadas na Validação</label><div class="hint">'+esc(dificuldades.join(' · '))+'</div></div>' : '') +
+      (comRisco ? '<div class="field"><label>Plano de recuperação *</label><div class="config-banner" style="margin-bottom:6px;">O CSM escala o caso e combina um plano de recuperação. A rampagem só começa depois dele.</div>' +
+        '<textarea data-onb-field="rampagem.recuperacao" placeholder="O que será feito para recuperar a implantação, responsáveis e prazos">'+esc(r.recuperacao||'')+'</textarea></div>' : '') +
+      '<div class="field"><label>Plano de rampagem</label>' +
+        (!recuperacaoOk ? '<div class="empty-note" style="padding:8px 0;">Preencha o plano de recuperação acima e salve para liberar o plano de rampagem.</div>' :
+          ('<div class="hint" style="margin-bottom:8px;">Cada nível da régua começa a rampagem de um ponto. O CSM monta o plano, solicita cada treinamento previsto e mede o uso.</div>' +
+          '<div class="field"><label>Objetivo de uso para o cliente</label><textarea data-onb-field="rampagem.objetivo" placeholder="Ex.: ampliar o uso com odontograma, orçamentos e relatórios de gestão">'+esc(r.objetivo||'')+'</textarea></div>' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Indicador de uso a acompanhar</label><input type="text" data-onb-field="rampagem.indicador" placeholder="Ex.: % de atendimentos com evolução registrada" value="'+esc(r.indicador||'')+'"></div>' +
+            '<div class="field"><label>Participantes</label><input type="text" data-onb-field="rampagem.participantes" placeholder="Quem do cliente participa da rampagem" value="'+esc(r.participantes||'')+'"></div>' +
+          '</div>' +
+          '<div class="field"><label>Treinamentos de 40 min previstos</label>' +
+            '<div class="hint" style="margin-bottom:6px;">Datas e participantes de cada treinamento. Formato igual ao da implantação: 40 min guiados, com o cliente executando na plataforma. O CSM solicita cada um a partir deste plano.</div>' +
+            (extras.length ? extras.map(function(x, i){ return renderOnbReuniao(x, i); }).join('') : '<div class="empty-note" style="padding:6px 0; font-size:12px;">Nenhum treinamento previsto ainda.</div>') +
+            '<button type="button" class="btn btn-sm" id="btnOnbAddReuniao">+ Adicionar treinamento previsto</button></div>')) +
+      '</div>' +
+      (plano ? '<div class="hint">Plano de ação criado: <strong>'+esc(plano.titulo)+'</strong> (acompanhe no Painel do dia e em Planos de ação).</div>' : '') +
+    '</div>';
+  }
+
+  var ONBOARDING_SECTION_RENDERERS = {
+    d0: renderOnbD0, d1: renderOnbD1, migracao: renderOnbMigracao,
+    t1: function(o){ return renderOnbTreino(o, 't1'); },
+    t2: function(o){ return renderOnbTreino(o, 't2'); },
+    t3: function(o){ return renderOnbTreino(o, 't3'); },
+    validacao: renderOnbValidacao, concluido: renderOnbConcluido
+  };
 
   // Indicador de progresso (stepper) no topo da tela do cliente: mostra as
-  // 5 fases em sequência, com as concluídas marcadas com ✓ e a fase atual
-  // destacada. Clicar numa fase já concluída APENAS VISUALIZA os dados
-  // daquela fase (não altera a fase real nem salva nada) — é possível
-  // navegar livremente pelo histórico do cliente sem risco de mexer no
-  // fluxo. Fases futuras ficam desabilitadas. Quando o cliente está
-  // congelado, aparece um passo extra "Congelado" ao final, sempre
-  // destacado como atual.
+  // 7 etapas em sequência, com as concluídas marcadas com ✓ e a etapa atual
+  // destacada. Clicar numa etapa já concluída APENAS VISUALIZA os dados
+  // daquela etapa (não altera a etapa real nem salva nada). Etapas futuras
+  // ficam desabilitadas. Quando o cliente está congelado, aparece um passo
+  // extra "Congelado" ao final, sempre destacado como atual; quando a
+  // implantação termina, aparece o passo "Concluído".
   function renderOnbProgresso(onb, faseMostrada){
     var chaves = ONBOARDING_FASES.map(function(f){ return f.key; });
+    var ativas = ONBOARDING_FASES.filter(function(f){ return f.key !== 'concluido'; });
     var idxReal = chaves.indexOf(onb.faseAtual);
-    if(onb.faseAtual === 'concluido') idxReal = 5;
-    var passos = ONBOARDING_FASES.slice(0,5).map(function(f, i){
-      var concluida = i < idxReal || onb.faseAtual === 'concluido';
+    if(idxReal < 0) idxReal = 0;
+    var passos = ativas.map(function(f, i){
+      var concluida = i < idxReal;
       var atual = !onb.congelado && f.key === onb.faseAtual;
       var habilitada = i <= idxReal;
       var visualizando = f.key === faseMostrada;
       return '<button type="button" class="onb-step'+(concluida?' done':'')+(atual?' current':'')+(visualizando?' viewing':'')+'" '+(habilitada?('data-onb-step="'+f.key+'"'):'disabled')+' title="'+esc(f.label)+'">'+(concluida?'✓ ':'')+esc(f.label)+'</button>';
     }).join('');
+    if(onb.faseAtual === 'concluido'){
+      passos += '<button type="button" class="onb-step current'+(faseMostrada==='concluido'?' viewing':'')+'" data-onb-step="concluido" title="Concluído">Concluído</button>';
+    }
     if(onb.congelado){
       passos += '<button type="button" class="onb-step current'+(faseMostrada==='congelado'?' viewing':'')+'" data-onb-step="congelado" title="Congelado">Congelado</button>';
     }
     return '<div class="hint" style="margin-bottom:4px;">' +
-        (onb.faseAtual === 'concluido' ? 'Onboarding concluído' : (onb.congelado ? 'Congelado (fase salva: '+esc(ONBOARDING_FASE_LABEL[onb.congeladoDe]||'')+')' : 'Fase '+(idxReal+1)+' de 5 — '+esc(ONBOARDING_FASE_LABEL[onb.faseAtual]||''))) +
+        (onb.faseAtual === 'concluido' ? 'Implantação concluída' : (onb.congelado ? 'Congelado (etapa salva: '+esc(ONBOARDING_FASE_LABEL[onb.congeladoDe]||'')+')' : 'Etapa '+(idxReal+1)+' de '+ativas.length+' — '+esc(ONBOARDING_FASE_LABEL[onb.faseAtual]||''))) +
       '</div>' +
       '<div class="onb-stepper" style="margin-bottom:16px;">' + passos + '</div>';
   }
@@ -10667,7 +10949,7 @@
   function renderOnbCongelado(onb){
     return '<div class="onb-fase-section">' +
       '<h3>Congelado</h3>' +
-      '<div class="hint" style="margin-bottom:10px;">O cliente está temporariamente pausado no onboarding. Congelado não é uma fase normal do fluxo: ela só aparece na tela do cliente e no quadro enquanto o cliente estiver nela. Ao descongelar, ele volta para "'+esc(ONBOARDING_FASE_LABEL[onb.congeladoDe]||'')+'".</div>' +
+      '<div class="hint" style="margin-bottom:10px;">O cliente está temporariamente pausado na implantação. Congelado não é uma etapa normal do fluxo: ela só aparece na tela do cliente e no quadro enquanto o cliente estiver nela. Ao descongelar, ele volta para "'+esc(ONBOARDING_FASE_LABEL[onb.congeladoDe]||'')+'".</div>' +
       '<div class="field"><label>Vencimento da fase</label><input type="date" data-onb-field="congeladoVencimento" value="'+esc(onb.congeladoVencimento||'')+'"><div class="hint">Leve em conta quantos dias o cliente tem previsão de ficar congelado. Ao vencer, gera uma atividade no Painel do dia.</div></div>' +
       '<div class="field"><label>Data do congelamento</label><input type="text" value="'+esc(onb.congeladoData?fmtDate(onb.congeladoData):'—')+'" disabled></div>' +
       '<div class="field"><label>Dias restantes de onboarding</label><input type="text" value="'+esc(onb.congeladoDiasRestantes!=null?onb.congeladoDiasRestantes:'—')+'" disabled><div class="hint">60 dias − dias que o cliente já tinha acumulado em onboarding antes de congelar.</div></div>' +
@@ -10677,38 +10959,33 @@
 
   function renderOnboardingFormBody(){
     var onb = onboardingEdit;
-    var chaves = ONBOARDING_FASES.map(function(f){ return f.key; });
     var faseMostrada = onbFaseVisualizada;
     if(faseMostrada == null) faseMostrada = onb.congelado ? 'congelado' : onb.faseAtual;
-    var idxMostrado = chaves.indexOf(faseMostrada);
     var html;
-    if(idxMostrado === 0){
-      // Fase 0 (Criar Registro) é a exceção do layout: ocupa a tela
-      // inteira em coluna única, sem o Formulário Inicial "ao lado" — na
-      // prática ele É o conteúdo desta fase (é isto que se preenche pra
-      // criar o registro), então não faz sentido duplicar em duas colunas.
+    var opcoesForm = {semMigChecklist: faseMostrada === 'migracao'};
+    if(faseMostrada === 'd0'){
+      // D0 é a exceção do layout: ocupa a tela inteira em coluna única, com o
+      // formulário inicial logo abaixo (é nele que se cria o registro).
       html = '<div class="onb-layout onb-layout-unica">';
       html += renderOnbProgresso(onb, faseMostrada);
-      html += '<div class="onb-fase-section"><h3>Criar Registro de Novo Cliente</h3>' +
-        '<div class="hint">Preencha os dados abaixo. Campos obrigatórios para avançar: Nome do cliente/clínica, Responsável pela implantação, Telefone do responsável pela implantação e Início do onboarding.</div></div>';
-      html += renderOnbFormularioInicial(onb);
+      html += renderOnbD0(onb);
+      html += '<div class="hint" style="margin:0 0 8px;">Campos obrigatórios para avançar: Nome do cliente/clínica, Responsável pela implantação, Telefone do responsável pela implantação e Data da contratação.</div>';
+      html += renderOnbFormularioInicial(onb, opcoesForm);
       html += '</div>';
     }else{
       var abaFase = onbAbaMobileAtiva !== 'formulario';
       html = '<div class="onb-abas-mobile">' +
-          '<button type="button" class="onb-aba-mobile-btn'+(abaFase?' ativa':'')+'" data-onb-aba-mobile="fase">Fase atual</button>' +
+          '<button type="button" class="onb-aba-mobile-btn'+(abaFase?' ativa':'')+'" data-onb-aba-mobile="fase">Etapa atual</button>' +
           '<button type="button" class="onb-aba-mobile-btn'+(!abaFase?' ativa':'')+'" data-onb-aba-mobile="formulario">Formulário inicial</button>' +
         '</div>' +
         '<div class="onb-layout">' +
-          '<div class="onb-col-esquerda'+(!abaFase?' onb-aba-ativa':'')+'">' + renderOnbFormularioInicial(onb) + '</div>' +
+          '<div class="onb-col-esquerda'+(!abaFase?' onb-aba-ativa':'')+'">' + renderOnbFormularioInicial(onb, opcoesForm) + '</div>' +
           '<div class="onb-col-direita'+(abaFase?' onb-aba-ativa':'')+'">';
       html += renderOnbProgresso(onb, faseMostrada);
       if(faseMostrada === 'congelado'){
         html += renderOnbCongelado(onb);
-      }else if(idxMostrado >= 1 && idxMostrado <= 4){
-        html += ONBOARDING_SECTION_RENDERERS[idxMostrado](onb);
-      }else{
-        html += '<div class="onb-fase-section"><h3>Onboarding concluído</h3><div class="hint">Finalizado em '+(onb.concluidoEm?fmtDate(onb.concluidoEm.slice(0,10)):'—')+'.</div></div>';
+      }else if(ONBOARDING_SECTION_RENDERERS[faseMostrada]){
+        html += ONBOARDING_SECTION_RENDERERS[faseMostrada](onb);
       }
       html += '</div></div>';
     }
@@ -10728,24 +11005,24 @@
     if(onb.faseAtual === 'concluido' || onb.congelado){
       btn.style.display = 'none';
     }else if(visualizandoOutra){
-      // Regra 1 do avançar: se o usuário está visualizando uma fase
-      // diferente da fase real (via stepper), o clique só realinha a
-      // visualização para a fase atual — não avança nada.
+      // Se o usuário está visualizando uma etapa diferente da real (via
+      // stepper), o clique só realinha a visualização — não avança nada.
       btn.style.display = '';
-      btn.textContent = 'Ir para a fase atual';
+      btn.textContent = 'Ir para a etapa atual';
     }else{
       btn.style.display = '';
       var proxima = ONBOARDING_FASES[idxAtual+1];
-      btn.textContent = proxima.key === 'concluido' ? 'Finalizar onboarding' : 'Avançar para "'+proxima.label+'"';
+      btn.textContent = proxima.key === 'concluido' ? 'Finalizar implantação' : 'Avançar para "'+proxima.label+'"';
     }
     if(btnVoltar){
+      btnVoltar.textContent = 'Voltar para etapa anterior';
       btnVoltar.style.display = (!onb.congelado && !visualizandoOutra && idxAtual > 0 && onb.faseAtual !== 'concluido') ? '' : 'none';
     }
   }
 
-  // Disponível em qualquer fase, exceto Fase 0, finalizado ou congelado.
-  // Move o cliente para a fase anterior SEM validação de campos
-  // obrigatórios — os dados já preenchidos não são apagados.
+  // Disponível em qualquer etapa, exceto D0, finalizada ou congelada.
+  // Move o cliente para a etapa anterior SEM validação — os dados já
+  // preenchidos não são apagados.
   function voltarFaseOnboarding(){
     var onb = onboardingEdit;
     if(!onb || onb.congelado) return;
@@ -10753,8 +11030,8 @@
     var idxAtual = chaves.indexOf(onb.faseAtual);
     if(idxAtual <= 0) return;
     var faseAnterior = ONBOARDING_FASES[idxAtual-1];
-    confirmarAcao('Voltar para a fase "'+faseAnterior.label+'"? Os dados já preenchidos não são apagados, sem validação de campos obrigatórios.', async function(){
-      var extra = {faseAtual: faseAnterior.key, faseEntrouEm: todayISO()};
+    confirmarAcao('Voltar para a etapa "'+faseAnterior.label+'"? Os dados já preenchidos não são apagados.', async function(){
+      var extra = {faseAtual: faseAnterior.key, faseEntrouEm: todayISO(), vencimentoFase: onboardingAutoVencimentoFase(onb, faseAnterior.key)};
       try{
         await persistirOnboarding(onb, extra);
         Object.assign(onb, extra);
@@ -10762,9 +11039,9 @@
         renderOnboardingFormBody();
         mostrarSalvoOnboarding(true);
       }catch(e){
-        mostrarSalvoOnboarding(false, 'Não foi possível voltar de fase agora. Tente novamente.');
+        mostrarSalvoOnboarding(false, 'Não foi possível voltar de etapa agora. Tente novamente.');
       }
-    }, {textoConfirmar: 'Voltar de fase', perigo: false});
+    }, {textoConfirmar: 'Voltar de etapa', perigo: false});
   }
 
   // Botão "Congelar cliente" — disponível em qualquer fase, exceto se já
@@ -10795,12 +11072,12 @@
   function descongelarOnboarding(){
     var onb = onboardingEdit;
     if(!onb || !onb.congelado) return;
-    var faseVolta = onb.congeladoDe || 'cadastro';
-    confirmarAcao('Descongelar o onboarding deste cliente? Ele volta para a fase "'+esc(ONBOARDING_FASE_LABEL[faseVolta]||faseVolta)+'".', async function(){
+    var faseVolta = onb.congeladoDe || 'd0';
+    confirmarAcao('Descongelar o onboarding deste cliente? Ele volta para a etapa "'+(ONBOARDING_FASE_LABEL[faseVolta]||faseVolta)+'".', async function(){
       var diasRestantes = onb.congeladoDiasRestantes != null ? onb.congeladoDiasRestantes : 60;
       var novoInicio = addDays(todayISO(), -(60 - diasRestantes));
       var extra = {
-        congelado: false, faseAtual: faseVolta, dataInicio: novoInicio,
+        congelado: false, faseAtual: faseVolta, dataInicio: novoInicio, vencimentoFase: todayISO(),
         congeladoDe: null, congeladoData: null, congeladoVencimento: null, congeladoDiasRestantes: null, congeladoMotivo: ''
       };
       try{
@@ -10843,40 +11120,70 @@
     }
   }
 
+  // Único bloqueio real: dados mínimos do cadastro (D0). Todo o resto do
+  // gating da Implantação Intensiva apenas AVISA (ver avisosAvancoOnboarding).
   function validarAvancoOnboarding(onb){
-    if(onb.faseAtual === 'cadastro'){
+    if(onb.faseAtual === 'd0'){
       var cliente = clientes.filter(function(c){ return c.id === onb.clienteId; })[0] || {};
       var faltandoCadastro = [];
       if(!(cliente.nome || onb.clienteNome)) faltandoCadastro.push('Nome do cliente/clínica');
       if(!onb.responsavelImplantacao) faltandoCadastro.push('Responsável pela implantação');
       if(!onb.telefoneResponsavelImplantacao) faltandoCadastro.push('Telefone do responsável pela implantação');
-      if(!onb.dataInicio) faltandoCadastro.push('Início do onboarding');
+      if(!onb.dataInicio) faltandoCadastro.push('Data da contratação');
       if(faltandoCadastro.length) return 'Preencha os campos obrigatórios: '+faltandoCadastro.join(', ')+'.';
     }
-    if(onb.faseAtual === 'contato'){
-      var ag = agendamentoAlinhamento(onb.clienteId);
-      if(!ag) return 'É preciso agendar o alinhamento nesta tela ou na Agenda antes de avançar.';
-      if(!reuniaoLiberaAvanco(ag)) return 'Avanço liberado a partir de '+fmtDate(ag.data)+', dia da reunião de alinhamento.';
-    }
-    if(onb.faseAtual === 'planejando'){
-      var faltando = [];
-      if(!onb.expectativaPlataforma) faltando.push('Qual a expectativa em relação à plataforma?');
-      if(!onb.fluxoOperacional) faltando.push('Qual o fluxo operacional da clínica?');
-      var kpiCompleto = (onb.kpisAcompanhamento||[]).some(function(k){ return k.nome && k.valorAtual; });
-      if(!kpiCompleto) faltando.push('ao menos um KPI de Acompanhamento completo (indicador + valor)');
-      if(!onb.migracaoAndamento) faltando.push('Tem migração em andamento?');
-      if(!onb.excedendoExpectativas) faltando.push('Excedendo as expectativas');
-      if(faltando.length) return 'Preencha os campos obrigatórios antes de avançar: '+faltando.join(', ')+'.';
-    }
-    if(onb.faseAtual === 'construindo'){
-      var log = onb.evolucaoUsabilidade || [];
-      if(!log.length) return 'Registre ao menos um registro de Evolução da Usabilidade antes de avançar para o Momento WOW.';
-    }
-    if(onb.faseAtual === 'wow'){
-      var agFinal = agendamentoFinalizacao(onb.clienteId);
-      if(!agFinal || !agFinal.data) return 'Agende a reunião de finalização antes de finalizar o onboarding.';
-    }
     return null;
+  }
+
+  // "Cada etapa só é liberada se a anterior entregou" — aqui o sistema só
+  // avisa o que ficou pendente (não bloqueia): o CSM decide se avança.
+  function avisosAvancoOnboarding(onb){
+    var av = [];
+    var fase = onb.faseAtual;
+    if(fase === 'd0'){
+      var nb = onboardingContar(onb.setupBlocos, ONBOARDING_SETUP_BLOCOS);
+      if(!onb.setupFormRecebidoEm) av.push('Formulário de Setup ainda não devolvido pelo cliente');
+      if(nb < ONBOARDING_SETUP_BLOCOS.length) av.push('Formulário de Setup incompleto ('+nb+'/'+ONBOARDING_SETUP_BLOCOS.length+' blocos)');
+      var nc = onboardingContar(onb.d0Checks, ONBOARDING_D0_CHECKS);
+      if(nc < ONBOARDING_D0_CHECKS.length) av.push('Checklist do D0 incompleto ('+nc+'/'+ONBOARDING_D0_CHECKS.length+')');
+      if(onb.d0AlertaAcionado) av.push('Alerta de ATENÇÃO acionado: o D1 deve ser remarcado');
+      if(!agendamentoAlinhamento(onb.clienteId)) av.push('D1 (Alinhamento e Setup) ainda não agendado');
+    }else if(fase === 'd1'){
+      var ag = agendamentoAlinhamento(onb.clienteId);
+      if(!ag) av.push('D1 não agendado');
+      else if(!reuniaoLiberaAvanco(ag)) av.push('O D1 está agendado para '+fmtDate(ag.data)+' e ainda não aconteceu');
+      var na = onboardingContar(onb.d1Checks, ONBOARDING_D1_ALINHAMENTO);
+      if(na < ONBOARDING_D1_ALINHAMENTO.length) av.push('Alinhamento incompleto ('+na+'/'+ONBOARDING_D1_ALINHAMENTO.length+')');
+      var ns = onboardingContar(onb.d1SetupChecks, ONBOARDING_D1_SETUP);
+      if(ns < ONBOARDING_D1_SETUP.length) av.push('Setup incompleto ('+ns+'/'+ONBOARDING_D1_SETUP.length+')');
+      if(onb.d1SetupValidado === 'nao') av.push('Validação do setup respondida "Não": o T1 só acontece depois de resolver as pendências do cliente');
+      else if(onb.d1SetupValidado !== 'sim') av.push('Validação obrigatória do setup não respondida');
+    }else if(fase === 'migracao'){
+      if(onb.migracaoDados){
+        if(!onb.migDadosRecebidosEm) av.push('Dados para migração ainda não recebidos do cliente');
+        var mc = onb.migChecks || {};
+        if(!mc.migracaoRealizada && !mc.correcaoRealizada) av.push('Migração ainda não marcada como realizada');
+        var pz = onboardingPrazoMigracao(onb);
+        if(pz && pz > todayISO()) av.push('Prazo da migração vai até '+fmtDate(pz)+' (o T1 deve acontecer depois)');
+      }
+    }else if(ONBOARDING_TREINO_FASES.indexOf(fase) > -1){
+      var rotulo = fase.toUpperCase();
+      var reu = reuniaoDaFase(onb, fase);
+      if(!reu || !reu.data) av.push(rotulo+' não agendado');
+      else if(!reuniaoJaPassou(reu)) av.push(rotulo+' agendado para '+fmtDate(reu.data)+' e ainda não aconteceu');
+      if((onb.treinoCriterio||{})[fase] !== 'sim') av.push('Critério de saída do '+rotulo+' não confirmado');
+      if(fase === 't1'){
+        var pzT1 = onboardingPrazoMigracao(onb);
+        if(pzT1 && reu && reu.data && reu.data <= pzT1) av.push('T1 foi agendado antes do fim do prazo da migração ('+fmtDate(pzT1)+')');
+      }
+    }else if(fase === 'validacao'){
+      if(!agendamentoFinalizacao(onb.clienteId)) av.push('Reunião de Validação não agendada');
+      var casos = onb.validacaoCasos || {};
+      var semResultado = ONBOARDING_VALIDACAO_CASOS.filter(function(c){ return !(casos[c.key]||{}).resultado; }).length;
+      if(semResultado) av.push(semResultado+' dos 5 casos práticos sem resultado');
+      if(!onb.reguaNivel) av.push('Nível na régua de sucesso não definido');
+    }
+    return av;
   }
 
   async function persistirOnboarding(onb, extra){
@@ -10901,13 +11208,45 @@
     }
   }
 
+  // Plano de ação criado ao finalizar a implantação: "Plano de rampagem"
+  // (Concluída / Em consolidação) ou "Plano de recuperação" (Com risco),
+  // com a primeira atividade vencendo em 7 dias — aparece no Painel do dia.
+  async function criarPlanoRampagemOnboarding(onb){
+    var cliente = clientes.filter(function(c){ return c.id === onb.clienteId; })[0] || {};
+    var comRisco = onb.reguaNivel === 'com_risco';
+    var prazo = addDays(todayISO(), 7);
+    var responsavel = onb.csm || cliente.csm || '';
+    var atividade = {
+      id: novoId('at'),
+      titulo: comRisco ? 'Escalar o caso e combinar o plano de recuperação' : 'Montar o plano de rampagem do cliente',
+      descricao: comRisco
+        ? 'Régua de sucesso: Com risco. O CSM escala o caso e combina um plano de recuperação; a rampagem só começa depois dele (tela de Onboarding do cliente, coluna Concluídas).'
+        : 'Defina o objetivo de uso, os treinamentos de 40 min previstos (datas e participantes) e o indicador de uso, na tela de Onboarding do cliente (coluna Concluídas).',
+      causa: '', responsavel: responsavel, prazo: prazo, proximoAcompanhamento: prazo, status: 'nao_iniciada', tags: [],
+      alertaAtivo: false, alertaMotivo: '', concluidoEm: null, origemAuto: 'onboardingRampagem'
+    };
+    var planoId = novoId('plano');
+    var body = {
+      clienteId: onb.clienteId, clienteNome: onb.clienteNome, csm: responsavel,
+      titulo: comRisco ? 'Plano de recuperação — pós-implantação' : 'Plano de rampagem',
+      origemPlaybookId: null, origemPlaybookNome: null, criadoEm: todayISO(), status: 'aberto',
+      objetivoPrincipal: '', criteriosSucesso: [], diagnostico: {}, recuperacaoRisco: {}, atividades: [atividade]
+    };
+    if(db && !offline){
+      await db.collection('planosAcao').doc(planoId).set(body);
+    }else{
+      planos.push(Object.assign({id: planoId}, body));
+    }
+    return planoId;
+  }
+
   async function avancarFaseOnboarding(){
     var onb = onboardingEdit;
     var chaves = ONBOARDING_FASES.map(function(f){ return f.key; });
     var idx = chaves.indexOf(onb.faseAtual);
     var faseMostrada = onbFaseVisualizada == null ? (onb.congelado ? 'congelado' : onb.faseAtual) : onbFaseVisualizada;
-    // Regra 1: visualizando (via stepper) uma fase diferente da real — o
-    // clique só realinha a visualização para a fase atual, sem avançar.
+    // Visualizando (via stepper) uma etapa diferente da real — o clique só
+    // realinha a visualização para a etapa atual, sem avançar.
     if(faseMostrada !== (onb.congelado ? 'congelado' : onb.faseAtual)){
       onbFaseVisualizada = null;
       renderOnboardingFormBody();
@@ -10916,11 +11255,32 @@
     if(onb.congelado) return;
     var erro = validarAvancoOnboarding(onb);
     if(erro){ alert(erro); return; }
+    var avisos = avisosAvancoOnboarding(onb);
+    if(avisos.length){
+      var proximaAviso = ONBOARDING_FASES[idx+1];
+      confirmarAcao('Pendências em "'+ONBOARDING_FASE_LABEL[onb.faseAtual]+'":\n• '+avisos.join('\n• ')+'\n\nO avanço não é bloqueado. '+(proximaAviso.key === 'concluido' ? 'Finalizar a implantação mesmo assim?' : 'Avançar mesmo assim?'),
+        function(){ efetivarAvancoOnboarding(onb, avisos); },
+        {textoConfirmar: 'Avançar mesmo assim', perigo: false});
+      return;
+    }
+    efetivarAvancoOnboarding(onb, []);
+  }
+
+  async function efetivarAvancoOnboarding(onb, avisos){
+    var chaves = ONBOARDING_FASES.map(function(f){ return f.key; });
+    var idx = chaves.indexOf(onb.faseAtual);
     var proxima = ONBOARDING_FASES[idx+1];
-    // Última fase: o botão finaliza o onboarding em vez de mudar de fase.
+    if(!proxima) return;
+    var log = (onb.avancosComPendencia||[]).slice();
+    if(avisos.length){
+      log.push({de: onb.faseAtual, para: proxima.key, em: todayISO(), por: currentUser ? currentUser.nome : '', pendencias: avisos});
+    }
+    // Última etapa: o botão finaliza a implantação em vez de mudar de etapa.
     if(proxima.key === 'concluido'){
-      var extraFim = { faseAtual: 'concluido', concluidoEm: new Date().toISOString() };
       try{
+        var planoId = null;
+        try{ planoId = await criarPlanoRampagemOnboarding(onb); }catch(ePlano){ planoId = null; }
+        var extraFim = { faseAtual: 'concluido', concluidoEm: new Date().toISOString(), vencimentoFase: null, avancosComPendencia: log, planoRampagemId: planoId };
         await persistirOnboarding(onb, extraFim);
         if(db && !offline){
           await db.collection('clientes').doc(onb.clienteId).update({etapaAtual:'adocao'});
@@ -10928,31 +11288,28 @@
           var idxC = clientes.findIndex(function(c){ return c.id === onb.clienteId; });
           if(idxC>-1) clientes[idxC].etapaAtual = 'adocao';
         }
+        Object.assign(onb, extraFim);
         registrarConclusaoAtividadeHoje('onboardingFase', onb.clienteId+'|concluido', onb.csm);
-        closeOverlay('overlayOnboarding');
-        mostrarSalvoOnboarding(true, 'Onboarding finalizado. Cliente movido para Pós-venda.');
+        onbFaseVisualizada = null;
+        if(onboardingEdit === onb){ renderOnboardingFormBody(); }
+        renderAll();
+        mostrarSalvoOnboarding(true, 'Implantação finalizada. Cliente movido para Pós-venda — monte o plano de rampagem.');
       }catch(e){
         mostrarSalvoOnboarding(false, 'Não foi possível finalizar agora. Tente novamente.');
       }
       return;
     }
-    var extra = { faseAtual: proxima.key, faseEntrouEm: todayISO() };
-    // Automações de data ao entrar em cada fase (Especificação do Fluxo de
-    // Onboarding): Entrar em Contato e Planejando o Sucesso SEMPRE
-    // redefinem o vencimento da fase para hoje ao entrar (mesmo se o
-    // cliente estiver voltando para cá); Construindo o Sucesso só
-    // preenche a próxima análise se ainda estiver vazia.
-    if(proxima.key === 'contato') extra.vencimentoContato = todayISO();
-    if(proxima.key === 'planejando') extra.vencimentoPlanejando = todayISO();
-    if(proxima.key === 'construindo' && !onb.proximaAnalise) extra.proximaAnalise = todayISO();
-    if(proxima.key === 'wow' && !onb.contatoDate) extra.contatoDate = todayISO();
+    // Ao entrar em cada etapa, o prazo da etapa é redefinido automaticamente
+    // (D0: 2 dias úteis após a contratação; Migração: 2 dias úteis após o
+    // recebimento dos dados; T1: depois da migração; demais: hoje).
+    var extra = { faseAtual: proxima.key, faseEntrouEm: todayISO(), vencimentoFase: onboardingAutoVencimentoFase(onb, proxima.key), avancosComPendencia: log };
     try{
       await persistirOnboarding(onb, extra);
       Object.assign(onb, extra);
       registrarConclusaoAtividadeHoje('onboardingFase', onb.clienteId+'|'+chaves[idx], onb.csm);
       onbFaseVisualizada = null;
-      renderOnboardingFormBody();
-      mostrarSalvoOnboarding(true, (ONBOARDING_FASE_LABEL[chaves[idx]]||'Fase anterior')+' concluída. Cliente movido para '+proxima.label+'.');
+      if(onboardingEdit === onb){ renderOnboardingFormBody(); }
+      mostrarSalvoOnboarding(true, (ONBOARDING_FASE_LABEL[chaves[idx]]||'Etapa anterior')+' concluída. Cliente movido para '+proxima.label+'.');
     }catch(e){
       mostrarSalvoOnboarding(false, 'Não foi possível avançar agora. Tente novamente.');
     }
@@ -10974,7 +11331,7 @@
   // Reunião de finalização (Fase "Momento WOW") — mesmo padrão da reunião
   // de alinhamento, via Agenda (não é um campo de data solto).
   async function salvarFinalizacaoOnboarding(){
-    if(onbAgendaFinalSalvando || !onboardingEdit || onboardingEdit.faseAtual !== 'wow') return;
+    if(onbAgendaFinalSalvando || !onboardingEdit || onboardingEdit.faseAtual !== 'validacao') return;
     var err = document.getElementById('onbAgFinalError');
     err.classList.remove('show');
     var clienteId = onboardingEdit.clienteId;
@@ -11026,7 +11383,7 @@
       delete onbAgendamentosFinalPendentes[clienteId];
       onbAgendaFinalSalvando = false;
       renderAll();renderOnboardingFormBody();
-      mostrarToastSucesso('Reunião de finalização agendada para '+fmtDate(recAg.data)+' às '+recAg.horaInicio+'.');
+      mostrarToastSucesso('Reunião de Validação agendada para '+fmtDate(recAg.data)+' às '+recAg.horaInicio+'.');
     }catch(e){
       err.textContent = (pendente.agendaSalva?'A reunião foi salva na Agenda, mas o vínculo com o onboarding ainda não foi confirmado. ':'Não foi possível confirmar o agendamento. ')+'Clique em Tentar novamente para concluir sem duplicar. '+detalheErro(e);
       err.classList.add('show');
@@ -11038,7 +11395,7 @@
     if(!onb) return;
     var ag = agendamentoFinalizacao(onb.clienteId);
     if(!ag) return;
-    confirmarAcao('Remover o agendamento de finalização deste cliente?', async function(){
+    confirmarAcao('Remover o agendamento da Validação deste cliente?', async function(){
       try{
         if(db && !offline){ await db.collection('agendamentos').doc(ag.id).update({status:'cancelado'}); }
         else{ var idx = agendamentos.findIndex(function(a){return a.id===ag.id;}); if(idx>-1) agendamentos[idx].status='cancelado'; }
@@ -11046,7 +11403,7 @@
         await persistirOnboarding(onb, {agendamentoFinalizacaoId:null});
         onbAgendaFinalRascunho = {data:todayISO(),horaInicio:'',horaFim:'',contatoNome:onb.clienteNome||'',contatoTelefone:''};
         renderAll();renderOnboardingFormBody();
-        mostrarToastSucesso('Agendamento de finalização removido.');
+        mostrarToastSucesso('Agendamento da Validação removido.');
       }catch(e){ alert('Não foi possível remover o agendamento agora. '+detalheErro(e)); }
     }, {textoConfirmar:'Remover agendamento'});
   }
@@ -12210,12 +12567,6 @@
     document.getElementById('onbFormBody').addEventListener('input', function(e){
       var field = e.target.getAttribute('data-onb-field');
       if(field && e.target.tagName !== 'SELECT'){ setDeepField(onboardingEdit, field, e.target.value); return; }
-      var kpiField = e.target.getAttribute('data-onb-kpi-field');
-      if(kpiField != null){
-        var idx = Number(e.target.getAttribute('data-onb-kpi-idx'));
-        if(onboardingEdit.kpisAcompanhamento[idx]) onboardingEdit.kpisAcompanhamento[idx][kpiField] = e.target.value;
-        return;
-      }
       var reuniaoField = e.target.getAttribute('data-onb-reuniao-field');
       if(reuniaoField != null && e.target.tagName !== 'SELECT'){
         var reu = onbReuniaoPorId(e.target.getAttribute('data-onb-reuniao-id'));
@@ -12240,13 +12591,32 @@
         renderOnboardingFormBody();
         return;
       }
+      var nivelRegua = e.target.getAttribute('data-onb-regua');
+      if(nivelRegua){
+        onboardingEdit.reguaNivel = nivelRegua;
+        renderOnboardingFormBody();
+        return;
+      }
       var field = e.target.getAttribute('data-onb-field');
+      if(field === 'migDadosRecebidosEm'){
+        // O prazo da migração (2 dias úteis) muda com o recebimento dos dados:
+        // na etapa de Migração o prazo da etapa acompanha.
+        setDeepField(onboardingEdit, field, e.target.value || null);
+        if(onboardingEdit.faseAtual === 'migracao' && onboardingEdit.migracaoDados) onboardingEdit.vencimentoFase = onboardingAutoVencimentoFase(onboardingEdit, 'migracao');
+        renderOnboardingFormBody();
+        return;
+      }
       if(field === 'migracaoDadosSelect'){
         onboardingEdit.migracaoDados = (e.target.value === 'sim');
         renderOnboardingFormBody();
         return;
       }
-      if(field && e.target.tagName === 'SELECT'){ setDeepField(onboardingEdit, field, e.target.value); return; }
+      if(field && e.target.tagName === 'SELECT'){
+        setDeepField(onboardingEdit, field, e.target.value);
+        // Campos que mostram/escondem outros blocos precisam redesenhar.
+        if(field === 'd1SetupValidado') renderOnboardingFormBody();
+        return;
+      }
       var reuniaoField = e.target.getAttribute('data-onb-reuniao-field');
       if(reuniaoField != null){
         var reu = onbReuniaoPorId(e.target.getAttribute('data-onb-reuniao-id'));
@@ -12279,31 +12649,6 @@
       }
       if(e.target.closest('#btnAgendarOnbAtividade')){
         agendarAtividadeOnboarding();
-        return;
-      }
-      if(e.target.closest('#btnAddOnbKpi')){
-        onboardingEdit.kpisAcompanhamento = onboardingEdit.kpisAcompanhamento || [];
-        onboardingEdit.kpisAcompanhamento.push({nome:'', valorAtual:''});
-        renderOnboardingFormBody();
-        return;
-      }
-      var rm = e.target.closest('[data-onb-kpi-remove]');
-      if(rm){
-        onboardingEdit.kpisAcompanhamento.splice(Number(rm.getAttribute('data-onb-kpi-remove')),1);
-        renderOnboardingFormBody();
-        return;
-      }
-      if(e.target.closest('#btnAddOnbUsabilidade')){
-        registrarEvolucaoUsabilidade();
-        return;
-      }
-      if(e.target.closest('#btnAddOnbKpiLog')){
-        var kpiNome = document.getElementById('onbNovoKpiNome').value;
-        var valor = document.getElementById('onbNovoKpiValor').value.trim();
-        if(!kpiNome || !valor) return;
-        onboardingEdit.evolucaoKpis = onboardingEdit.evolucaoKpis || [];
-        onboardingEdit.evolucaoKpis.push({data: todayISO(), kpiNome: kpiNome, valor: valor});
-        renderOnboardingFormBody();
         return;
       }
       if(e.target.closest('#btnOnbAddReuniao')){
