@@ -798,6 +798,14 @@
     .carteira-table td.td-acoes{ padding-top:8px; margin-top:2px; border-top:1px solid var(--border); }
     .carteira-table td.td-acoes > div{ justify-content:flex-start !important; flex-wrap:wrap !important; }
   }
+
+  /* ---------------- Gestão ---------------- */
+  #view-gestao .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  #view-gestao .agenda-cal-modos{ flex-wrap:wrap; }
+  #view-gestao .g-card[draggable="true"]{ cursor:grab; }
+  #overlayGestao{ z-index:1100; }
+  #gModalCorpo > *{ flex-shrink:0; }
+  #gModalCorpo{ max-height:72vh; }
 </style>
 </head>
 <body>
@@ -857,6 +865,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.7V12a9 9 0 0 1 15-6.7l3 2.8"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.3V12a9 9 0 0 1-15 6.7l-3-2.8"/></svg>
         Renovação
       </button>
+      <button class="nav-item" data-view="gestao">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Gestão
+        <span class="nav-badge" id="navGestaoBadge" style="display:none;">0</span>
+      </button>
       <button class="nav-item" data-view="reclamacoesRA">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 8v4M12 16h.01"/></svg>
         Reclamações RA
@@ -912,6 +925,7 @@
       </div>
 
       <div class="content">
+        <div id="painelGestaoCard"></div>
         <div class="grid-stats grid-stats-painel">
           <div class="stat">
             <div class="label">Contatos no mês</div>
@@ -1609,6 +1623,20 @@
     </section>
 
     <!-- ===================== RELATÓRIOS ===================== -->
+    <!-- ===================== GESTÃO ===================== -->
+    <section class="view" id="view-gestao">
+      <div class="topbar">
+        <div>
+          <h1>Gestão</h1>
+          <div class="subtitle">Demandas, atividades, rotina do time, 1:1 e metas.</div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-accent" id="btnGestaoNovaDemanda">+ Nova demanda</button>
+        </div>
+      </div>
+      <div class="content"><div id="gestaoCorpo"></div></div>
+    </section>
+
     <section class="view" id="view-relatorios">
       <div class="topbar">
         <div>
@@ -2719,6 +2747,17 @@
   </div>
 </div>
 
+<div class="overlay" id="overlayGestao">
+  <div class="modal" style="max-width:580px;">
+    <div class="modal-head">
+      <h3 id="gModalTitulo"></h3>
+      <button class="icon-btn" data-close="overlayGestao" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body" id="gModalCorpo"></div>
+    <div class="modal-foot" id="gModalRodape"></div>
+  </div>
+</div>
+
 <div class="overlay" id="overlayValidarTreinamento">
   <div class="modal" style="max-width:620px;">
     <div class="modal-head">
@@ -2772,7 +2811,16 @@
       agendas: 'agendas',
       agendamentos: 'agendamentos',
       onboardings: 'onboardings',
-      reclamacoesRA: 'reclamacoes_ra'
+      reclamacoesRA: 'reclamacoes_ra',
+      gestaoDemandas: 'gestao_demandas',
+      gestaoAtividades: 'gestao_atividades',
+      gestaoOcorrencias: 'gestao_ocorrencias',
+      gestaoEncontros: 'gestao_encontros',
+      gestaoNotasPrivadas: 'gestao_notas_privadas',
+      gestaoCiclos: 'gestao_ciclos',
+      gestaoMetas: 'gestao_metas',
+      gestaoAvisos: 'gestao_avisos',
+      gestaoConfig: 'gestao_config'
     };
 
     function novoIdPadrao(){
@@ -4665,6 +4713,7 @@
       {id:'bruno-lima', nome:'Bruno Lima', perfil:'csm', csmVinculado:'Bruno Lima'},
       {id:'carla-mendes', nome:'Carla Mendes', perfil:'csm', csmVinculado:'Carla Mendes'},
       {id:'coordenacao-cs', nome:'Coordenação CS', perfil:'admin', csmVinculado:null},
+      {id:'carolina-coord', nome:'Carolina Coordenadora', perfil:'coordenador', csmVinculado:null, equipeCsm:['Ana Souza','Bruno Lima','Carla Mendes']},
       {id:'renata-renovacao', nome:'Renata Renovação', perfil:'renovacao', csmVinculado:null},
       {id:'andressa-burguetti', nome:'Andressa Burguetti', perfil:'treinamento', csmVinculado:null},
       {id:'ketilyn-sorrechia', nome:'Ketilyn Sorrechia', perfil:'treinamento', csmVinculado:null},
@@ -4699,6 +4748,9 @@
     renovacoesData = [];
     reclamacoesRA = [];
     clientesCarregados = true;
+    // Dados de exemplo da Gestão só no modo demonstração (offline): com o
+    // banco real, os documentos vêm do Supabase.
+    if(offline) gestaoSeedDemo();
   }
 
   // ---------------------------------------------------------------
@@ -4819,6 +4871,8 @@
       renovacoesData = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderAll();
     }, function(){});
+
+    gSubscribe();
   }
 
   async function initDb(){
@@ -6528,7 +6582,8 @@
       treinamentoPerfilFiltroInicializado = true;
     }
     if((renov || csrev) && !admin){
-      switchView('renovacao');
+      var avGestao = document.querySelector('.view.active');
+      if(!avGestao || avGestao.id !== 'view-gestao') switchView('renovacao');
     }
     if(currentUser){
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
@@ -7705,6 +7760,7 @@
     renderTreinamento();
     renderAgenda();
     renderReclamacoesRA();
+    renderGestao();
     if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); renderRenovacao(); backfillClientesCsmId(); }
     else if(isCoordenador()){ renderRelatorios(); }
     else if(isRenovacao() || isCsRevenue()){ renderRenovacao(); }
@@ -7851,13 +7907,14 @@
     // estendido ao CS Revenue). Reforçado aqui (e não só escondendo os
     // botões do menu) para que a restrição valha mesmo se algo tentar
     // navegar direto por fora do menu.
-    if((isRenovacao() || isCsRevenue()) && !isAdmin() && view !== 'renovacao') view = 'renovacao';
+    if((isRenovacao() || isCsRevenue()) && !isAdmin() && view !== 'renovacao' && view !== 'gestao') view = 'renovacao';
     // Analista de Treinamento: só Treinamento, Onboarding (+ Reimplantação,
     // que é uma aba dentro de Onboarding) e Agenda — reforçado aqui pelo
     // mesmo motivo do bloco acima.
-    if(isAnalistaTreinamento() && !isAdmin() && ['treinamento','onboarding','agenda'].indexOf(view) === -1) view = 'treinamento';
+    if(isAnalistaTreinamento() && !isAdmin() && ['treinamento','onboarding','agenda','gestao'].indexOf(view) === -1) view = 'treinamento';
     document.querySelectorAll('.nav-item[data-view]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-view')===view); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
+    if(view === 'gestao') renderGestao(true);
   }
 
   // ---------------------------------------------------------------
@@ -13062,6 +13119,2116 @@
     });
   }
 
+  // ===============================================================
+  // GESTÃO — ambiente de gestão do gerente (demandas, atividades,
+  // rotina do time, 1:1 e metas). Spec: "Ambiente de Gestão do Gerente".
+  //
+  // Papéis (reaproveitam os perfis do Radar CS, sem cadastro paralelo):
+  //   Gerente  = administrador (perfil "admin" ou flag acessoAdmin) —
+  //              dono da caixa e do time, vê TODAS as demandas.
+  //   Triador  = gerente + coordenador — qualquer um dos dois tria a
+  //              fila e pode resolver demandas sem passar pelo gerente
+  //              (respeitada a alçada configurada por tipo).
+  //   Colaborador = demais perfis — abre demandas e acompanha as suas.
+  //
+  // Persistência: mesmo padrão "documento" do resto do app
+  // (db.collection(...)), com o espelho local em memória para o modo
+  // de demonstração offline.
+  // ===============================================================
+  var G = { demandas:[], atividades:[], ocorrencias:[], encontros:[], notas:[], ciclos:[], metas:[], avisos:[], config:[] };
+  var GTAB = { demandas:'gestaoDemandas', atividades:'gestaoAtividades', ocorrencias:'gestaoOcorrencias', encontros:'gestaoEncontros',
+               notas:'gestaoNotasPrivadas', ciclos:'gestaoCiclos', metas:'gestaoMetas', avisos:'gestaoAvisos', config:'gestaoConfig' };
+  var gLoaded = {};          // coleção -> true quando o 1º snapshot chegou (ou no demo local)
+  var gUI = {
+    aba: 'painel',
+    dem: { estado:'ativas', tipo:'todos', prio:'todos', busca:'', visao:'lista', quem:'todas' },
+    ativ: { visao:'hoje' },
+    metas: { cicloId:'' },
+    ind: { mes:'' },
+    detalheDemandaId: null, acaoDemanda: null,
+    detalheOcId: null, detalheEncId: null, detalheMetaId: null, acaoMeta: null,
+    modal: null
+  };
+  var gOcGarantidoEm = '';
+
+  var G_TIPOS_PADRAO = [
+    { id:'apoio_cliente', nome:'Apoio em cliente', alcada:'ambos' },
+    { id:'aprovacao', nome:'Aprovação (desconto, exceção, retenção)', alcada:'gerente' },
+    { id:'recurso', nome:'Recurso ou acesso', alcada:'ambos' },
+    { id:'pessoas', nome:'Pessoas (folga, feedback, carteira)', alcada:'gerente' },
+    { id:'duvida', nome:'Dúvida de processo', alcada:'ambos' },
+    { id:'melhoria', nome:'Melhoria de processo ou sistema', alcada:'ambos' },
+    { id:'outro', nome:'Outro', alcada:'ambos' }
+  ];
+  var G_MODELOS_PADRAO = [
+    { id:'diaria', cadencia:'diaria', nome:'Rotina diária do gerente', ativo:true,
+      itens:['Triar a caixa de demandas','Definir as atividades de foco do dia','Revisar alertas críticos da carteira do time'] },
+    { id:'semanal', cadencia:'semanal', nome:'Reunião semanal do time', ativo:true, diaSemana:1,
+      itens:['Revisar o placar da semana','Olhar as demandas abertas há mais tempo','Acompanhar o progresso das metas','Levantar bloqueios do time'] },
+    { id:'mensal', cadencia:'mensal', nome:'Fechamento do mês', ativo:true,
+      itens:['Revisar o resultado das metas do mês','Analisar demandas por tipo e tempo de resposta','Conferir a carga por pessoa','Registrar aprendizados e o plano do próximo mês'] }
+  ];
+  var G_CFG_PADRAO = { tipos:G_TIPOS_PADRAO, modelos:G_MODELOS_PADRAO, limiteFoco:5, margemRisco:15, diasAlerta1a1:14 };
+
+  var G_ESTADOS = {
+    aberta:         { label:'Aberta',          cls:'pill-neutral' },
+    em_triagem:     { label:'Em triagem',      cls:'pill-warning' },
+    aguardando_info:{ label:'Aguardando info', cls:'pill-warning' },
+    em_andamento:   { label:'Em andamento',    cls:'pill-good' },
+    concluida:      { label:'Concluída',       cls:'pill-good' },
+    encerrada:      { label:'Encerrada',       cls:'pill-neutral' },
+    recusada:       { label:'Recusada',        cls:'pill-critical' }
+  };
+  var G_ESTADOS_ORDEM = ['aberta','em_triagem','aguardando_info','em_andamento','concluida','encerrada','recusada'];
+  var G_ESTADOS_ATIVOS = ['aberta','em_triagem','aguardando_info','em_andamento','concluida'];
+  var G_PRIO = {
+    urgente:{ label:'Urgente', ord:0, cls:'pill-critical', slaH:2 },
+    alta:   { label:'Alta',    ord:1, cls:'pill-warning',  slaDu:1 },
+    normal: { label:'Normal',  ord:2, cls:'pill-neutral',  slaDu:2 },
+    baixa:  { label:'Baixa',   ord:3, cls:'pill-neutral',  slaDu:5 }
+  };
+  var G_PRIO_ORDEM = ['urgente','alta','normal','baixa'];
+  var G_CONCLUSAO_DU = { urgente:0, alta:3, normal:5, baixa:null };
+
+  // ---------------- utilidades ----------------
+  function gAgora(){ return new Date().toISOString(); }
+  function gData(iso){ // yyyy-mm-dd local a partir de um ISO de data/hora
+    if(!iso) return '';
+    var d = new Date(iso);
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  function gFmtDT(iso){
+    if(!iso) return '—';
+    var d = new Date(iso);
+    return pad(d.getDate())+'/'+pad(d.getMonth()+1)+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  function gCfg(){
+    var c = G.config.filter(function(x){ return x.id === 'padrao'; })[0] || {};
+    return {
+      tipos: (c.tipos && c.tipos.length) ? c.tipos : G_TIPOS_PADRAO,
+      modelos: (c.modelos && c.modelos.length) ? c.modelos : G_MODELOS_PADRAO,
+      limiteFoco: c.limiteFoco != null ? c.limiteFoco : G_CFG_PADRAO.limiteFoco,
+      margemRisco: c.margemRisco != null ? c.margemRisco : G_CFG_PADRAO.margemRisco,
+      diasAlerta1a1: c.diasAlerta1a1 != null ? c.diasAlerta1a1 : G_CFG_PADRAO.diasAlerta1a1
+    };
+  }
+  function gTipo(id){
+    return gCfg().tipos.filter(function(t){ return t.id === id; })[0] || { id:id, nome:id||'—', alcada:'ambos' };
+  }
+  function gUsers(){ return usuarios.filter(function(u){ return u.ativo !== false; }); }
+  function gUser(id){ return usuarios.filter(function(u){ return u.id === id; })[0] || null; }
+  function gNome(id){ var u = gUser(id); return u ? u.nome : '—'; }
+  function gEhAdminUser(u){ return !!(u && (u.perfil === 'admin' || u.acessoAdmin)); }
+  function gTriadores(){ return gUsers().filter(function(u){ return gEhAdminUser(u) || u.perfil === 'coordenador'; }); }
+  function gGerentes(){ return gUsers().filter(gEhAdminUser); }
+  function gMeuId(){ return currentUser ? currentUser.id : ''; }
+  function gEhGerente(){ return isAdmin(); }
+  function gEhTriador(){ return isAdmin() || isCoordenador(); }
+  function gOpts(lista, sel, vazio){
+    return (vazio != null ? '<option value="">'+esc(vazio)+'</option>' : '') +
+      lista.map(function(o){ return '<option value="'+esc(o.v)+'"'+(String(o.v)===String(sel)?' selected':'')+'>'+esc(o.l)+'</option>'; }).join('');
+  }
+  function gOptsUsers(sel, vazio, filtro){
+    var l = gUsers().filter(filtro || function(){ return true; })
+      .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); })
+      .map(function(u){ return { v:u.id, l:u.nome }; });
+    return gOpts(l, sel, vazio);
+  }
+  function gVal(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+  function gPill(texto, cls){ return '<span class="pill '+(cls||'pill-neutral')+'"><span class="pill-dot"></span>'+esc(texto)+'</span>'; }
+  function gChip(texto, cls){ return '<span class="chip'+(cls?' '+cls:'')+'">'+esc(texto)+'</span>'; }
+  function gNumDem(d){ return 'DEM-' + ('0000' + (d.numero || 0)).slice(-4); }
+  function gAddMes(s, n){
+    var d = parseISO(s); d.setMonth(d.getMonth()+n);
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function gUltimoDiaUtilMes(ano, mes0){ // mes0 = 0..11
+    var d = new Date(ano, mes0+1, 0);
+    while(d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate()-1);
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  function gSemanaInicio(s){ // segunda-feira da semana de s
+    var d = parseISO(s); var w = d.getDay(); d.setDate(d.getDate() - (w === 0 ? 6 : w-1));
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  var G_DIAS_SEM = ['dom','seg','ter','qua','qui','sex','sáb'];
+  function gDiaSem(s){ return G_DIAS_SEM[parseISO(s).getDay()]; }
+  function gMediaH(lista){ return lista.length ? lista.reduce(function(a,b){ return a+b; },0)/lista.length : null; }
+
+  // ---------------- persistência ----------------
+  function gPut(k, obj){
+    var arr = G[k];
+    var i = arr.findIndex(function(x){ return x.id === obj.id; });
+    var anterior = i > -1 ? arr[i] : null;
+    if(i > -1) arr[i] = obj; else arr.push(obj);
+    var body = Object.assign({}, obj); delete body.id;
+    if(db && !offline){
+      return db.collection(GTAB[k]).doc(obj.id).set(body).catch(function(e){
+        var j = arr.findIndex(function(x){ return x.id === obj.id; });
+        if(anterior){ if(j > -1) arr[j] = anterior; } else if(j > -1){ arr.splice(j,1); }
+        throw e;
+      });
+    }
+    return Promise.resolve();
+  }
+  function gDel(k, id){
+    var arr = G[k];
+    G[k] = arr.filter(function(x){ return x.id !== id; });
+    if(db && !offline) return db.collection(GTAB[k]).doc(id).delete();
+    return Promise.resolve();
+  }
+  function gById(k, id){ return G[k].filter(function(x){ return x.id === id; })[0] || null; }
+
+  function gSubscribe(){
+    Object.keys(GTAB).forEach(function(k){
+      // Notas privadas de 1:1 só são lidas pelo gerente (a RLS também
+      // impede a leitura por qualquer outro perfil).
+      if(k === 'notas' && !gEhGerente()){ gLoaded[k] = true; return; }
+      db.collection(GTAB[k]).onSnapshot(function(snap){
+        G[k] = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        gLoaded[k] = true;
+        renderAll();
+      }, function(){ /* leitura falhou: não libera a geração automática de ocorrências */ });
+    });
+  }
+
+  // ---------------- avisos (sino) ----------------
+  function gAvisar(paraIds, texto, link){
+    var vistos = {};
+    var me = gMeuId();
+    paraIds.forEach(function(pid){
+      if(!pid || pid === me || vistos[pid]) return;
+      vistos[pid] = true;
+      var a = { id: novoId('av'), paraId: pid, texto: texto, link: link || null, criadoEm: gAgora(), lido: false };
+      gPut('avisos', a).catch(function(){});
+    });
+  }
+  function gMeusAvisos(){
+    return G.avisos.filter(function(a){ return a.paraId === gMeuId() && !a.lido; })
+      .sort(function(a,b){ return a.criadoEm < b.criadoEm ? 1 : -1; });
+  }
+  function gMarcarAvisoLido(id){
+    var a = gById('avisos', id); if(!a) return;
+    gPut('avisos', Object.assign({}, a, { lido:true })).catch(function(){});
+  }
+
+  // ---------------- permissões de demanda ----------------
+  function gPodeVerDemanda(d){
+    var me = gMeuId();
+    if(!currentUser) return false;
+    if(gEhGerente()) return true;
+    if(d.solicitanteId === me || d.responsavelId === me) return true;
+    if(isCoordenador()){
+      if(!d.confidencial) return true;
+      return (d.compartilhadoCom || []).indexOf(me) > -1;
+    }
+    return false;
+  }
+  function gDemandasVisiveis(){ return G.demandas.filter(gPodeVerDemanda); }
+  // Alçada: o gerente decide qualquer tipo; a coordenação só os tipos
+  // configurados como "ambos" (nos "somente gerente" ela pede info e escala).
+  function gPodeDecidir(d){
+    if(gEhGerente()) return true;
+    if(isCoordenador()) return gTipo(d.tipo).alcada !== 'gerente';
+    return false;
+  }
+  function gSlaAte(criadoEm, prio){
+    var p = G_PRIO[prio] || G_PRIO.normal;
+    if(p.slaH) return new Date(new Date(criadoEm).getTime() + p.slaH*3600000).toISOString();
+    var d = new Date(criadoEm);
+    var ds = addDiasUteis(d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()), p.slaDu);
+    var x = parseISO(ds); x.setHours(d.getHours(), d.getMinutes(), 0, 0);
+    return x.toISOString();
+  }
+  function gProximoNumero(){
+    return G.demandas.reduce(function(m,d){ return Math.max(m, d.numero||0); }, 0) + 1;
+  }
+  function gEvento(d, tipo, texto){
+    var ev = { id: novoId('ev'), em: gAgora(), autorId: gMeuId(), autorNome: currentUser ? currentUser.nome : '', tipo: tipo, texto: texto || '' };
+    d.eventos = (d.eventos || []).concat([ev]);
+    return ev;
+  }
+
+  // ---------------- modal genérico da Gestão ----------------
+  function gModal(opts){
+    var ov = document.getElementById('overlayGestao');
+    ov.querySelector('.modal').style.maxWidth = opts.largo ? '880px' : '580px';
+    document.getElementById('gModalTitulo').innerHTML = opts.titulo || '';
+    document.getElementById('gModalCorpo').innerHTML = opts.corpo || '';
+    document.getElementById('gModalRodape').innerHTML = opts.rodape || '';
+    openOverlay('overlayGestao');
+  }
+  function gFecharModal(){
+    closeOverlay('overlayGestao');
+    gUI.detalheDemandaId = null; gUI.acaoDemanda = null;
+    gUI.detalheOcId = null; gUI.detalheEncId = null; gUI.detalheMetaId = null; gUI.acaoMeta = null;
+    gUI.modal = null;
+  }
+  function gErroModal(msg){
+    var el = document.getElementById('gModalErro');
+    if(!el) return;
+    el.textContent = msg || '';
+    el.classList[msg ? 'add' : 'remove']('show');
+  }
+  function gBtn(acao, label, cls, dados, extra){
+    var attrs = ' data-g="'+acao+'"';
+    Object.keys(dados || {}).forEach(function(k){ attrs += ' data-'+k+'="'+esc(dados[k])+'"'; });
+    return '<button class="btn '+(cls||'')+'"'+attrs+(extra||'')+'>'+label+'</button>';
+  }
+
+  // ---------------- DEMANDAS: lista, quadro e filtros ----------------
+  function gDemandaSlaVencida(d){
+    return (d.estado === 'aberta') && d.slaTriagemAte && new Date(d.slaTriagemAte).getTime() < Date.now();
+  }
+  function gDemandaFiltradas(){
+    var f = gUI.dem, me = gMeuId();
+    var lista = gDemandasVisiveis().filter(function(d){
+      if(f.estado === 'ativas' && G_ESTADOS_ATIVOS.indexOf(d.estado) === -1) return false;
+      if(f.estado !== 'ativas' && f.estado !== 'todas' && d.estado !== f.estado) return false;
+      if(f.tipo !== 'todos' && d.tipo !== f.tipo) return false;
+      if(f.prio !== 'todos' && d.prioridade !== f.prio) return false;
+      if(f.quem === 'minhas_triagens' && d.triadorId !== me) return false;
+      if(f.quem === 'aguardando_gerente' && !d.escaladaAoGerente) return false;
+      if(f.quem === 'coordenacao' && !gSeloCoordenacao(d)) return false;
+      if(f.quem === 'atribuidas' && d.responsavelId !== me) return false;
+      if(f.quem === 'minhas' && d.solicitanteId !== me) return false;
+      if(f.busca){
+        var q = f.busca.toLowerCase();
+        var txt = (gNumDem(d)+' '+d.titulo+' '+(d.clienteNome||'')+' '+(d.solicitanteNome||'')).toLowerCase();
+        if(txt.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+    return lista.sort(function(a,b){
+      var pa = (G_PRIO[a.prioridade]||G_PRIO.normal).ord, pb = (G_PRIO[b.prioridade]||G_PRIO.normal).ord;
+      if(pa !== pb) return pa - pb;
+      var da = a.prazoDesejado || '9999', db2 = b.prazoDesejado || '9999';
+      if(da !== db2) return da < db2 ? -1 : 1;
+      return a.criadoEm < b.criadoEm ? -1 : 1;
+    });
+  }
+  function gSeloCoordenacao(d){
+    var r = d.resolvidaPorId ? gUser(d.resolvidaPorId) : null;
+    if(d.resolvidaNaTriagem && r && !gEhAdminUser(r)) return true;
+    if(d.estado === 'recusada' && d.triadorId){ var t = gUser(d.triadorId); if(t && !gEhAdminUser(t)) return true; }
+    return false;
+  }
+  function gDemandaChips(d){
+    var h = gPill((G_ESTADOS[d.estado]||{label:d.estado}).label, (G_ESTADOS[d.estado]||{}).cls);
+    h += ' ' + gPill((G_PRIO[d.prioridade]||G_PRIO.normal).label, (G_PRIO[d.prioridade]||G_PRIO.normal).cls);
+    if(d.escaladaAoGerente) h += ' ' + gPill('Aguarda gerente', 'pill-critical');
+    if(gDemandaSlaVencida(d)) h += ' ' + gPill('Triagem vencida', 'pill-critical');
+    if(gSeloCoordenacao(d)) h += ' ' + gChip('Tratada pela coordenação', 'c-accent');
+    if(d.confidencial) h += ' ' + gChip('Confidencial');
+    return h;
+  }
+  function gDemandaLinha(d){
+    var meta = [gTipo(d.tipo).nome, 'por '+(d.solicitanteNome||'—')];
+    if(d.triadorNome && d.estado !== 'aberta') meta.push('triagem: '+d.triadorNome);
+    if(d.responsavelNome && d.estado === 'em_andamento') meta.push('resp.: '+d.responsavelNome);
+    if(d.clienteNome) meta.push(d.clienteNome);
+    if(d.prazoDesejado) meta.push('prazo desejado '+fmtDate(d.prazoDesejado));
+    return '<div class="queue-row" style="cursor:pointer;" data-g="abrir-demanda" data-id="'+esc(d.id)+'">' +
+      '<div class="queue-main"><div class="queue-name"><span class="id">'+esc(gNumDem(d))+'</span> '+esc(d.titulo)+'</div>' +
+      '<div class="queue-meta">'+gDemandaChips(d)+'</div>' +
+      '<div class="hint" style="margin-top:5px;">'+esc(meta.join(' · '))+'</div></div>' +
+      '<div class="queue-side">'+gFmtDT(d.criadoEm)+'</div></div>';
+  }
+  function gRenderDemandas(){
+    var f = gUI.dem, ehTri = gEhTriador();
+    var lista = gDemandaFiltradas();
+    var quemOpts = ehTri
+      ? [{v:'todas',l:'Todas'},{v:'minhas_triagens',l:'Minhas triagens'},{v:'aguardando_gerente',l:'Aguardando gerente'},{v:'coordenacao',l:'Tratadas pela coordenação'},{v:'atribuidas',l:'Atribuídas a mim'},{v:'minhas',l:'Abertas por mim'}]
+      : [{v:'todas',l:'Todas as minhas'},{v:'minhas',l:'Abertas por mim'},{v:'atribuidas',l:'Atribuídas a mim'}];
+    var estOpts = [{v:'ativas',l:'Em aberto'},{v:'todas',l:'Todos os estados'}].concat(G_ESTADOS_ORDEM.map(function(e){ return {v:e,l:G_ESTADOS[e].label}; }));
+    var h = '<div class="card"><div class="card-head"><div><h2>Caixa de demandas</h2><div class="hint">' +
+      (ehTri ? 'Gerente e coordenação veem a mesma fila e qualquer um dos dois pode fazer a triagem.' : 'Acompanhe as demandas que você abriu e as atribuídas a você.') +
+      '</div></div><div class="queue-actions"><button class="btn btn-sm'+(f.visao==='lista'?' is-ativo':'')+'" data-g="dem-visao" data-v="lista">Lista</button>' +
+      '<button class="btn btn-sm'+(f.visao==='quadro'?' is-ativo':'')+'" data-g="dem-visao" data-v="quadro">Quadro</button></div></div>' +
+      '<div class="card-body"><div class="filters" style="margin-bottom:12px;">' +
+      '<input type="search" id="gdBusca" placeholder="Buscar por número, título, cliente..." value="'+esc(f.busca)+'" style="max-width:260px;">' +
+      '<select id="gdEstado" data-gfiltro="estado">'+gOpts(estOpts, f.estado)+'</select>' +
+      '<select id="gdTipo" data-gfiltro="tipo">'+gOpts(gCfg().tipos.map(function(t){ return {v:t.id,l:t.nome}; }), f.tipo, 'Todos os tipos').replace('<option value="">','<option value="todos">')+'</select>' +
+      '<select id="gdPrio" data-gfiltro="prio">'+gOpts(G_PRIO_ORDEM.map(function(p){ return {v:p,l:G_PRIO[p].label}; }), f.prio, 'Todas as prioridades').replace('<option value="">','<option value="todos">')+'</select>' +
+      '<select id="gdQuem" data-gfiltro="quem">'+gOpts(quemOpts, f.quem)+'</select></div>';
+    if(!lista.length){
+      h += '<div class="empty-note">Nenhuma demanda encontrada com esses filtros.</div>';
+    }else if(f.visao === 'quadro'){
+      var cols = f.estado === 'todas' ? G_ESTADOS_ORDEM : G_ESTADOS_ATIVOS;
+      h += '<div class="kanban-board" id="gdQuadro">' + cols.map(function(e){
+        var itens = lista.filter(function(d){ return d.estado === e; });
+        return '<div class="kanban-col"><div class="kanban-col-head"><span>'+esc(G_ESTADOS[e].label)+'</span><span class="chip">'+itens.length+'</span></div>' +
+          itens.map(function(d){
+            return '<div class="kanban-card" style="cursor:pointer;" data-g="abrir-demanda" data-id="'+esc(d.id)+'"><div class="nm">'+esc(gNumDem(d))+' · '+esc(d.titulo)+'</div>' +
+              '<div class="hint">'+esc(d.solicitanteNome||'—')+' · '+esc(gTipo(d.tipo).nome)+'</div><div>'+
+              gPill((G_PRIO[d.prioridade]||G_PRIO.normal).label,(G_PRIO[d.prioridade]||G_PRIO.normal).cls)+
+              (d.escaladaAoGerente?' '+gPill('Aguarda gerente','pill-critical'):'')+(gSeloCoordenacao(d)?' '+gChip('Coordenação','c-accent'):'')+'</div></div>';
+          }).join('') + '</div>';
+      }).join('') + '</div>';
+    }else{
+      h += lista.map(gDemandaLinha).join('');
+    }
+    return h + '</div></div>';
+  }
+
+  // ---------------- DEMANDAS: nova demanda ----------------
+  function gAbrirNovaDemanda(clienteId){
+    var metas = gMetasVisiveis().filter(function(m){ return m.estado !== 'encerrada'; });
+    var corpo = '<div class="field"><label for="gnTitulo">Título</label><input type="text" id="gnTitulo" maxlength="120" placeholder="Resumo do que você precisa"></div>' +
+      '<div class="field-row"><div class="field"><label for="gnTipo">Tipo</label><select id="gnTipo">'+gOpts(gCfg().tipos.map(function(t){ return {v:t.id,l:t.nome}; }), 'apoio_cliente')+'</select></div>' +
+      '<div class="field"><label for="gnPrio">Prioridade</label><select id="gnPrio">'+gOpts(G_PRIO_ORDEM.map(function(p){ return {v:p,l:G_PRIO[p].label}; }), 'normal')+'</select></div></div>' +
+      '<div class="field" id="gnUrgWrap" style="display:none;"><label for="gnUrg">Por que é urgente?</label><input type="text" id="gnUrg" placeholder="Uma frase de justificativa"></div>' +
+      '<div class="field"><label for="gnDescricao">Descrição</label><textarea id="gnDescricao" rows="4" placeholder="Contexto suficiente para triar sem reunião: o que aconteceu, o que já foi tentado, o que você espera."></textarea></div>' +
+      '<div class="field-row"><div class="field"><label for="gnPrazo">Prazo desejado</label><input type="date" id="gnPrazo"></div>' +
+      '<div class="field"><label for="gnCliente">Cliente (opcional)</label><select id="gnCliente">'+gOpts(clientes.slice().sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome),'pt-BR'); }).map(function(c){ return {v:c.id,l:c.nome+' ('+c.id+')'}; }), clienteId||'', 'Nenhum')+'</select></div></div>' +
+      '<div class="field"><label for="gnMeta">Meta relacionada (opcional)</label><select id="gnMeta">'+gOpts(metas.map(function(m){ return {v:m.id,l:m.titulo}; }), '', 'Nenhuma')+'</select></div>' +
+      '<label style="display:flex;gap:8px;align-items:center;font-size:13px;"><input type="checkbox" id="gnConf" style="width:auto;"> Confidencial (visível só para mim e para o gerente)</label>' +
+      '<div class="gate-error" id="gModalErro"></div>';
+    gUI.modal = 'nova-demanda';
+    gModal({ titulo:'Nova demanda', corpo:corpo,
+      rodape:'<button class="btn" data-g="fechar-modal">Cancelar</button><button class="btn btn-accent" data-g="salvar-nova-demanda">Abrir demanda</button>' });
+  }
+  async function gSalvarNovaDemanda(){
+    gErroModal('');
+    var titulo = gVal('gnTitulo').trim(), tipo = gVal('gnTipo'), prio = gVal('gnPrio'), desc = gVal('gnDescricao').trim(), prazo = gVal('gnPrazo');
+    var urg = gVal('gnUrg').trim();
+    if(!titulo || !desc || !prazo){ gErroModal('Preencha título, descrição e prazo desejado.'); return; }
+    if(prio === 'urgente' && !urg){ gErroModal('Demanda urgente exige uma frase de justificativa.'); return; }
+    var cli = clientes.filter(function(c){ return c.id === gVal('gnCliente'); })[0] || null;
+    var agora = gAgora();
+    var d = {
+      id: novoId('dem'), numero: gProximoNumero(), titulo: titulo, tipo: tipo, descricao: desc,
+      solicitanteId: gMeuId(), solicitanteNome: currentUser.nome, prioridade: prio, urgenciaJustificativa: prio==='urgente' ? urg : '',
+      prazoDesejado: prazo, clienteId: cli ? cli.id : '', clienteNome: cli ? cli.nome : '', metaId: gVal('gnMeta') || '',
+      confidencial: !!document.getElementById('gnConf').checked, estado:'aberta',
+      triadorId:'', triadorNome:'', triadoEm:null, primeiraTriagemEm:null, resolvidaNaTriagem:false, resolvidaPorId:'', resolvidaPorNome:'',
+      escaladaAoGerente:false, responsavelId:'', responsavelNome:'', prazoPrometido:'', atividadeId:'', motivoRecusa:'',
+      criadoEm: agora, slaTriagemAte: gSlaAte(agora, prio), concluidaEm:null, encerradaEm:null, compartilhadoCom:[], eventos:[]
+    };
+    gEvento(d, 'criada', 'Abriu a demanda ('+gTipo(tipo).nome+', prioridade '+G_PRIO[prio].label+')');
+    try{
+      await gPut('demandas', d);
+      var dest = d.confidencial ? gGerentes() : gTriadores();
+      gAvisar(dest.map(function(u){ return u.id; }), (prio==='urgente'?'URGENTE · ':'')+'Nova demanda '+gNumDem(d)+': '+d.titulo, {k:'demanda', id:d.id});
+      gFecharModal();
+      mostrarToastSucesso('Demanda '+gNumDem(d)+' aberta.');
+      renderAll();
+    }catch(e){ gErroModal('Não foi possível abrir agora: '+detalheErro(e)); }
+  }
+
+  // ---------------- DEMANDAS: detalhe e ações ----------------
+  function gAcoesDemanda(d){
+    var me = gMeuId(), acoes = [];
+    var ativa = ['aberta','em_triagem','aguardando_info'].indexOf(d.estado) > -1;
+    var euTriador = gEhTriador();
+    if(euTriador && (d.estado === 'aberta' || (d.estado === 'em_triagem' && d.triadorId !== me))){
+      acoes.push({ id:'assumir', label: d.estado === 'aberta' ? 'Assumir triagem' : 'Retomar triagem', cls:'btn-accent' });
+    }
+    if(euTriador && ativa && (d.estado === 'em_triagem' || d.estado === 'aberta')){
+      var meuTri = d.estado === 'em_triagem' && d.triadorId === me;
+      if(meuTri || gEhGerente()){
+        acoes.push({ id:'aceitar', label:'Aceitar e atribuir', cls:'btn-accent' });
+        acoes.push({ id:'resolver', label:'Resolver na hora', cls:'', off: !gPodeDecidir(d), dica:'Este tipo é "somente gerente": a coordenação pode pedir informação ou escalar.' });
+        acoes.push({ id:'info', label:'Pedir informação', cls:'' });
+        acoes.push({ id:'recusar', label:'Recusar', cls:'btn-danger', off: !gPodeDecidir(d), dica:'Este tipo é "somente gerente": a coordenação pode pedir informação ou escalar.' });
+        if(!gEhGerente() && !d.escaladaAoGerente) acoes.push({ id:'escalar', label:'Escalar ao gerente', cls:'' });
+      }
+    }
+    if(euTriador && d.estado === 'aguardando_info' && (d.triadorId === me || gEhGerente())){
+      acoes.push({ id:'aceitar', label:'Aceitar e atribuir', cls:'btn-accent' });
+      acoes.push({ id:'resolver', label:'Resolver na hora', cls:'', off: !gPodeDecidir(d), dica:'Este tipo é "somente gerente".' });
+      acoes.push({ id:'recusar', label:'Recusar', cls:'btn-danger', off: !gPodeDecidir(d), dica:'Este tipo é "somente gerente".' });
+    }
+    if(d.estado === 'aguardando_info' && d.solicitanteId === me) acoes.push({ id:'responder', label:'Responder', cls:'btn-accent' });
+    if(gEhGerente() && d.escaladaAoGerente){
+      acoes.push({ id:'devolver', label:'Devolver à coordenação', cls:'' });
+    }
+    if(d.estado === 'em_andamento' && (d.responsavelId === me || euTriador)) acoes.push({ id:'concluir', label:'Concluir', cls:'btn-accent' });
+    if(d.estado === 'concluida' && d.solicitanteId === me) acoes.push({ id:'encerrar', label:'Confirmar e encerrar', cls:'btn-accent' });
+    if((d.estado === 'concluida' || d.estado === 'encerrada') && d.solicitanteId === me) acoes.push({ id:'reabrir', label:'Reabrir', cls:'' });
+    if(gEhGerente() && (d.estado === 'recusada' || d.estado === 'concluida' || d.estado === 'encerrada') && d.solicitanteId !== me) acoes.push({ id:'reabrir', label:'Reabrir', cls:'' });
+    if(gEhGerente() && ['em_andamento','em_triagem','aberta','aguardando_info'].indexOf(d.estado) > -1) acoes.push({ id:'reatribuir', label:'Reatribuir responsável', cls:'' });
+    return acoes;
+  }
+  var G_ACAO_TITULO = {
+    aceitar:'Aceitar e atribuir', resolver:'Resolver na hora', info:'Pedir informação ao solicitante', recusar:'Recusar com justificativa',
+    escalar:'Escalar ao gerente', devolver:'Devolver à coordenação', concluir:'Concluir demanda', reabrir:'Reabrir demanda',
+    responder:'Responder ao pedido de informação', reatribuir:'Reatribuir responsável'
+  };
+  function gPrazoPromessaPadrao(d){
+    var du = G_CONCLUSAO_DU[d.prioridade];
+    if(du == null) return d.prazoDesejado || addDiasUteis(todayISO(), 5);
+    var p = addDiasUteis(todayISO(), du);
+    if(d.prazoDesejado && d.prazoDesejado < p) return d.prazoDesejado;
+    return p;
+  }
+  function gFormAcao(d){
+    var a = gUI.acaoDemanda; if(!a) return '';
+    var t = '<div class="card" style="margin:12px 0 0;border:1px solid var(--border-strong);"><div class="card-head"><div><h2 style="font-size:14px;">'+esc(G_ACAO_TITULO[a]||a)+'</h2></div></div><div class="card-body">';
+    var txt = function(label, ph){ return '<div class="field"><label for="gaTexto">'+label+'</label><textarea id="gaTexto" rows="3" placeholder="'+esc(ph||'')+'"></textarea></div>'; };
+    if(a === 'aceitar'){
+      t += '<div class="field-row"><div class="field"><label for="gaResp">Responsável</label><select id="gaResp">'+gOptsUsers(gMeuId(), 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="gaPrazo">Prazo prometido</label><input type="date" id="gaPrazo" value="'+esc(gPrazoPromessaPadrao(d))+'"></div></div>' +
+        '<div class="field"><label for="gaPrio">Prioridade</label><select id="gaPrio">'+gOpts(G_PRIO_ORDEM.map(function(p){ return {v:p,l:G_PRIO[p].label}; }), d.prioridade)+'</select></div>' +
+        '<div class="field"><label for="gaTexto">Observação (opcional)</label><textarea id="gaTexto" rows="2"></textarea></div>';
+    }else if(a === 'resolver') t += txt('Resolução (resposta, orientação ou decisão)', 'O que foi resolvido e como');
+    else if(a === 'info') t += txt('O que você precisa saber?', 'A pergunta para o solicitante');
+    else if(a === 'recusar') t += txt('Motivo da recusa', 'Explique ao solicitante o porquê');
+    else if(a === 'escalar') t += txt('Motivo da escalada', 'Por que o gerente precisa decidir');
+    else if(a === 'devolver') t += txt('Orientação para a coordenação', 'O que a coordenação deve fazer');
+    else if(a === 'concluir') t += txt('Resultado entregue', 'O que foi feito');
+    else if(a === 'reabrir') t += txt('Por que está reabrindo?', 'Comentário obrigatório');
+    else if(a === 'responder') t += txt('Sua resposta', 'Responda à pergunta da triagem');
+    else if(a === 'reatribuir') t += '<div class="field"><label for="gaResp">Novo responsável</label><select id="gaResp">'+gOptsUsers(d.responsavelId, 'Selecione...')+'</select></div>';
+    t += '<div class="gate-error" id="gModalErro"></div><div style="display:flex;gap:8px;justify-content:flex-end;">' +
+      '<button class="btn" data-g="cancelar-acao">Cancelar</button><button class="btn btn-accent" data-g="executar-acao">Confirmar</button></div></div></div>';
+    return t;
+  }
+  function gEventoLinha(ev){
+    var rot = { criada:'abriu', triagem:'triagem', aceita:'aceitou', resolvida:'resolveu', info:'pediu informação', resposta:'respondeu', recusada:'recusou',
+      escalada:'escalou ao gerente', devolvida:'devolveu à coordenação', concluida:'concluiu', encerrada:'encerrou', reaberta:'reabriu',
+      comentario:'comentou', atribuida:'reatribuiu', edicao:'editou' };
+    return '<div style="padding:8px 0;border-top:1px solid var(--border);font-size:13px;"><strong>'+esc(ev.autorNome||'—')+'</strong> <span class="hint" style="display:inline;margin:0;">'+esc(rot[ev.tipo]||ev.tipo)+' · '+gFmtDT(ev.em)+'</span>' +
+      (ev.texto ? '<div style="margin-top:3px;white-space:pre-wrap;">'+esc(ev.texto)+'</div>' : '') + '</div>';
+  }
+  function gRenderDetalheDemanda(){
+    var d = gById('demandas', gUI.detalheDemandaId);
+    if(!d || !gPodeVerDemanda(d)){ gFecharModal(); return; }
+    var acoes = gAcoesDemanda(d), me = gMeuId();
+    var campos = [
+      ['Solicitante', d.solicitanteNome], ['Tipo', gTipo(d.tipo).nome],
+      ['Triador', d.triadorNome || '—'], ['Responsável', d.responsavelNome || '—'],
+      ['Prazo desejado', fmtDate(d.prazoDesejado)], ['Prazo prometido', d.prazoPrometido ? fmtDate(d.prazoPrometido) : '—'],
+      ['Cliente', d.clienteNome || '—'], ['Meta', d.metaId ? ((gById('metas', d.metaId)||{}).titulo || '—') : '—']
+    ];
+    var corpo = '<div class="queue-meta" style="margin:0 0 10px;">'+gDemandaChips(d)+'</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 18px;font-size:13px;margin-bottom:12px;">' +
+      campos.map(function(c){ return '<div><span class="hint" style="display:block;margin:0;">'+esc(c[0])+'</span>'+esc(c[1])+'</div>'; }).join('') + '</div>';
+    if(d.urgenciaJustificativa) corpo += '<div class="hint" style="margin-bottom:8px;"><strong>Urgência:</strong> '+esc(d.urgenciaJustificativa)+'</div>';
+    if(d.motivoRecusa) corpo += '<div class="alert-banner" style="margin-bottom:10px;"><strong>Recusada:</strong> '+esc(d.motivoRecusa)+'</div>';
+    if(d.escaladaAoGerente) corpo += '<div class="alert-banner" style="margin-bottom:10px;"><strong>Aguarda o gerente.</strong> A coordenação escalou esta demanda.</div>';
+    if(d.slaTriagemAte && !d.primeiraTriagemEm) corpo += '<div class="hint" style="margin-bottom:8px;">Triagem esperada até '+gFmtDT(d.slaTriagemAte)+'.</div>';
+    var podeEditar = d.solicitanteId === me && (d.estado === 'aberta' || d.estado === 'aguardando_info');
+    corpo += podeEditar
+      ? '<div class="field"><label for="geDescricao">Descrição</label><textarea id="geDescricao" rows="4">'+esc(d.descricao)+'</textarea></div><div style="margin-bottom:10px;">'+gBtn('salvar-descricao','Salvar descrição','btn-sm',{})+'</div>'
+      : '<div style="white-space:pre-wrap;font-size:13.5px;margin-bottom:12px;">'+esc(d.descricao)+'</div>';
+    if(acoes.length && !gUI.acaoDemanda){
+      corpo += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px;">' + acoes.map(function(a){
+        return '<button class="btn btn-sm '+a.cls+'" data-g="iniciar-acao" data-a="'+a.id+'"'+(a.off?' disabled title="'+esc(a.dica||'')+'"':'')+'>'+esc(a.label)+'</button>';
+      }).join('') + '</div>';
+    }
+    corpo += gFormAcao(d);
+    corpo += '<h3 style="font-size:13.5px;margin:16px 0 4px;">Histórico e comentários</h3><div id="gDetEventos">' + (d.eventos||[]).slice().reverse().map(gEventoLinha).join('') + '</div>';
+    corpo += '<div class="field" style="margin-top:10px;"><label for="gaComent">Novo comentário</label><textarea id="gaComent" rows="2"></textarea></div>' +
+      '<div>'+gBtn('comentar','Comentar','btn-sm',{})+'</div>' + (gUI.acaoDemanda ? '' : '<div class="gate-error" id="gModalErro"></div>');
+    gModal({ titulo: esc(gNumDem(d))+' · '+esc(d.titulo), corpo:corpo, largo:true, rodape:'<button class="btn" data-g="fechar-modal">Fechar</button>' });
+  }
+  function gAbrirDemanda(id){
+    gUI.detalheDemandaId = id; gUI.acaoDemanda = null;
+    gRenderDetalheDemanda();
+  }
+  async function gSalvarDemanda(n, avisos, extra){
+    await gPut('demandas', n);
+    if(extra) await extra();
+    (avisos || []).forEach(function(a){ gAvisar(a.para, a.texto, {k:'demanda', id:n.id}); });
+  }
+  function gDestinatariosDemanda(d){
+    var ids = [d.solicitanteId, d.responsavelId, d.triadorId];
+    return ids.filter(Boolean);
+  }
+  async function gExecutarAcaoDemanda(acaoDireta){
+    var d = gById('demandas', gUI.detalheDemandaId); if(!d) return;
+    var a = acaoDireta || gUI.acaoDemanda;
+    var n = Object.assign({}, d); n.eventos = (d.eventos || []).slice();
+    var me = gMeuId(), nome = currentUser.nome, agora = gAgora();
+    var txt = (gVal('gaTexto') || '').trim();
+    var avisos = [], extra = null, msg = 'Pronto.';
+    var rotulo = gNumDem(d)+' · '+d.titulo;
+    var gerIds = gGerentes().map(function(u){ return u.id; });
+    function triagem(){ if(!n.triadorId){ n.triadorId = me; n.triadorNome = nome; n.triadoEm = agora; } if(!n.primeiraTriagemEm) n.primeiraTriagemEm = agora; }
+    gErroModal('');
+    if(a === 'assumir'){
+      n.estado = 'em_triagem'; n.triadorId = me; n.triadorNome = nome; n.triadoEm = agora;
+      if(!n.primeiraTriagemEm) n.primeiraTriagemEm = agora;
+      if(gEhGerente()) n.escaladaAoGerente = false;
+      gEvento(n, 'triagem', 'Assumiu a triagem');
+      avisos.push({ para:[d.solicitanteId], texto:rotulo+' está em triagem com '+nome });
+      msg = 'Triagem assumida.';
+    }else if(a === 'aceitar'){
+      var resp = gVal('gaResp'), prazo = gVal('gaPrazo'), prio = gVal('gaPrio') || d.prioridade;
+      if(!resp || !prazo){ gErroModal('Escolha o responsável e o prazo prometido.'); return; }
+      triagem();
+      n.estado = 'em_andamento'; n.responsavelId = resp; n.responsavelNome = gNome(resp); n.prazoPrometido = prazo;
+      if(prio !== n.prioridade){ n.prioridade = prio; }
+      var atv = gNovaAtividade({ titulo:'['+gNumDem(d)+'] '+d.titulo, descricao:d.descricao, origem:'demanda', origemId:d.id, responsavelId:resp,
+        prazo:prazo, prioridade:n.prioridade, clienteId:d.clienteId, clienteNome:d.clienteNome, metaId:d.metaId, tipo:'demanda', criadaPorId:me });
+      n.atividadeId = atv.id;
+      gEvento(n, 'aceita', 'Aceitou e atribuiu a '+n.responsavelNome+', prazo '+fmtDate(prazo)+(txt ? '\n'+txt : ''));
+      avisos.push({ para:[d.solicitanteId], texto:rotulo+' foi aceita: '+n.responsavelNome+' cuida até '+fmtDate(prazo) });
+      avisos.push({ para:[resp], texto:'Você foi designado para '+rotulo });
+      extra = function(){ return gPut('atividades', atv); };
+      msg = 'Demanda aceita e atribuída.';
+    }else if(a === 'resolver'){
+      if(!gPodeDecidir(d)){ gErroModal('Este tipo de demanda é somente do gerente.'); return; }
+      if(!txt){ gErroModal('Descreva a resolução.'); return; }
+      triagem();
+      n.estado = 'concluida'; n.resolvidaNaTriagem = true; n.resolvidaPorId = me; n.resolvidaPorNome = nome; n.concluidaEm = agora;
+      gEvento(n, 'resolvida', txt);
+      avisos.push({ para:[d.solicitanteId], texto:rotulo+' foi resolvida por '+nome+'. Confirme se atendeu.' });
+      if(!gEhGerente()) avisos.push({ para:gerIds, texto:'Informativo: '+nome+' resolveu '+rotulo+' na triagem' });
+      msg = 'Demanda resolvida na triagem.';
+    }else if(a === 'info'){
+      if(!txt){ gErroModal('Escreva a pergunta para o solicitante.'); return; }
+      triagem();
+      n.estado = 'aguardando_info';
+      gEvento(n, 'info', txt);
+      avisos.push({ para:[d.solicitanteId], texto:rotulo+': '+nome+' precisa de mais informações' });
+      msg = 'Pergunta enviada ao solicitante.';
+    }else if(a === 'recusar'){
+      if(!gPodeDecidir(d)){ gErroModal('Este tipo de demanda é somente do gerente.'); return; }
+      if(!txt){ gErroModal('A recusa exige uma justificativa.'); return; }
+      triagem();
+      n.estado = 'recusada'; n.motivoRecusa = txt; n.escaladaAoGerente = false;
+      gEvento(n, 'recusada', txt);
+      avisos.push({ para:[d.solicitanteId], texto:rotulo+' foi recusada: '+txt });
+      if(!gEhGerente()) avisos.push({ para:gerIds, texto:'Informativo: '+nome+' recusou '+rotulo });
+      msg = 'Demanda recusada.';
+    }else if(a === 'escalar'){
+      if(!txt){ gErroModal('Explique por que o gerente precisa decidir.'); return; }
+      triagem();
+      if(n.estado === 'aberta') n.estado = 'em_triagem';
+      n.escaladaAoGerente = true;
+      gEvento(n, 'escalada', txt);
+      avisos.push({ para:gerIds, texto:rotulo+' foi escalada ao gerente por '+nome });
+      msg = 'Escalada ao gerente.';
+    }else if(a === 'devolver'){
+      n.escaladaAoGerente = false;
+      gEvento(n, 'devolvida', txt || 'Devolvida à coordenação');
+      avisos.push({ para:[d.triadorId], texto:rotulo+': o gerente devolveu a demanda à coordenação' });
+      msg = 'Devolvida à coordenação.';
+    }else if(a === 'concluir'){
+      if(!txt){ gErroModal('Descreva o resultado entregue.'); return; }
+      n.estado = 'concluida'; n.concluidaEm = agora;
+      gEvento(n, 'concluida', txt);
+      avisos.push({ para:[d.solicitanteId], texto:rotulo+' foi concluída. Confirme se atendeu.' });
+      var atvDoc = d.atividadeId ? gById('atividades', d.atividadeId) : null;
+      if(atvDoc && atvDoc.estado !== 'concluida') extra = function(){ return gPut('atividades', Object.assign({}, atvDoc, { estado:'concluida', concluidaEm:agora })); };
+      msg = 'Demanda concluída.';
+    }else if(a === 'encerrar'){
+      n.estado = 'encerrada'; n.encerradaEm = agora;
+      gEvento(n, 'encerrada', 'Confirmou que a demanda foi atendida');
+      avisos.push({ para:[d.triadorId, d.responsavelId], texto:rotulo+' foi encerrada pelo solicitante' });
+      msg = 'Demanda encerrada.';
+    }else if(a === 'reabrir'){
+      if(!txt){ gErroModal('Reabrir exige um comentário.'); return; }
+      n.estado = n.triadorId ? 'em_triagem' : 'aberta'; n.resolvidaNaTriagem = false; n.concluidaEm = null; n.encerradaEm = null; n.motivoRecusa = '';
+      n.slaTriagemAte = gSlaAte(agora, n.prioridade);
+      gEvento(n, 'reaberta', txt);
+      avisos.push({ para:gTriadores().map(function(u){ return u.id; }).concat([d.responsavelId]), texto:rotulo+' foi reaberta por '+nome });
+      msg = 'Demanda reaberta.';
+    }else if(a === 'responder'){
+      if(!txt){ gErroModal('Escreva a resposta.'); return; }
+      n.estado = n.triadorId ? 'em_triagem' : 'aberta';
+      gEvento(n, 'resposta', txt);
+      avisos.push({ para: n.triadorId ? [n.triadorId] : gTriadores().map(function(u){ return u.id; }), texto:rotulo+': '+nome+' respondeu à sua pergunta' });
+      msg = 'Resposta enviada.';
+    }else if(a === 'reatribuir'){
+      var novo = gVal('gaResp');
+      if(!novo){ gErroModal('Escolha o novo responsável.'); return; }
+      n.responsavelId = novo; n.responsavelNome = gNome(novo);
+      gEvento(n, 'atribuida', 'Responsável: '+n.responsavelNome);
+      var atvR = d.atividadeId ? gById('atividades', d.atividadeId) : null;
+      if(atvR) extra = function(){ return gPut('atividades', Object.assign({}, atvR, { responsavelId:novo, responsavelNome:gNome(novo), delegacao: novo===me?'aceita':'pendente' })); };
+      avisos.push({ para:[novo], texto:'Você foi designado para '+rotulo });
+      avisos.push({ para:[d.solicitanteId], texto:rotulo+': novo responsável '+gNome(novo) });
+      msg = 'Responsável atualizado.';
+    }else if(a === 'comentar'){
+      var c = (gVal('gaComent') || '').trim();
+      if(!c){ gErroModal('Escreva o comentário.'); return; }
+      gEvento(n, 'comentario', c);
+      avisos.push({ para:gDestinatariosDemanda(d), texto:nome+' comentou em '+rotulo });
+      msg = 'Comentário adicionado.';
+    }else if(a === 'salvar-descricao'){
+      var nd = (gVal('geDescricao') || '').trim();
+      if(!nd){ gErroModal('A descrição não pode ficar vazia.'); return; }
+      n.descricao = nd; gEvento(n, 'edicao', 'Atualizou a descrição');
+      msg = 'Descrição salva.';
+    }else return;
+    try{
+      await gSalvarDemanda(n, avisos, extra);
+      gUI.acaoDemanda = null;
+      mostrarToastSucesso(msg);
+      renderAll();
+      gRenderDetalheDemanda();
+    }catch(e){ gErroModal('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+
+  // ---------------- ATIVIDADES ----------------
+  var G_ATV_TIPOS = [
+    { v:'decisao', l:'Decisão' }, { v:'aprovacao', l:'Aprovação' }, { v:'acompanhamento', l:'Acompanhamento' },
+    { v:'1a1', l:'1:1' }, { v:'reuniao', l:'Reunião' }, { v:'analise', l:'Análise' }, { v:'demanda', l:'Demanda' },
+    { v:'rotina', l:'Rotina de gestão' }, { v:'outro', l:'Outro' }
+  ];
+  var G_ORIGEM_LABEL = { manual:'Manual', demanda:'Demanda', rotina:'Rotina', alerta:'Alerta' };
+  function gNovaAtividade(o){
+    var me = gMeuId();
+    var resp = o.responsavelId || me;
+    var criador = o.criadaPorId || me;
+    return {
+      id: o.id || ('atv-' + (o.origemId || novoId('a'))),
+      titulo: o.titulo || '', descricao: o.descricao || '', tipo: o.tipo || 'outro',
+      origem: o.origem || 'manual', origemId: o.origemId || '',
+      responsavelId: resp, responsavelNome: gNome(resp), criadaPorId: criador,
+      delegadaPorId: resp !== criador ? criador : '', delegacao: resp !== criador ? 'pendente' : 'aceita', motivoDevolucao: '',
+      prazo: o.prazo || '', prioridade: o.prioridade || 'normal', estado: 'aberta', foco: !!o.foco,
+      checklist: o.checklist || [], clienteId: o.clienteId || '', clienteNome: o.clienteNome || '', metaId: o.metaId || '',
+      recorrencia: o.recorrencia || 'nenhuma', concluidaEm: null, criadoEm: gAgora()
+    };
+  }
+  function gAtivVisiveis(){
+    var me = gMeuId();
+    if(gEhGerente()) return G.atividades;
+    return G.atividades.filter(function(a){
+      if(a.responsavelId === me || a.criadaPorId === me) return true;
+      if(isCoordenador() && a.origem === 'demanda'){
+        var d = gById('demandas', a.origemId);
+        return !!(d && d.triadorId === me);
+      }
+      return false;
+    });
+  }
+  function gAtivAbertas(lista){ return lista.filter(function(a){ return a.estado === 'aberta'; }); }
+  function gAtivVencida(a){ return a.estado === 'aberta' && a.prazo && a.prazo < todayISO(); }
+  function gAtivChips(a){
+    var h = '';
+    if(a.prazo) h += gChip((gAtivVencida(a) ? 'Venceu ' : 'Prazo ')+fmtDate(a.prazo), gAtivVencida(a) ? 'c-crit' : '');
+    h += ' ' + gPill((G_PRIO[a.prioridade]||G_PRIO.normal).label, (G_PRIO[a.prioridade]||G_PRIO.normal).cls);
+    h += ' ' + gChip(G_ORIGEM_LABEL[a.origem] || a.origem);
+    if(a.delegadaPorId && a.delegacao === 'pendente') h += ' ' + gChip('Delegação pendente', 'c-warn');
+    if(a.delegacao === 'devolvida') h += ' ' + gChip('Devolvida', 'c-crit');
+    if(a.clienteNome) h += ' ' + gChip(a.clienteNome);
+    if(a.metaId){ var m = gById('metas', a.metaId); if(m) h += ' ' + gChip('Meta: '+m.titulo, 'c-accent'); }
+    if(a.checklist && a.checklist.length){ var ok = a.checklist.filter(function(c){ return c.ok; }).length; h += ' ' + gChip(ok+'/'+a.checklist.length+' itens'); }
+    if(a.recorrencia && a.recorrencia !== 'nenhuma') h += ' ' + gChip('Recorrente');
+    return h;
+  }
+  function gAtivRow(a, opts){
+    opts = opts || {};
+    var me = gMeuId();
+    var pendMim = a.responsavelId === me && a.delegacao === 'pendente' && a.estado === 'aberta';
+    var h = '<div class="queue-row g-card" draggable="'+(opts.drag ? 'true' : 'false')+'" data-gdrag="'+esc(a.id)+'">' +
+      '<input type="checkbox" style="width:auto;flex:none;" data-g="atv-concluir" data-id="'+esc(a.id)+'"'+(a.estado==='concluida'?' checked':'')+' aria-label="Concluir atividade">' +
+      '<div class="queue-main"><div class="queue-name" style="'+(a.estado==='concluida'?'text-decoration:line-through;opacity:.65;':'')+'">'+esc(a.titulo)+'</div>' +
+      '<div class="queue-meta">'+gAtivChips(a)+'</div>' +
+      '<div class="hint" style="margin-top:5px;">'+(opts.semResp ? '' : 'Responsável: '+esc(a.responsavelNome||gNome(a.responsavelId))+(a.delegadaPorId?' · delegada por '+esc(gNome(a.delegadaPorId)):'')) +'</div></div>' +
+      '<div class="queue-actions">' +
+      (pendMim ? gBtn('atv-aceitar','Aceitar','btn-sm btn-accent',{id:a.id}) + gBtn('atv-devolver','Devolver','btn-sm',{id:a.id}) : '') +
+      (a.estado === 'aberta' ? '<button class="btn btn-sm'+(a.foco?' btn-accent':'')+'" data-g="atv-foco" data-id="'+esc(a.id)+'" title="Foco do dia" aria-label="Foco do dia">'+(a.foco?'★':'☆')+'</button>' : '') +
+      '<button class="btn btn-sm" data-g="atv-editar" data-id="'+esc(a.id)+'">Editar</button></div></div>';
+    return h;
+  }
+  function gAtivLista(lista, vazio, opts){
+    if(!lista.length) return '<div class="empty-note">'+esc(vazio)+'</div>';
+    return lista.map(function(a){ return gAtivRow(a, opts); }).join('');
+  }
+  function gOrdenaAtiv(l){
+    return l.slice().sort(function(a,b){
+      var pa = (G_PRIO[a.prioridade]||G_PRIO.normal).ord, pb = (G_PRIO[b.prioridade]||G_PRIO.normal).ord;
+      var da = a.prazo || '9999-99-99', db2 = b.prazo || '9999-99-99';
+      if(da !== db2) return da < db2 ? -1 : 1;
+      return pa - pb;
+    });
+  }
+  function gRenderAtividades(){
+    var v = gUI.ativ.visao, ehTri = gEhTriador(), hoje = todayISO();
+    var vis = gAtivVisiveis();
+    var abertas = gOrdenaAtiv(gAtivAbertas(vis));
+    var visoes = ehTri ? [['hoje','Hoje'],['semana','Semana'],['pessoa','Por pessoa'],['meta','Por meta'],['concluidas','Concluídas']] : [['hoje','Hoje'],['semana','Semana'],['concluidas','Concluídas']];
+    var h = '<div class="card"><div class="card-head"><div><h2>'+(ehTri?'Atividades':'Minhas atividades')+'</h2><div class="hint">' +
+      (ehTri ? 'Tudo o que o gerente e o time precisam fazer: demandas aceitas, rotina de gestão e tarefas manuais.' : 'Atividades atribuídas a você pelo gerente ou pela coordenação.') +
+      '</div></div><div class="queue-actions">' + visoes.map(function(x){ return '<button class="btn btn-sm'+(v===x[0]?' is-ativo':'')+'" data-g="atv-visao" data-v="'+x[0]+'">'+x[1]+'</button>'; }).join('') + '</div></div><div class="card-body">';
+    if(ehTri){
+      h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;"><input type="text" id="gqTitulo" placeholder="Nova atividade (uma linha)" style="flex:2;min-width:200px;">' +
+        '<input type="date" id="gqPrazo" value="'+hoje+'" style="flex:0 0 150px;">' +
+        '<select id="gqResp" style="flex:0 0 190px;">'+gOptsUsers(gMeuId(), null)+'</select>' +
+        '<button class="btn btn-accent" data-g="atv-rapida">Adicionar</button></div><div class="gate-error" id="gqErro"></div>';
+    }
+    var pendMim = abertas.filter(function(a){ return a.responsavelId === gMeuId() && a.delegacao === 'pendente'; });
+    if(pendMim.length && v === 'hoje') h += '<h3 style="font-size:13.5px;margin:4px 0;">Aguardando seu aceite</h3>' + pendMim.map(function(a){ return gAtivRow(a); }).join('');
+    if(v === 'hoje'){
+      var venc = abertas.filter(function(a){ return a.prazo && a.prazo < hoje; });
+      var hojeL = abertas.filter(function(a){ return a.prazo === hoje; });
+      var foco = abertas.filter(function(a){ return a.foco; });
+      h += '<h3 style="font-size:13.5px;margin:12px 0 4px;">Foco do dia ('+foco.length+'/'+gCfg().limiteFoco+')</h3>' + gAtivLista(foco, 'Nenhuma atividade marcada como foco. Use a estrela para escolher.');
+      h += '<h3 style="font-size:13.5px;margin:14px 0 4px;">Vencidas ('+venc.length+')</h3>' + gAtivLista(venc, 'Nada vencido.');
+      h += '<h3 style="font-size:13.5px;margin:14px 0 4px;">Para hoje ('+hojeL.length+')</h3>' + gAtivLista(hojeL, 'Nada com prazo para hoje.');
+    }else if(v === 'semana'){
+      var base = gSemanaInicio(addDays(hoje, 7*(gUI.ativ.semanaOff||0)));
+      var dias = [0,1,2,3,4].map(function(i){ return addDays(base, i); });
+      h += '<div class="agenda-cal-toolbar"><div class="agenda-cal-nav"><button class="btn btn-sm" data-g="atv-semana" data-d="-1">‹ Anterior</button><button class="btn btn-sm" data-g="atv-semana" data-d="0">Esta semana</button><button class="btn btn-sm" data-g="atv-semana" data-d="1">Próxima ›</button></div><span class="hint">Arraste uma atividade para outro dia para reagendar.</span></div>';
+      h += '<div class="kanban-board" id="gSemana">' + dias.map(function(dia){
+        var itens = abertas.filter(function(a){ return a.prazo === dia; });
+        return '<div class="kanban-col" data-gdia="'+dia+'" style="flex:1 0 190px;"><div class="kanban-col-head"><span>'+gDiaSem(dia)+' '+fmtDate(dia).slice(0,5)+(dia===hoje?' · hoje':'')+'</span><span class="chip">'+itens.length+'</span></div>' +
+          itens.map(function(a){ return '<div class="g-card kanban-card" style="cursor:grab;" draggable="true" data-gdrag="'+esc(a.id)+'" data-g="atv-editar" data-id="'+esc(a.id)+'"><div class="nm">'+esc(a.titulo)+'</div><div class="hint">'+esc(a.responsavelNome||gNome(a.responsavelId))+'</div>'+gPill((G_PRIO[a.prioridade]||G_PRIO.normal).label,(G_PRIO[a.prioridade]||G_PRIO.normal).cls)+'</div>'; }).join('') + '</div>';
+      }).join('') + '</div>';
+      var semData = abertas.filter(function(a){ return !a.prazo; });
+      if(semData.length) h += '<h3 style="font-size:13.5px;margin:14px 0 4px;">Sem prazo ('+semData.length+')</h3>' + gAtivLista(semData, '');
+    }else if(v === 'pessoa'){
+      var grupos = {};
+      abertas.forEach(function(a){ (grupos[a.responsavelId] = grupos[a.responsavelId] || []).push(a); });
+      var ids = Object.keys(grupos).sort(function(a,b){ return gNome(a).localeCompare(gNome(b),'pt-BR'); });
+      h += ids.length ? ids.map(function(id){
+        var l = grupos[id], venc2 = l.filter(gAtivVencida).length;
+        return '<div style="margin-bottom:14px;"><h3 style="font-size:13.5px;margin:6px 0;">'+esc(gNome(id))+' <span class="chip">'+l.length+' abertas</span>'+(venc2?' <span class="chip c-crit">'+venc2+' vencidas</span>':'')+'</h3>' + l.map(function(a){ return gAtivRow(a, {semResp:true}); }).join('') + '</div>';
+      }).join('') : '<div class="empty-note">Nenhuma atividade aberta.</div>';
+    }else if(v === 'meta'){
+      var gm = {};
+      abertas.forEach(function(a){ (gm[a.metaId || '_'] = gm[a.metaId || '_'] || []).push(a); });
+      var keys = Object.keys(gm).sort(function(a,b){ if(a==='_') return 1; if(b==='_') return -1; return String((gById('metas',a)||{}).titulo).localeCompare(String((gById('metas',b)||{}).titulo),'pt-BR'); });
+      h += keys.length ? keys.map(function(k){
+        var m = k === '_' ? null : gById('metas', k);
+        return '<div style="margin-bottom:14px;"><h3 style="font-size:13.5px;margin:6px 0;">'+esc(m ? m.titulo : 'Sem meta vinculada')+' <span class="chip">'+gm[k].length+'</span></h3>' + gm[k].map(function(a){ return gAtivRow(a); }).join('') + '</div>';
+      }).join('') : '<div class="empty-note">Nenhuma atividade aberta.</div>';
+    }else{
+      var conc = vis.filter(function(a){ return a.estado === 'concluida'; }).sort(function(a,b){ return String(b.concluidaEm||'') < String(a.concluidaEm||'') ? -1 : 1; }).slice(0,40);
+      h += gAtivLista(conc, 'Nenhuma atividade concluída ainda.');
+    }
+    return h + '</div></div>';
+  }
+  function gAtivRecorrenteProxima(a){
+    var base = a.prazo || todayISO();
+    var prox = a.recorrencia === 'diaria' ? addDiasUteis(base, 1) : a.recorrencia === 'semanal' ? addDays(base, 7) : gAddMes(base, 1);
+    var n = Object.assign({}, a, { id: novoId('atv'), estado:'aberta', concluidaEm:null, prazo:prox, foco:false,
+      checklist:(a.checklist||[]).map(function(c){ return { t:c.t, ok:false }; }), criadoEm: gAgora() });
+    return n;
+  }
+  async function gConcluirAtividade(id, marcar){
+    var a = gById('atividades', id); if(!a) return;
+    try{
+      if(marcar){
+        var n = Object.assign({}, a, { estado:'concluida', concluidaEm: gAgora(), foco:false });
+        await gPut('atividades', n);
+        if(a.recorrencia && a.recorrencia !== 'nenhuma' && a.estado === 'aberta') await gPut('atividades', gAtivRecorrenteProxima(a));
+        mostrarToastSucesso('Atividade concluída.');
+        if(a.origem === 'demanda'){
+          var d = gById('demandas', a.origemId);
+          if(d && d.estado === 'em_andamento' && gPodeVerDemanda(d)){ renderAll(); gUI.detalheDemandaId = d.id; gUI.acaoDemanda = 'concluir'; gRenderDetalheDemanda(); return; }
+        }
+      }else{
+        await gPut('atividades', Object.assign({}, a, { estado:'aberta', concluidaEm:null }));
+      }
+      renderAll();
+    }catch(e){ mostrarToastErro('Não foi possível salvar: '+detalheErro(e)); renderAll(); }
+  }
+  async function gAtivRapida(){
+    var titulo = gVal('gqTitulo').trim(), err = document.getElementById('gqErro');
+    if(!titulo){ if(err){ err.textContent = 'Escreva o título da atividade.'; err.classList.add('show'); } return; }
+    var a = gNovaAtividade({ id:novoId('atv'), titulo:titulo, prazo:gVal('gqPrazo'), responsavelId:gVal('gqResp') || gMeuId(), origem:'manual', tipo:'outro' });
+    try{
+      await gPut('atividades', a);
+      if(a.responsavelId !== gMeuId()) gAvisar([a.responsavelId], currentUser.nome+' delegou a você: '+a.titulo, {k:'atividade', id:a.id});
+      mostrarToastSucesso('Atividade criada.');
+      renderAll();
+    }catch(e){ mostrarToastErro('Não foi possível criar: '+detalheErro(e)); }
+  }
+  async function gAtivFoco(id){
+    var a = gById('atividades', id); if(!a) return;
+    if(!a.foco){
+      var qtd = G.atividades.filter(function(x){ return x.foco && x.estado === 'aberta' && x.responsavelId === a.responsavelId; }).length;
+      if(qtd >= gCfg().limiteFoco){ mostrarToastErro('Limite de foco atingido ('+gCfg().limiteFoco+'). Desmarque outra atividade antes.'); return; }
+    }
+    try{ await gPut('atividades', Object.assign({}, a, { foco: !a.foco })); renderAll(); }
+    catch(e){ mostrarToastErro('Não foi possível salvar: '+detalheErro(e)); }
+  }
+  async function gAtivDelegacao(id, aceitar){
+    var a = gById('atividades', id); if(!a) return;
+    if(aceitar){
+      try{ await gPut('atividades', Object.assign({}, a, { delegacao:'aceita' })); gAvisar([a.delegadaPorId], currentUser.nome+' aceitou: '+a.titulo, {k:'atividade', id:a.id}); mostrarToastSucesso('Atividade aceita.'); renderAll(); }
+      catch(e){ mostrarToastErro('Não foi possível salvar: '+detalheErro(e)); }
+      return;
+    }
+    gUI.modal = 'devolver-atv'; gUI.atvId = id;
+    gModal({ titulo:'Devolver atividade', corpo:'<div class="field"><label for="gdvMotivo">Motivo</label><textarea id="gdvMotivo" rows="3" placeholder="Por que não consegue assumir?"></textarea></div><div class="gate-error" id="gModalErro"></div>',
+      rodape:'<button class="btn" data-g="fechar-modal">Cancelar</button><button class="btn btn-accent" data-g="atv-devolver-ok">Devolver</button>' });
+  }
+  async function gAtivDevolverOk(){
+    var a = gById('atividades', gUI.atvId); if(!a) return;
+    var m = gVal('gdvMotivo').trim();
+    if(!m){ gErroModal('Informe o motivo da devolução.'); return; }
+    var ger = a.delegadaPorId || a.criadaPorId;
+    try{
+      await gPut('atividades', Object.assign({}, a, { responsavelId:ger, responsavelNome:gNome(ger), delegacao:'devolvida', motivoDevolucao:m, delegadaPorId:'' }));
+      gAvisar([ger], currentUser.nome+' devolveu "'+a.titulo+'": '+m, {k:'atividade', id:a.id});
+      gFecharModal(); mostrarToastSucesso('Atividade devolvida.'); renderAll();
+    }catch(e){ gErroModal('Não foi possível salvar: '+detalheErro(e)); }
+  }
+  // edição completa
+  function gLerFormAtv(){
+    var e = gUI.atvEdit; if(!e || !document.getElementById('gaeTitulo')) return;
+    e.titulo = gVal('gaeTitulo'); e.descricao = gVal('gaeDescricao'); e.tipo = gVal('gaeTipo'); e.prioridade = gVal('gaePrio');
+    e.prazo = gVal('gaePrazo'); e.responsavelId = gVal('gaeResp'); e.metaId = gVal('gaeMeta'); e.recorrencia = gVal('gaeRec');
+    e.clienteId = gVal('gaeCliente'); e.foco = !!document.getElementById('gaeFoco').checked;
+    e.checklist = Array.prototype.slice.call(document.querySelectorAll('[data-gchk]')).map(function(el){
+      return { t: el.getAttribute('data-gtxt'), ok: el.checked };
+    });
+  }
+  function gRenderEditarAtividade(){
+    var e = gUI.atvEdit; if(!e) return;
+    var cli = clientes.slice().sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome),'pt-BR'); }).map(function(c){ return {v:c.id,l:c.nome}; });
+    var podeTudo = gEhTriador();
+    var corpo = '<div class="field"><label for="gaeTitulo">Título</label><input type="text" id="gaeTitulo" value="'+esc(e.titulo)+'"></div>' +
+      '<div class="field"><label for="gaeDescricao">Descrição</label><textarea id="gaeDescricao" rows="3">'+esc(e.descricao)+'</textarea></div>' +
+      '<div class="field-row"><div class="field"><label for="gaeTipo">Tipo</label><select id="gaeTipo">'+gOpts(G_ATV_TIPOS, e.tipo)+'</select></div>' +
+      '<div class="field"><label for="gaePrio">Prioridade</label><select id="gaePrio">'+gOpts(G_PRIO_ORDEM.map(function(p){ return {v:p,l:G_PRIO[p].label}; }), e.prioridade)+'</select></div></div>' +
+      '<div class="field-row"><div class="field"><label for="gaePrazo">Prazo</label><input type="date" id="gaePrazo" value="'+esc(e.prazo)+'"></div>' +
+      '<div class="field"><label for="gaeResp">Responsável</label><select id="gaeResp"'+(podeTudo?'':' disabled')+'>'+gOptsUsers(e.responsavelId, null)+'</select></div></div>' +
+      '<div class="field-row"><div class="field"><label for="gaeCliente">Cliente</label><select id="gaeCliente">'+gOpts(cli, e.clienteId, 'Nenhum')+'</select></div>' +
+      '<div class="field"><label for="gaeMeta">Meta</label><select id="gaeMeta">'+gOpts(gMetasVisiveis().filter(function(m){ return m.estado !== 'encerrada'; }).map(function(m){ return {v:m.id,l:m.titulo}; }), e.metaId, 'Nenhuma')+'</select></div></div>' +
+      '<div class="field-row"><div class="field"><label for="gaeRec">Recorrência</label><select id="gaeRec">'+gOpts([{v:'nenhuma',l:'Não repete'},{v:'diaria',l:'Diária (dias úteis)'},{v:'semanal',l:'Semanal'},{v:'mensal',l:'Mensal'}], e.recorrencia)+'</select></div>' +
+      '<div class="field" style="display:flex;align-items:flex-end;"><label style="display:flex;gap:8px;align-items:center;font-size:13px;margin:0;"><input type="checkbox" id="gaeFoco" style="width:auto;"'+(e.foco?' checked':'')+'> Foco do dia</label></div></div>' +
+      '<div class="field"><label>Checklist</label>' + (e.checklist||[]).map(function(c,i){
+        return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:4px;"><input type="checkbox" style="width:auto;" data-gchk="'+i+'" data-gtxt="'+esc(c.t)+'"'+(c.ok?' checked':'')+'><span style="flex:1;font-size:13px;">'+esc(c.t)+'</span>'+gBtn('atv-chk-rem','Remover','btn-sm btn-ghost',{i:i})+'</div>';
+      }).join('') +
+      '<div style="display:flex;gap:8px;margin-top:6px;"><input type="text" id="gaeNovoItem" placeholder="Novo item"><button class="btn btn-sm" data-g="atv-chk-add">Adicionar item</button></div></div>' +
+      '<div class="gate-error" id="gModalErro"></div>';
+    gModal({ titulo: e.novo ? 'Nova atividade' : 'Editar atividade', corpo:corpo, largo:true,
+      rodape:(e.novo?'':'<button class="btn btn-danger" style="margin-right:auto;" data-g="atv-dispensar">Dispensar atividade</button>')+'<button class="btn" data-g="fechar-modal">Cancelar</button><button class="btn btn-accent" data-g="atv-salvar">Salvar</button>' });
+  }
+  function gAbrirEditarAtividade(id){
+    var a = gById('atividades', id); if(!a) return;
+    gUI.atvEdit = JSON.parse(JSON.stringify(a)); gUI.modal = 'atv';
+    gRenderEditarAtividade();
+  }
+  async function gSalvarAtividade(){
+    gLerFormAtv();
+    var e = gUI.atvEdit; if(!e) return;
+    if(!e.titulo.trim()){ gErroModal('O título é obrigatório.'); return; }
+    var orig = gById('atividades', e.id) || {};
+    var cli = clientes.filter(function(c){ return c.id === e.clienteId; })[0];
+    var n = Object.assign({}, orig, e, { titulo:e.titulo.trim(), clienteNome: cli ? cli.nome : '', responsavelNome: gNome(e.responsavelId) });
+    if(e.responsavelId !== orig.responsavelId){
+      n.delegadaPorId = e.responsavelId !== gMeuId() ? gMeuId() : ''; n.delegacao = e.responsavelId !== gMeuId() ? 'pendente' : 'aceita';
+    }
+    if(n.foco && !orig.foco){
+      var qtd = G.atividades.filter(function(x){ return x.foco && x.estado === 'aberta' && x.responsavelId === n.responsavelId && x.id !== n.id; }).length;
+      if(qtd >= gCfg().limiteFoco){ gErroModal('Limite de foco atingido ('+gCfg().limiteFoco+').'); return; }
+    }
+    try{
+      await gPut('atividades', n);
+      if(e.responsavelId !== orig.responsavelId && e.responsavelId !== gMeuId()) gAvisar([e.responsavelId], currentUser.nome+' delegou a você: '+n.titulo, {k:'atividade', id:n.id});
+      gFecharModal(); mostrarToastSucesso('Atividade salva.'); renderAll();
+    }catch(er){ gErroModal('Não foi possível salvar: '+detalheErro(er)); }
+  }
+  async function gDispensarAtividade(){
+    var e = gUI.atvEdit; var a = e && gById('atividades', e.id); if(!a) return;
+    try{ await gPut('atividades', Object.assign({}, a, { estado:'dispensada' })); gFecharModal(); mostrarToastSucesso('Atividade dispensada.'); renderAll(); }
+    catch(er){ gErroModal('Não foi possível salvar: '+detalheErro(er)); }
+  }
+  async function gMoverAtividade(id, dia){
+    var a = gById('atividades', id); if(!a || a.prazo === dia) return;
+    try{ await gPut('atividades', Object.assign({}, a, { prazo:dia })); renderAll(); }
+    catch(e){ mostrarToastErro('Não foi possível reagendar: '+detalheErro(e)); }
+  }
+
+  // ---------------- métricas compartilhadas (pauta viva e indicadores) ----------------
+  function gDemandasTodas(){ return G.demandas; }
+  function gDiasAberta(d){ return Math.max(0, diffDays(todayISO(), gData(d.criadoEm))); }
+  function gConcluidasNoIntervalo(lista, campo, ini, fim){
+    return lista.filter(function(x){ var dt = x[campo] ? gData(x[campo]) : ''; return dt && dt >= ini && dt <= fim; });
+  }
+  function gMetasEmRisco(){
+    return gMetasVisiveis().filter(function(m){ var s = gMetaStatus(m); return s.id === 'em_risco' || s.id === 'atrasada'; });
+  }
+  function gAderencia(cadencia, dias){
+    var hoje = todayISO(), ini = addDays(hoje, -(dias || 30));
+    var l = G.ocorrencias.filter(function(o){ return (!cadencia || o.cadencia === cadencia) && o.data >= ini && o.data <= hoje && o.estado !== 'adiada'; });
+    var feitas = l.filter(function(o){ return o.estado === 'realizada'; }).length;
+    return { feitas:feitas, total:l.length, pct: l.length ? Math.round(feitas*100/l.length) : null };
+  }
+  function gListaLi(itens, vazio){
+    if(!itens.length) return '<div class="hint" style="margin:2px 0 8px;">'+esc(vazio)+'</div>';
+    return '<ul style="margin:2px 0 10px;padding-left:18px;font-size:13px;">'+itens.map(function(i){ return '<li>'+i+'</li>'; }).join('')+'</ul>';
+  }
+  function gBloco(titulo, corpo){ return '<div style="margin-bottom:6px;"><div style="font-weight:700;font-size:13px;">'+esc(titulo)+'</div>'+corpo+'</div>'; }
+  // Pauta VIVA: os blocos são calculados no momento em que a ocorrência é aberta.
+  function gPautaViva(cadencia){
+    var hoje = todayISO(), vis = gDemandasVisiveis(), h = '';
+    var ativas = vis.filter(function(d){ return G_ESTADOS_ATIVOS.indexOf(d.estado) > -1; });
+    if(cadencia === 'diaria'){
+      var novas = ativas.filter(function(d){ return d.estado === 'aberta'; });
+      var venc = novas.filter(gDemandaSlaVencida);
+      var esc2 = ativas.filter(function(d){ return d.escaladaAoGerente; });
+      var abertas = gAtivAbertas(G.atividades);
+      var foco = abertas.filter(function(a){ return a.foco; });
+      var vencA = abertas.filter(gAtivVencida);
+      var crit = allStats().filter(function(s){ return s.health === 'critical'; });
+      h += gBloco('Demandas novas ('+novas.length+')', gListaLi(novas.slice(0,6).map(function(d){ return esc(gNumDem(d)+' · '+d.titulo+' ('+(G_PRIO[d.prioridade]||G_PRIO.normal).label+')'); }), 'Nenhuma demanda nova.'));
+      h += gBloco('Triagens vencidas ('+venc.length+') e escaladas ao gerente ('+esc2.length+')', gListaLi(venc.concat(esc2).slice(0,6).map(function(d){ return esc(gNumDem(d)+' · '+d.titulo); }), 'Nada vencido nem escalado.'));
+      h += gBloco('Atividades de foco ('+foco.length+') e vencidas ('+vencA.length+')', gListaLi(foco.concat(vencA).slice(0,8).map(function(a){ return esc(a.titulo+(a.prazo?' — '+fmtDate(a.prazo):'')); }), 'Sem foco definido nem atrasos.'));
+      h += gBloco('Clientes críticos na carteira ('+crit.length+')', gListaLi(crit.slice(0,5).map(function(s){ return esc(s.cliente.nome+' · '+(s.motivos[0]?s.motivos[0].texto:'')); }), 'Nenhum cliente crítico.'));
+    }else if(cadencia === 'semanal'){
+      var ini = gSemanaInicio(hoje);
+      var aC = gConcluidasNoIntervalo(G.atividades.filter(function(a){ return a.estado === 'concluida'; }), 'concluidaEm', ini, hoje);
+      var dC = gConcluidasNoIntervalo(vis, 'concluidaEm', ini, hoje);
+      var antigas = ativas.slice().sort(function(a,b){ return a.criadoEm < b.criadoEm ? -1 : 1; }).slice(0,5);
+      var em = gMetasEmRisco();
+      var bloq = ativas.filter(function(d){ return d.escaladaAoGerente || d.estado === 'aguardando_info'; });
+      var ultima = G.ocorrencias.filter(function(o){ return o.cadencia === 'semanal' && o.estado === 'realizada'; }).sort(function(a,b){ return a.data < b.data ? 1 : -1; })[0];
+      var pend = ultima ? (ultima.acoes||[]).map(function(x){ return gById('atividades', x.atividadeId); }).filter(function(a){ return a && a.estado === 'aberta'; }) : [];
+      h += gBloco('Placar da semana', '<div style="font-size:13px;margin:2px 0 10px;">'+aC.length+' atividades e '+dC.length+' demandas concluídas desde '+fmtDate(ini)+'.</div>');
+      h += gBloco('Demandas abertas há mais tempo', gListaLi(antigas.map(function(d){ return esc(gNumDem(d)+' · '+d.titulo+' — '+gDiasAberta(d)+' dia(s)'); }), 'Nenhuma demanda em aberto.'));
+      h += gBloco('Metas em risco ou atrasadas ('+em.length+')', gListaLi(em.slice(0,6).map(function(m){ return esc(m.titulo+' — '+gMetaStatus(m).label); }), 'Todas as metas no ritmo.'));
+      h += gBloco('Bloqueios ('+bloq.length+')', gListaLi(bloq.slice(0,6).map(function(d){ return esc(gNumDem(d)+' · '+d.titulo+(d.escaladaAoGerente?' (aguarda gerente)':' (aguardando info)')); }), 'Sem bloqueios.'));
+      h += gBloco('Pendentes da última reunião', gListaLi(pend.map(function(a){ return esc(a.titulo+' — '+a.responsavelNome); }), 'Nada pendente.'));
+    }else if(cadencia === 'mensal'){
+      var mes = hoje.slice(0,7), mIni = mes+'-01';
+      var ms = gMetasVisiveis(), cont = {};
+      ms.forEach(function(m){ var s = gMetaStatus(m).label; cont[s] = (cont[s]||0)+1; });
+      var doMes = vis.filter(function(d){ return gData(d.criadoEm).slice(0,7) === mes; });
+      var porTipo = {};
+      doMes.forEach(function(d){ porTipo[d.tipo] = (porTipo[d.tipo]||0)+1; });
+      var carga = {};
+      gAtivAbertas(G.atividades).forEach(function(a){ carga[a.responsavelId] = (carga[a.responsavelId]||0)+1; });
+      h += gBloco('Resultado das metas', gListaLi(Object.keys(cont).map(function(k){ return esc(k+': '+cont[k]); }), 'Nenhuma meta cadastrada.'));
+      h += gBloco('Demandas do mês por tipo ('+doMes.length+')', gListaLi(Object.keys(porTipo).map(function(t){ return esc(gTipo(t).nome+': '+porTipo[t]); }), 'Nenhuma demanda no mês.'));
+      h += gBloco('Carga por pessoa (atividades abertas)', gListaLi(Object.keys(carga).map(function(id){ return esc(gNome(id)+': '+carga[id]); }), 'Sem atividades abertas.'));
+      var ad = ['diaria','semanal'].map(function(c){ var x = gAderencia(c, 30); return esc((c==='diaria'?'Diária':'Semanal')+': '+(x.pct==null?'—':x.pct+'%')+' ('+x.feitas+'/'+x.total+')'); });
+      h += gBloco('Aderência à rotina (30 dias)', gListaLi(ad, ''));
+    }
+    return h || '<div class="hint">Sem pauta automática para esta rotina.</div>';
+  }
+  function gPautaTexto(cadencia){ // snapshot em texto simples para registro na ata
+    var tmp = document.createElement('div'); tmp.innerHTML = gPautaViva(cadencia);
+    return (tmp.textContent || '').replace(/\s+/g,' ').trim().slice(0, 1800);
+  }
+
+  // ---------------- ROTINA: geração e visibilidade ----------------
+  function gModeloDevido(m, hoje){
+    var d = parseISO(hoje), w = d.getDay();
+    if(m.cadencia === 'diaria') return w !== 0 && w !== 6;
+    if(m.cadencia === 'semanal') return w === (m.diaSemana != null ? m.diaSemana : 1);
+    if(m.cadencia === 'mensal') return hoje === gUltimoDiaUtilMes(d.getFullYear(), d.getMonth());
+    return false;
+  }
+  async function gGarantirOcorrencias(){
+    var hoje = todayISO();
+    if(!gEhGerente() || gOcGarantidoEm === hoje) return;
+    if(!(gLoaded.ocorrencias && gLoaded.atividades && gLoaded.config)) return;
+    gOcGarantidoEm = hoje;
+    var cfg = gCfg();
+    for(var i = 0; i < cfg.modelos.length; i++){
+      var m = cfg.modelos[i];
+      if(!m.ativo || !gModeloDevido(m, hoje)) continue;
+      var id = 'oc-' + m.id + '-' + hoje;
+      if(gById('ocorrencias', id)) continue;
+      var oc = { id:id, modeloId:m.id, nome:m.nome, cadencia:m.cadencia, data:hoje, estado:'agendada',
+        itens:(m.itens||[]).map(function(t){ return { t:t, ok:false }; }), topicos:[], ata:'', acoes:[], pautaSnapshot:'', realizadaEm:null, motivo:'', atividadeId:'atv-'+id };
+      try{
+        await gPut('ocorrencias', oc);
+        var atv = gNovaAtividade({ id:oc.atividadeId, titulo:m.nome, origem:'rotina', origemId:id, prazo:hoje, tipo:'rotina', responsavelId:gMeuId() });
+        await gPut('atividades', atv);
+      }catch(e){ gOcGarantidoEm = ''; }
+    }
+  }
+  function gOcVisivel(o){
+    if(gEhGerente()) return true;
+    if(isCoordenador()) return o.cadencia === 'semanal' || o.cadencia === 'mensal';
+    return o.cadencia === 'semanal';
+  }
+  function gOcLinha(o){
+    var venc = o.estado === 'agendada' && o.data < todayISO();
+    var est = o.estado === 'realizada' ? gPill('Realizada','pill-good') : o.estado === 'agendada' ? gPill(venc?'Sem registro':'Agendada', venc?'pill-critical':'pill-warning') : gPill(o.estado === 'adiada' ? 'Adiada' : 'Pulada','pill-neutral');
+    return '<div class="queue-row" style="cursor:pointer;" data-g="abrir-oc" data-id="'+esc(o.id)+'"><div class="queue-main"><div class="queue-name">'+esc(o.nome)+'</div><div class="queue-meta">'+est+' '+gChip(fmtDate(o.data))+'</div>' +
+      (o.motivo ? '<div class="hint" style="margin-top:4px;">'+esc(o.motivo)+'</div>' : '') + '</div></div>';
+  }
+  function gRenderRotina(){
+    var hoje = todayISO(), vis = G.ocorrencias.filter(gOcVisivel);
+    var pend = vis.filter(function(o){ return o.estado === 'agendada' && o.data <= hoje; }).sort(function(a,b){ return a.data < b.data ? -1 : 1; });
+    var fut = vis.filter(function(o){ return o.estado === 'agendada' && o.data > hoje; });
+    var hist = vis.filter(function(o){ return o.estado !== 'agendada'; }).sort(function(a,b){ return a.data < b.data ? 1 : -1; }).slice(0, 20);
+    var h = '<div class="card"><div class="card-head"><div><h2>Rotina de gestão</h2><div class="hint">'+(gEhGerente() ? 'Cadências geradas automaticamente, com pauta calculada na hora.' : 'Pautas e atas das reuniões do time.')+'</div></div></div><div class="card-body">';
+    h += '<h3 style="font-size:13.5px;margin:4px 0;">Para hoje e pendentes</h3>' + (pend.length ? pend.map(gOcLinha).join('') : '<div class="empty-note">Nenhuma ocorrência pendente.</div>');
+    if(fut.length) h += '<h3 style="font-size:13.5px;margin:14px 0 4px;">Próximas</h3>' + fut.map(gOcLinha).join('');
+    h += '<h3 style="font-size:13.5px;margin:14px 0 4px;">Histórico recente</h3>' + (hist.length ? hist.map(gOcLinha).join('') : '<div class="empty-note">Ainda sem histórico.</div>');
+    h += '</div></div>';
+    if(gEhTriador()){
+      h += '<div class="card"><div class="card-head"><div><h2>Aderência à rotina</h2><div class="hint">Ocorrências realizadas / previstas nos últimos 30 dias.</div></div></div><div class="card-body"><div class="grid-stats" style="grid-template-columns:repeat(3,1fr);margin:0;">' +
+        gCfg().modelos.map(function(m){ var a = gAderencia(m.cadencia, 30); return '<div class="stat"><div class="label">'+esc(m.nome)+'</div><div class="value num">'+(a.pct==null?'—':a.pct+'%')+'</div><div class="sub">'+a.feitas+' de '+a.total+'</div></div>'; }).join('') + '</div></div></div>';
+    }
+    return h;
+  }
+
+  // ---------------- ROTINA: ocorrência (pauta, checklist, ata) ----------------
+  function gLerFormOc(){
+    var e = gUI.ocEdit; if(!e) return;
+    var ata = document.getElementById('goAta'); if(ata) e.ata = ata.value;
+  }
+  function gRenderOcorrencia(){
+    var e = gUI.ocEdit; if(!e) return;
+    var gerente = gEhGerente(), feita = e.estado === 'realizada';
+    var corpo = '<div class="queue-meta" style="margin:0 0 10px;">'+gChip(fmtDate(e.data))+' '+gPill(feita?'Realizada':(e.estado==='agendada'?'Agendada':e.estado),feita?'pill-good':'pill-warning')+'</div>';
+    if(gerente && !feita){
+      corpo += '<h3 style="font-size:13.5px;margin:6px 0;">Checklist</h3>' + (e.itens||[]).map(function(it,i){
+        return '<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:4px;"><input type="checkbox" style="width:auto;" data-g="oc-item" data-i="'+i+'"'+(it.ok?' checked':'')+'> '+esc(it.t)+'</label>';
+      }).join('');
+    }
+    corpo += '<h3 style="font-size:13.5px;margin:14px 0 6px;">Pauta</h3><div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface-2);">' +
+      (feita && e.pautaSnapshot ? '<div style="font-size:13px;">'+esc(e.pautaSnapshot)+'</div><div class="hint">Registro da pauta no momento da reunião.</div>' : (e.cadencia === 'semanal' || gerente ? gPautaViva(e.cadencia) : '')) + '</div>';
+    if(e.cadencia === 'semanal'){
+      corpo += '<h3 style="font-size:13.5px;margin:14px 0 6px;">Tópicos sugeridos pelo time</h3>' +
+        gListaLi((e.topicos||[]).map(function(t){ return esc(t.texto)+' <span class="hint" style="display:inline;margin:0;">— '+esc(t.autorNome)+'</span>'; }), 'Nenhum tópico sugerido ainda.');
+      if(!feita) corpo += '<div style="display:flex;gap:8px;"><input type="text" id="goTopico" placeholder="Sugerir um tópico para a reunião"><button class="btn btn-sm" data-g="oc-topico">Sugerir</button></div>';
+    }
+    if(feita){
+      corpo += '<h3 style="font-size:13.5px;margin:14px 0 6px;">Ata</h3><div style="white-space:pre-wrap;font-size:13px;">'+esc(e.ata||'—')+'</div>' +
+        '<h3 style="font-size:13.5px;margin:12px 0 6px;">Ações combinadas</h3>' + gListaLi((e.acoes||[]).map(function(a){ return esc(a.texto+' — '+gNome(a.responsavelId)+(a.prazo?' · '+fmtDate(a.prazo):'')); }), 'Nenhuma ação registrada.');
+    }else if(gerente){
+      corpo += '<h3 style="font-size:13.5px;margin:14px 0 6px;">Ata e ações</h3><div class="field"><textarea id="goAta" rows="4" placeholder="Decisões e pontos principais">'+esc(e.ata||'')+'</textarea></div>' +
+        (e.acoes||[]).map(function(a,i){ return '<div style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:4px;"><span style="flex:1;">'+esc(a.texto)+' — '+esc(gNome(a.responsavelId))+' · '+fmtDate(a.prazo)+'</span>'+gBtn('oc-acao-rem','Remover','btn-sm btn-ghost',{i:i})+'</div>'; }).join('') +
+        '<div style="display:grid;grid-template-columns:2fr 1.2fr 1fr auto;gap:8px;align-items:center;margin-top:6px;"><input type="text" id="goAcaoTexto" placeholder="Ação combinada"><select id="goAcaoResp">'+gOptsUsers(gMeuId(), 'Responsável')+'</select><input type="date" id="goAcaoPrazo" value="'+addDiasUteis(todayISO(),3)+'"><button class="btn btn-sm" data-g="oc-acao-add">Adicionar</button></div>' +
+        '<div class="hint">Toda ação precisa de responsável e prazo; ela vira uma atividade e reaparece na pauta seguinte.</div>';
+    }
+    corpo += '<div class="gate-error" id="gModalErro"></div>';
+    var rod = '<button class="btn" data-g="fechar-modal">Fechar</button>';
+    if(gerente && !feita) rod = '<button class="btn" data-g="oc-pular" style="margin-right:auto;">Pular</button><button class="btn" data-g="oc-adiar">Adiar</button><button class="btn" data-g="fechar-modal">Fechar</button><button class="btn btn-accent" data-g="oc-realizar">Marcar como realizada</button>';
+    gModal({ titulo: esc(e.nome), corpo:corpo, rodape:rod, largo:true });
+  }
+  function gAbrirOcorrencia(id){
+    var o = gById('ocorrencias', id); if(!o || !gOcVisivel(o)) return;
+    gUI.ocEdit = JSON.parse(JSON.stringify(o)); gUI.detalheOcId = id;
+    gRenderOcorrencia();
+  }
+  async function gPersistirOc(msg){
+    var e = gUI.ocEdit;
+    try{ await gPut('ocorrencias', Object.assign({}, e)); if(msg) mostrarToastSucesso(msg); renderAll(); gRenderOcorrencia(); }
+    catch(er){ gErroModal('Não foi possível salvar: '+detalheErro(er)); }
+  }
+  async function gOcRealizar(){
+    gLerFormOc();
+    var e = gUI.ocEdit;
+    // ações sem dono não são salvas (regra de negócio): todas já exigem responsável e prazo ao serem adicionadas.
+    var acoes = [];
+    for(var i = 0; i < (e.acoes||[]).length; i++){
+      var a = e.acoes[i];
+      if(!a.responsavelId || !a.prazo){ gErroModal('Toda ação precisa de responsável e prazo.'); return; }
+    }
+    try{
+      for(var j = 0; j < e.acoes.length; j++){
+        var x = e.acoes[j];
+        if(!x.atividadeId){
+          var atv = gNovaAtividade({ titulo:x.texto, prazo:x.prazo, responsavelId:x.responsavelId, origem:'rotina', origemId:e.id, tipo:'acompanhamento' });
+          await gPut('atividades', atv);
+          x.atividadeId = atv.id;
+          if(x.responsavelId !== gMeuId()) gAvisar([x.responsavelId], 'Ação da reunião "'+e.nome+'": '+x.texto, {k:'atividade', id:atv.id});
+        }
+        acoes.push(x);
+      }
+      e.acoes = acoes; e.estado = 'realizada'; e.realizadaEm = gAgora(); e.pautaSnapshot = gPautaTexto(e.cadencia);
+      await gPut('ocorrencias', Object.assign({}, e));
+      var atvOc = gById('atividades', e.atividadeId);
+      if(atvOc && atvOc.estado === 'aberta') await gPut('atividades', Object.assign({}, atvOc, { estado:'concluida', concluidaEm:gAgora() }));
+      gFecharModal(); mostrarToastSucesso('Reunião registrada.'); renderAll();
+    }catch(er){ gErroModal('Não foi possível salvar: '+detalheErro(er)); }
+  }
+  async function gOcAdiarOk(){
+    var nova = gVal('gOcNova'), e = gUI.ocEdit;
+    if(!nova || nova <= e.data){ gErroModal('Escolha uma data posterior.'); return; }
+    var id2 = 'oc-' + e.modeloId + '-' + nova;
+    try{
+      await gPut('ocorrencias', Object.assign({}, e, { estado:'adiada', motivo:'Adiada para '+fmtDate(nova) }));
+      if(!gById('ocorrencias', id2)){
+        var m = gCfg().modelos.filter(function(x){ return x.id === e.modeloId; })[0] || { itens:[] };
+        await gPut('ocorrencias', { id:id2, modeloId:e.modeloId, nome:e.nome, cadencia:e.cadencia, data:nova, estado:'agendada', itens:(m.itens||[]).map(function(t){ return { t:t, ok:false }; }), topicos:e.topicos||[], ata:'', acoes:[], pautaSnapshot:'', realizadaEm:null, motivo:'', atividadeId:'atv-'+id2 });
+        await gPut('atividades', gNovaAtividade({ id:'atv-'+id2, titulo:e.nome, origem:'rotina', origemId:id2, prazo:nova, tipo:'rotina', responsavelId:gMeuId() }));
+      }
+      var at = gById('atividades', e.atividadeId); if(at) await gPut('atividades', Object.assign({}, at, { estado:'dispensada' }));
+      gFecharModal(); mostrarToastSucesso('Ocorrência adiada.'); renderAll();
+    }catch(er){ gErroModal('Não foi possível salvar: '+detalheErro(er)); }
+  }
+  async function gOcPularOk(){
+    var m = gVal('gOcMotivo').trim(), e = gUI.ocEdit;
+    if(!m){ gErroModal('Informe o motivo.'); return; }
+    try{
+      await gPut('ocorrencias', Object.assign({}, e, { estado:'pulada', motivo:m }));
+      var at = gById('atividades', e.atividadeId); if(at) await gPut('atividades', Object.assign({}, at, { estado:'dispensada' }));
+      gFecharModal(); mostrarToastSucesso('Ocorrência dispensada.'); renderAll();
+    }catch(er){ gErroModal('Não foi possível salvar: '+detalheErro(er)); }
+  }
+
+  // ---------------- 1:1 ----------------
+  function gEncVisiveis(){
+    var me = gMeuId();
+    if(gEhGerente()) return G.encontros;
+    return G.encontros.filter(function(e){ return e.colaboradorId === me; });
+  }
+  function gUltimoEnc(colabId){
+    return G.encontros.filter(function(e){ return e.colaboradorId === colabId && e.estado === 'realizado'; }).sort(function(a,b){ return a.data < b.data ? 1 : -1; })[0] || null;
+  }
+  function gProximoEnc(colabId){
+    return G.encontros.filter(function(e){ return e.colaboradorId === colabId && e.estado === 'agendado'; }).sort(function(a,b){ return a.data < b.data ? -1 : 1; })[0] || null;
+  }
+  function gRenderUmaUm(){
+    var hoje = todayISO(), h = '';
+    if(gEhGerente()){
+      var gente = gUsers().filter(function(u){ return u.id !== gMeuId(); }).sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+      h += '<div class="card"><div class="card-head"><div><h2>1:1 com o time</h2><div class="hint">Pauta compartilhada, acordos e notas privadas que só o gerente vê.</div></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Colaborador</th><th>Último 1:1</th><th>Próximo</th><th></th></tr></thead><tbody>' +
+        gente.map(function(u){
+          var ult = gUltimoEnc(u.id), prox = gProximoEnc(u.id);
+          var dias = ult ? diffDays(hoje, ult.data) : null;
+          var alerta = (dias == null || dias > gCfg().diasAlerta1a1) && !prox;
+          return '<tr><td><strong>'+esc(u.nome)+'</strong></td><td>'+(ult ? fmtDate(ult.data)+' <span class="hint" style="display:inline;margin:0;">('+dias+'d)</span>' : '<span class="hint" style="display:inline;margin:0;">nunca</span>')+(alerta?' '+gChip('Sem 1:1 recente','c-warn'):'')+'</td><td>'+(prox ? '<a href="#" data-g="abrir-enc" data-id="'+esc(prox.id)+'">'+fmtDate(prox.data)+'</a>' : '—')+'</td><td style="text-align:right;">'+gBtn('agendar-1a1','Agendar 1:1','btn-sm',{u:u.id})+'</td></tr>';
+        }).join('') + '</tbody></table></div></div></div>';
+    }
+    if(isCoordenador()){
+      var ini = addDays(hoje, -30);
+      h += '<div class="card"><div class="card-head"><div><h2>Aderência dos 1:1</h2><div class="hint">A coordenação vê apenas se os encontros acontecem, nunca o conteúdo.</div></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Colaborador</th><th>Realizados (30 dias)</th><th>Agendados</th></tr></thead><tbody>' +
+        gUsers().filter(function(u){ return !gEhAdminUser(u); }).map(function(u){
+          var l = G.encontros.filter(function(e){ return e.colaboradorId === u.id && e.data >= ini; });
+          return '<tr><td>'+esc(u.nome)+'</td><td class="num">'+l.filter(function(e){ return e.estado==='realizado'; }).length+'</td><td class="num">'+l.filter(function(e){ return e.estado==='agendado'; }).length+'</td></tr>';
+        }).join('') + '</tbody></table></div></div></div>';
+    }
+    if(gEhGerente() || !isCoordenador()){
+      var lista = gEncVisiveis().slice().sort(function(a,b){ return a.data < b.data ? 1 : -1; });
+      h += '<div class="card"><div class="card-head"><div><h2>'+(gEhGerente()?'Encontros':'Meus 1:1')+'</h2></div></div><div class="card-body">' +
+        (lista.length ? lista.map(function(e){
+          return '<div class="queue-row" style="cursor:pointer;" data-g="abrir-enc" data-id="'+esc(e.id)+'"><div class="queue-main"><div class="queue-name">'+esc(gEhGerente()?e.colaboradorNome:'1:1 com '+gNome(e.gerenteId))+'</div><div class="queue-meta">'+gChip(fmtDate(e.data))+' '+gPill(e.estado==='realizado'?'Realizado':e.estado==='cancelado'?'Cancelado':'Agendado', e.estado==='realizado'?'pill-good':'pill-warning')+'</div></div></div>';
+        }).join('') : '<div class="empty-note">Nenhum 1:1 registrado ainda.</div>') + '</div></div>';
+    }
+    return h;
+  }
+  function gAbrirAgendar1a1(uid){
+    gUI.modal = 'agendar-1a1'; gUI.encColab = uid;
+    gModal({ titulo:'Agendar 1:1 — '+esc(gNome(uid)), corpo:'<div class="field"><label for="gEncData">Data</label><input type="date" id="gEncData" value="'+addDiasUteis(todayISO(),1)+'"></div><div class="gate-error" id="gModalErro"></div>',
+      rodape:'<button class="btn" data-g="fechar-modal">Cancelar</button><button class="btn btn-accent" data-g="agendar-1a1-ok">Agendar</button>' });
+  }
+  async function gAgendar1a1Ok(){
+    var data = gVal('gEncData'), u = gUser(gUI.encColab);
+    if(!data || !u){ gErroModal('Escolha a data.'); return; }
+    var ult = gUltimoEnc(u.id);
+    var pendentes = ult ? (ult.acordos||[]).filter(function(a){ return !a.feito; }) : [];
+    var enc = { id:novoId('enc'), colaboradorId:u.id, colaboradorNome:u.nome, gerenteId:gMeuId(), data:data, estado:'agendado',
+      pauta:[], acordos:pendentes.map(function(a){ return { id:novoId('ac'), texto:a.texto, feito:false }; }), criadoEm:gAgora(), realizadoEm:null };
+    try{
+      await gPut('encontros', enc);
+      gAvisar([u.id], 'Seu 1:1 com '+currentUser.nome+' foi agendado para '+fmtDate(data), {k:'enc', id:enc.id});
+      gFecharModal(); mostrarToastSucesso('1:1 agendado.'); renderAll();
+    }catch(e){ gErroModal('Não foi possível agendar: '+detalheErro(e)); }
+  }
+  function gNotaDoEnc(id){ return gById('notas', id); }
+  function gRenderEncontro(){
+    var e = gById('encontros', gUI.detalheEncId); if(!e) return;
+    var gerente = gEhGerente(), me = gMeuId();
+    if(!gerente && e.colaboradorId !== me){ gFecharModal(); return; }
+    var feito = e.estado === 'realizado';
+    var corpo = '<div class="queue-meta" style="margin:0 0 10px;">'+gChip(fmtDate(e.data))+' '+gPill(feito?'Realizado':e.estado==='cancelado'?'Cancelado':'Agendado', feito?'pill-good':'pill-warning')+'</div>';
+    if(gerente){
+      var u = gUser(e.colaboradorId), csmNome = u ? (u.csmVinculado || u.nome) : '';
+      var metas = G.metas.filter(function(m){ return m.responsavelId === e.colaboradorId && m.estado === 'aberta'; });
+      var dem = G.demandas.filter(function(d){ return d.solicitanteId === e.colaboradorId && G_ESTADOS_ATIVOS.indexOf(d.estado) > -1; });
+      var atr = G.atividades.filter(function(a){ return a.responsavelId === e.colaboradorId && gAtivVencida(a); });
+      var cart = clientes.filter(function(c){ return c.csm === csmNome; });
+      var crit = cart.map(computeStats).filter(function(s){ return s.health === 'critical'; }).length;
+      corpo += '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--surface-2);margin-bottom:12px;"><div style="font-weight:700;font-size:13px;margin-bottom:4px;">Pauta viva (só o gerente vê)</div>' +
+        gBloco('Metas da pessoa ('+metas.length+')', gListaLi(metas.map(function(m){ return esc(m.titulo+' — '+gMetaStatus(m).label+' ('+Math.round(gMetaProgresso(m)*100)+'%)'); }), 'Sem metas abertas.')) +
+        gBloco('Demandas abertas por ela ('+dem.length+')', gListaLi(dem.map(function(d){ return esc(gNumDem(d)+' · '+d.titulo+' — '+G_ESTADOS[d.estado].label); }), 'Nenhuma.')) +
+        gBloco('Atividades atrasadas ('+atr.length+')', gListaLi(atr.map(function(a){ return esc(a.titulo); }), 'Nenhuma.')) +
+        gBloco('Carteira', '<div style="font-size:13px;margin:2px 0 6px;">'+cart.length+' clientes, '+crit+' críticos.</div>') + '</div>';
+    }
+    corpo += '<h3 style="font-size:13.5px;margin:6px 0;">Pauta compartilhada</h3>' + gListaLi((e.pauta||[]).map(function(p){ return esc(p.texto)+' <span class="hint" style="display:inline;margin:0;">— '+esc(p.autorNome)+'</span>'; }), 'Nenhum tópico ainda.');
+    if(!feito && e.estado !== 'cancelado') corpo += '<div style="display:flex;gap:8px;margin-bottom:10px;"><input type="text" id="geTopico" placeholder="Adicionar tópico"><button class="btn btn-sm" data-g="enc-topico">Adicionar</button></div>';
+    corpo += '<h3 style="font-size:13.5px;margin:10px 0 6px;">Acordos e próximos passos</h3>' + ((e.acordos||[]).length ? e.acordos.map(function(a,i){
+      return '<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:4px;"><input type="checkbox" style="width:auto;" data-g="enc-acordo-toggle" data-i="'+i+'"'+(a.feito?' checked':'')+'> <span style="'+(a.feito?'text-decoration:line-through;opacity:.65;':'')+'">'+esc(a.texto)+'</span></label>';
+    }).join('') : '<div class="hint" style="margin:2px 0 8px;">Nenhum acordo registrado.</div>');
+    if(e.estado !== 'cancelado') corpo += '<div style="display:flex;gap:8px;margin-bottom:10px;"><input type="text" id="geAcordo" placeholder="Novo acordo ou próximo passo"><button class="btn btn-sm" data-g="enc-acordo">Adicionar</button></div>';
+    if(gerente){
+      var nota = gNotaDoEnc(e.id);
+      var valor = gUI.notaDraft != null ? gUI.notaDraft : (nota ? nota.texto : '');
+      corpo += '<h3 style="font-size:13.5px;margin:12px 0 6px;">Notas privadas do gerente</h3><div class="field"><textarea id="geNota" rows="3" placeholder="Só você vê estas notas">'+esc(valor)+'</textarea></div><div>'+gBtn('enc-nota','Salvar notas','btn-sm',{})+'</div>';
+    }
+    corpo += '<div class="gate-error" id="gModalErro"></div>';
+    var rod = '<button class="btn" data-g="fechar-modal">Fechar</button>';
+    if(gerente && e.estado === 'agendado') rod = '<button class="btn btn-danger" style="margin-right:auto;" data-g="enc-cancelar">Cancelar encontro</button><button class="btn" data-g="fechar-modal">Fechar</button><button class="btn btn-accent" data-g="enc-realizar">Marcar como realizado</button>';
+    gModal({ titulo:'1:1 — '+esc(gEhGerente()?e.colaboradorNome:'com '+gNome(e.gerenteId)), corpo:corpo, rodape:rod, largo:true });
+  }
+  function gAbrirEncontro(id){
+    var e = gById('encontros', id); if(!e) return;
+    gUI.detalheEncId = id; gUI.notaDraft = null;
+    gRenderEncontro();
+  }
+  function gCapturaNota(){ var el = document.getElementById('geNota'); if(el) gUI.notaDraft = el.value; }
+  async function gEncAcao(acao, dados){
+    var e = gById('encontros', gUI.detalheEncId); if(!e) return;
+    gCapturaNota();
+    var n = Object.assign({}, e, { pauta:(e.pauta||[]).slice(), acordos:(e.acordos||[]).map(function(a){ return Object.assign({}, a); }) });
+    try{
+      if(acao === 'topico'){
+        var t = gVal('geTopico').trim(); if(!t){ gErroModal('Escreva o tópico.'); return; }
+        n.pauta.push({ id:novoId('p'), texto:t, autorId:gMeuId(), autorNome:currentUser.nome });
+        await gPut('encontros', n);
+      }else if(acao === 'acordo'){
+        var ac = gVal('geAcordo').trim(); if(!ac){ gErroModal('Escreva o acordo.'); return; }
+        n.acordos.push({ id:novoId('ac'), texto:ac, feito:false });
+        await gPut('encontros', n);
+      }else if(acao === 'toggle'){
+        var i = parseInt(dados.i, 10); if(n.acordos[i]) n.acordos[i].feito = !n.acordos[i].feito;
+        await gPut('encontros', n);
+      }else if(acao === 'nota'){
+        var texto = gVal('geNota');
+        await gPut('notas', { id:e.id, encontroId:e.id, texto:texto, autorId:gMeuId(), atualizadoEm:gAgora() });
+        gUI.notaDraft = null; mostrarToastSucesso('Notas salvas.');
+      }else if(acao === 'realizar'){
+        n.estado = 'realizado'; n.realizadoEm = gAgora();
+        var el = document.getElementById('geNota');
+        if(el) await gPut('notas', { id:e.id, encontroId:e.id, texto:el.value, autorId:gMeuId(), atualizadoEm:gAgora() });
+        await gPut('encontros', n);
+        mostrarToastSucesso('1:1 registrado.');
+      }else if(acao === 'cancelar'){
+        n.estado = 'cancelado'; await gPut('encontros', n); mostrarToastSucesso('Encontro cancelado.');
+      }
+      renderAll(); gRenderEncontro();
+    }catch(er){ gErroModal('Não foi possível salvar: '+detalheErro(er)); }
+  }
+
+  // ---------------- METAS ----------------
+  function gMetasVisiveis(){
+    var me = gMeuId();
+    if(gEhTriador()) return G.metas;
+    return G.metas.filter(function(m){ return m.nivel === 'time' || m.responsavelId === me; });
+  }
+  function gEscopoCsmDe(uid){ var u = gUser(uid); return u ? (u.csmVinculado || u.nome) : null; }
+  var G_FORMULAS = {
+    planos_no_prazo: { nome:'Atividades de planos de ação concluídas no prazo (%)', un:'%', calc:function(csm, ini, fim){
+      var tot = 0, ok = 0;
+      planos.forEach(function(p){ if(csm && p.csm !== csm) return; (p.atividades||[]).forEach(function(a){
+        if(a.status !== 'concluida' || !a.concluidoEm) return;
+        var dt = String(a.concluidoEm).slice(0,10); if(dt < ini || dt > fim) return;
+        tot++; if(!a.prazo || dt <= a.prazo) ok++;
+      }); });
+      return tot ? Math.round(ok*100/tot) : 0;
+    } },
+    onb_concluidos: { nome:'Implantações concluídas no ciclo', un:'', calc:function(csm, ini, fim){
+      return onboardings.filter(function(o){
+        if(o.faseAtual !== 'concluido' || !o.concluidoEm) return false;
+        if(csm && o.csm !== csm) return false;
+        var dt = String(o.concluidoEm).slice(0,10); return dt >= ini && dt <= fim;
+      }).length;
+    } },
+    sem_contato: { nome:'Clientes da carteira sem contato dentro do prazo (reduzir)', un:'', calc:function(csm){
+      var lim = (prazoConfig && prazoConfig.dias) || PRAZO_CARTEIRA_PADRAO;
+      return clientes.filter(function(c){ return !csm || c.csm === csm; }).filter(function(c){
+        var s = computeStats(c); return s.diasSemContato == null || s.diasSemContato >= lim;
+      }).length;
+    } },
+    renovacoes: { nome:'Renovações realizadas no ciclo', un:'', calc:function(csm, ini, fim){
+      return renovacoesData.filter(function(r){
+        if(r.status !== 'renovado') return false; if(csm && r.csm !== csm) return false;
+        var dt = String(r.atualizadoEm||'').slice(0,10); return dt >= ini && dt <= fim;
+      }).length;
+    } },
+    demandas_prazo: { nome:'Demandas concluídas no prazo prometido (%)', un:'%', calc:function(csm, ini, fim){
+      var l = G.demandas.filter(function(d){ var dt = d.concluidaEm ? gData(d.concluidaEm) : ''; return dt && dt >= ini && dt <= fim && d.prazoPrometido; });
+      var ok = l.filter(function(d){ return gData(d.concluidaEm) <= d.prazoPrometido; }).length;
+      return l.length ? Math.round(ok*100/l.length) : 0;
+    } },
+    aderencia_rotina: { nome:'Aderência à rotina de gestão (%)', un:'%', calc:function(){ var a = gAderencia(null, 30); return a.pct == null ? 0 : a.pct; } }
+  };
+  function gCicloDe(m){ return gById('ciclos', m.cicloId); }
+  function gMetaValorAtual(m){
+    if(m.tipo === 'automatica'){
+      var f = G_FORMULAS[m.formula]; var c = gCicloDe(m);
+      if(!f || !c) return 0;
+      return f.calc(m.nivel === 'individual' ? gEscopoCsmDe(m.responsavelId) : null, c.inicio, c.fim);
+    }
+    return Number(m.valorAtual || 0);
+  }
+  function gMetaProgresso(m){
+    var p = 0;
+    if(m.tipo === 'entregavel'){
+      var ms = m.marcos || []; p = ms.length ? ms.filter(function(x){ return x.ok; }).length / ms.length : 0;
+    }else if(m.tipo === 'percentual'){
+      p = Number(m.valorAtual || 0) / (Number(m.alvo) || 100);
+    }else{
+      var ini = Number(m.valorInicial || 0), alvo = Number(m.alvo || 0), atual = gMetaValorAtual(m);
+      if(alvo === ini) p = atual >= alvo ? 1 : 0; else p = (atual - ini) / (alvo - ini);
+    }
+    return Math.max(0, Math.min(1, p));
+  }
+  function gCheckinAtrasado(m){
+    if(m.tipo === 'automatica' || m.estado !== 'aberta') return false;
+    var c = gCicloDe(m), hoje = todayISO(); if(!c || hoje < c.inicio) return false;
+    var ult = (m.checkins||[]).slice().sort(function(a,b){ return a.data < b.data ? 1 : -1; })[0];
+    return diffDays(hoje, ult ? ult.data : c.inicio) > (m.periodicidade === 'mensal' ? 30 : 7);
+  }
+  function gMetaStatus(m){
+    if(m.estado === 'encerrada') return { id:'encerrada', label:'Encerrada', cls:'pill-neutral' };
+    var p = gMetaProgresso(m);
+    if(p >= 1 || m.estado === 'concluida') return { id:'concluida', label:'Concluída', cls:'pill-good' };
+    var c = gCicloDe(m), hoje = todayISO();
+    if(!c || hoje < c.inicio) return { id:'no_ritmo', label:'No ritmo', cls:'pill-good' };
+    var fim = m.prazo || c.fim, total = Math.max(1, diffDays(fim, c.inicio));
+    var esperado = Math.max(0, Math.min(1, diffDays(hoje, c.inicio) / total));
+    var margem = gCfg().margemRisco / 100, diff = esperado - p, restam = diffDays(fim, hoje);
+    if(diff > 2*margem || (restam <= 7 && diff > 0) || (restam < 0) || gCheckinAtrasado(m)) return { id:'atrasada', label:'Atrasada', cls:'pill-critical' };
+    if(diff > margem) return { id:'em_risco', label:'Em risco', cls:'pill-warning' };
+    return { id:'no_ritmo', label:'No ritmo', cls:'pill-good' };
+  }
+  function gBarra(p){
+    return '<div style="height:8px;background:var(--surface-3);border-radius:99px;overflow:hidden;min-width:90px;"><div style="width:'+Math.round(p*100)+'%;height:100%;background:var(--accent);"></div></div>';
+  }
+  function gMetaValorTxt(m){
+    if(m.tipo === 'entregavel'){ var ms = m.marcos||[]; return ms.filter(function(x){ return x.ok; }).length+' de '+ms.length+' marcos'; }
+    var un = m.tipo === 'percentual' ? '%' : ((G_FORMULAS[m.formula]||{}).un || '');
+    return gMetaValorAtual(m)+un+' → '+(m.alvo != null ? m.alvo : '—')+un;
+  }
+  function gCicloSelecionado(){
+    var id = gUI.metas.cicloId;
+    var c = gById('ciclos', id);
+    if(c) return c;
+    var ativo = G.ciclos.filter(function(x){ return x.estado === 'ativo'; }).sort(function(a,b){ return a.inicio < b.inicio ? 1 : -1; })[0];
+    return ativo || G.ciclos.slice().sort(function(a,b){ return a.inicio < b.inicio ? 1 : -1; })[0] || null;
+  }
+  function gMetaLinha(m, nivelIndent){
+    var s = gMetaStatus(m), p = gMetaProgresso(m);
+    return '<tr style="cursor:pointer;" data-g="abrir-meta" data-id="'+esc(m.id)+'"><td style="padding-left:'+(10+nivelIndent*22)+'px;"><strong>'+esc(m.titulo)+'</strong>' +
+      '<div class="hint" style="margin:2px 0 0;">'+esc(m.nivel === 'time' ? 'Meta do time' : m.nivel === 'gerente' ? 'Meta do gerente' : 'Individual')+(m.responsavelId?' · '+esc(gNome(m.responsavelId)):'')+'</div></td>' +
+      '<td style="min-width:140px;">'+gBarra(p)+'<div class="hint" style="margin:3px 0 0;">'+Math.round(p*100)+'% · '+esc(gMetaValorTxt(m))+'</div></td>' +
+      '<td>'+gPill(s.label, s.cls)+'</td></tr>';
+  }
+  function gRenderMetas(){
+    var ciclo = gCicloSelecionado(), ehGer = gEhGerente(), ehTri = gEhTriador();
+    var h = '<div class="card"><div class="card-head"><div><h2>Metas</h2><div class="hint">Metas do time, desdobramento individual e check-ins.</div></div><div class="queue-actions">' +
+      '<select id="gmCiclo" style="min-width:200px;">'+gOpts(G.ciclos.slice().sort(function(a,b){ return a.inicio < b.inicio ? 1 : -1; }).map(function(c){ return {v:c.id,l:c.nome+(c.estado==='encerrado'?' (encerrado)':'')}; }), ciclo?ciclo.id:'', G.ciclos.length ? null : 'Nenhum ciclo')+'</select>' +
+      (ehGer ? '<button class="btn btn-sm" data-g="novo-ciclo">Novo ciclo</button>' : '') +
+      (ehTri && ciclo && ciclo.estado !== 'encerrado' ? '<button class="btn btn-sm btn-accent" data-g="nova-meta">+ Nova meta</button>' : '') +
+      (ehGer && ciclo && ciclo.estado !== 'encerrado' ? '<button class="btn btn-sm" data-g="encerrar-ciclo">Encerrar ciclo</button>' : '') + '</div></div><div class="card-body">';
+    if(!ciclo){
+      return h + '<div class="empty-note">'+(ehGer ? 'Crie o primeiro ciclo de metas para começar.' : 'Ainda não há ciclo de metas.')+'</div></div></div>';
+    }
+    var ms = gMetasVisiveis().filter(function(m){ return m.cicloId === ciclo.id; });
+    var cont = { no_ritmo:0, em_risco:0, atrasada:0, concluida:0, encerrada:0 };
+    ms.forEach(function(m){ cont[gMetaStatus(m).id]++; });
+    h += '<div class="hint" style="margin-bottom:10px;">'+esc(ciclo.nome)+': '+fmtDate(ciclo.inicio)+' a '+fmtDate(ciclo.fim)+'</div>' +
+      '<div class="grid-stats" style="margin:0 0 14px;"><div class="stat"><div class="label">No ritmo</div><div class="value num">'+cont.no_ritmo+'</div></div><div class="stat"><div class="label">Em risco</div><div class="value num">'+cont.em_risco+'</div></div><div class="stat"><div class="label">Atrasadas</div><div class="value num">'+cont.atrasada+'</div></div><div class="stat"><div class="label">Concluídas</div><div class="value num">'+(cont.concluida+cont.encerrada)+'</div></div></div>';
+    if(!ms.length) return h + '<div class="empty-note">Nenhuma meta neste ciclo.</div></div></div>';
+    var raizes = ms.filter(function(m){ return !m.metaPaiId || !ms.some(function(x){ return x.id === m.metaPaiId; }); });
+    var linhas = '';
+    raizes.forEach(function(r){
+      linhas += gMetaLinha(r, 0);
+      ms.filter(function(x){ return x.metaPaiId === r.id; }).forEach(function(f){ linhas += gMetaLinha(f, 1); });
+    });
+    return h + '<div class="table-wrap"><table><thead><tr><th>Meta</th><th>Progresso</th><th>Status</th></tr></thead><tbody>'+linhas+'</tbody></table></div></div></div>';
+  }
+
+  // novo ciclo
+  function gAbrirNovoCiclo(){
+    var hoje = todayISO(), d = parseISO(hoje);
+    var ini = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-01';
+    var fim = gUltimoDiaMes(d.getFullYear(), d.getMonth());
+    gUI.modal = 'novo-ciclo';
+    gModal({ titulo:'Novo ciclo de metas', corpo:'<div class="field"><label for="gcNome">Nome do ciclo</label><input type="text" id="gcNome" placeholder="Ex.: Outubro 2026"></div><div class="field-row"><div class="field"><label for="gcIni">Início</label><input type="date" id="gcIni" value="'+ini+'"></div><div class="field"><label for="gcFim">Fim</label><input type="date" id="gcFim" value="'+fim+'"></div></div><div class="gate-error" id="gModalErro"></div>',
+      rodape:'<button class="btn" data-g="fechar-modal">Cancelar</button><button class="btn btn-accent" data-g="novo-ciclo-ok">Criar ciclo</button>' });
+  }
+  function gUltimoDiaMes(ano, mes0){ var d = new Date(ano, mes0+1, 0); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  async function gNovoCicloOk(){
+    var nome = gVal('gcNome').trim(), ini = gVal('gcIni'), fim = gVal('gcFim');
+    if(!nome || !ini || !fim || fim < ini){ gErroModal('Informe o nome e um período válido.'); return; }
+    var c = { id:novoId('ciclo'), nome:nome, inicio:ini, fim:fim, estado:'ativo', criadoEm:gAgora() };
+    try{ await gPut('ciclos', c); gUI.metas.cicloId = c.id; gFecharModal(); mostrarToastSucesso('Ciclo criado.'); renderAll(); }
+    catch(e){ gErroModal('Não foi possível criar: '+detalheErro(e)); }
+  }
+  async function gEncerrarCiclo(){
+    var c = gCicloSelecionado(); if(!c) return;
+    var abertas = G.metas.filter(function(m){ return m.cicloId === c.id && m.estado !== 'encerrada'; });
+    if(abertas.length){ mostrarToastErro('Ainda há '+abertas.length+' meta(s) sem fechamento (resultado final e aprendizado). Feche cada uma antes de encerrar o ciclo.'); return; }
+    try{ await gPut('ciclos', Object.assign({}, c, { estado:'encerrado' })); mostrarToastSucesso('Ciclo encerrado.'); renderAll(); }
+    catch(e){ mostrarToastErro('Não foi possível salvar: '+detalheErro(e)); }
+  }
+
+  // nova meta
+  function gAbrirNovaMeta(){
+    var ciclo = gCicloSelecionado(); if(!ciclo) return;
+    var niveis = gEhGerente() ? [{v:'time',l:'Meta do time'},{v:'individual',l:'Individual'},{v:'gerente',l:'Meta do gerente'}] : [{v:'time',l:'Meta do time (global)'}];
+    var corpo = '<div class="field"><label for="gmTitulo">Título</label><input type="text" id="gmTitulo" placeholder="Ex.: Reduzir clientes sem contato"></div>' +
+      '<div class="field"><label for="gmDescricao">Descrição (opcional)</label><textarea id="gmDescricao" rows="2"></textarea></div>' +
+      '<div class="field-row"><div class="field"><label for="gmNivel">Nível</label><select id="gmNivel">'+gOpts(niveis,'time')+'</select></div>' +
+      '<div class="field" id="gmRespWrap" style="display:none;"><label for="gmResp">Responsável</label><select id="gmResp">'+gOptsUsers('', 'Selecione...')+'</select></div></div>' +
+      '<div class="field-row"><div class="field"><label for="gmTipo">Tipo de medição</label><select id="gmTipo">'+gOpts([{v:'numerica',l:'Numérica (início e alvo)'},{v:'percentual',l:'Percentual de conclusão'},{v:'entregavel',l:'Entregável (marcos)'},{v:'automatica',l:'Automática (dados do Radar CS)'}],'numerica')+'</select></div>' +
+      '<div class="field"><label for="gmPeriod">Check-in</label><select id="gmPeriod">'+gOpts([{v:'semanal',l:'Semanal'},{v:'mensal',l:'Mensal'}],'semanal')+'</select></div></div>' +
+      '<div class="field" id="gmFormWrap" style="display:none;"><label for="gmForm">Fórmula automática</label><select id="gmForm">'+gOpts(Object.keys(G_FORMULAS).map(function(k){ return {v:k,l:G_FORMULAS[k].nome}; }),'')+'</select></div>' +
+      '<div class="field-row" id="gmNumWrap"><div class="field"><label for="gmIni">Valor inicial</label><input type="number" id="gmIni" value="0" step="any"></div><div class="field"><label for="gmAlvo">Alvo</label><input type="number" id="gmAlvo" step="any"></div></div>' +
+      '<div class="field" id="gmMarcosWrap" style="display:none;"><label for="gmMarcos">Marcos (um por linha)</label><textarea id="gmMarcos" rows="3"></textarea></div>' +
+      '<div class="field"><label for="gmPeso">Peso (opcional, %)</label><input type="number" id="gmPeso" min="0" max="100"></div><div class="gate-error" id="gModalErro"></div>';
+    gUI.modal = 'nova-meta';
+    gModal({ titulo:'Nova meta — '+esc(ciclo.nome), corpo:corpo, rodape:'<button class="btn" data-g="fechar-modal">Cancelar</button><button class="btn btn-accent" data-g="nova-meta-ok">Criar meta</button>' });
+  }
+  function gAjustaFormMeta(){
+    var tipo = gVal('gmTipo');
+    var show = function(id, on){ var el = document.getElementById(id); if(el) el.style.display = on ? '' : 'none'; };
+    show('gmFormWrap', tipo === 'automatica'); show('gmMarcosWrap', tipo === 'entregavel');
+    show('gmNumWrap', tipo === 'numerica' || tipo === 'automatica' || tipo === 'percentual');
+    show('gmRespWrap', gVal('gmNivel') !== 'time');
+  }
+  async function gNovaMetaOk(){
+    var ciclo = gCicloSelecionado(), titulo = gVal('gmTitulo').trim(), nivel = gVal('gmNivel'), tipo = gVal('gmTipo');
+    if(!titulo){ gErroModal('Dê um título à meta.'); return; }
+    var resp = nivel === 'individual' ? gVal('gmResp') : (nivel === 'gerente' ? gMeuId() : '');
+    if(nivel === 'individual' && !resp){ gErroModal('Escolha o responsável da meta individual.'); return; }
+    var m = { id:novoId('meta'), cicloId:ciclo.id, nivel:nivel, titulo:titulo, descricao:gVal('gmDescricao').trim(), responsavelId:resp, responsavelNome:resp ? gNome(resp) : '',
+      tipo:tipo, valorInicial:Number(gVal('gmIni')||0), alvo:null, valorAtual:Number(gVal('gmIni')||0), peso:gVal('gmPeso') ? Number(gVal('gmPeso')) : null,
+      metaPaiId:'', periodicidade:gVal('gmPeriod'), estado:'aberta', formula:'', marcos:[], checkins:[], historico:[], prazo:'', criadoEm:gAgora(), criadaPorId:gMeuId() };
+    if(tipo === 'entregavel'){
+      m.marcos = gVal('gmMarcos').split('\n').map(function(s){ return s.trim(); }).filter(Boolean).map(function(t){ return { t:t, ok:false }; });
+      if(!m.marcos.length){ gErroModal('Informe ao menos um marco.'); return; }
+    }else{
+      if(gVal('gmAlvo') === ''){ gErroModal('Informe o alvo da meta.'); return; }
+      m.alvo = Number(gVal('gmAlvo'));
+      if(tipo === 'automatica'){ m.formula = gVal('gmForm'); if(!m.formula){ gErroModal('Escolha a fórmula automática.'); return; } }
+    }
+    try{ await gPut('metas', m); gFecharModal(); mostrarToastSucesso('Meta criada.'); renderAll(); }
+    catch(e){ gErroModal('Não foi possível criar: '+detalheErro(e)); }
+  }
+
+  // detalhe da meta
+  function gPodeCheckin(m){ return m.estado === 'aberta' && m.tipo !== 'automatica' && (gEhGerente() || m.responsavelId === gMeuId()); }
+  function gRenderMeta(){
+    var m = gById('metas', gUI.detalheMetaId);
+    if(!m){ gFecharModal(); return; }
+    var s = gMetaStatus(m), p = gMetaProgresso(m), c = gCicloDe(m), ger = gEhGerente();
+    var corpo = '<div class="queue-meta" style="margin:0 0 8px;">'+gPill(s.label, s.cls)+' '+gChip(m.nivel === 'time' ? 'Meta do time' : m.nivel === 'gerente' ? 'Meta do gerente' : 'Individual')+(c?' '+gChip(c.nome):'')+(m.responsavelId?' '+gChip(gNome(m.responsavelId)):'')+'</div>' +
+      (m.descricao ? '<div style="font-size:13px;margin-bottom:8px;">'+esc(m.descricao)+'</div>' : '') +
+      '<div style="margin:6px 0 10px;">'+gBarra(p)+'<div class="hint" style="margin-top:4px;">'+Math.round(p*100)+'% · '+esc(gMetaValorTxt(m))+(m.tipo === 'automatica' ? ' · calculada automaticamente ('+esc((G_FORMULAS[m.formula]||{}).nome||'')+')' : '')+(m.prazo?' · prazo '+fmtDate(m.prazo):'')+'</div></div>';
+    if(m.tipo === 'entregavel') corpo += '<h3 style="font-size:13.5px;margin:8px 0 4px;">Marcos</h3>' + (m.marcos||[]).map(function(x){ return '<div style="font-size:13px;">'+(x.ok?'✔ ':'○ ')+esc(x.t)+'</div>'; }).join('');
+    if(m.estado === 'encerrada') corpo += '<div class="alert-banner" style="margin:10px 0;background:var(--surface-2);color:var(--ink);border:1px solid var(--border);"><strong>Resultado final:</strong> '+esc(m.resultadoFinal||'—')+'<br><strong>Aprendizado:</strong> '+esc(m.aprendizado||'—')+'</div>';
+    var filhas = G.metas.filter(function(x){ return x.metaPaiId === m.id; });
+    if(filhas.length) corpo += '<h3 style="font-size:13.5px;margin:12px 0 4px;">Desdobramento</h3>' + gListaLi(filhas.map(function(f){ return esc(gNome(f.responsavelId))+' — alvo '+esc(f.alvo != null ? f.alvo : '—')+' — '+esc(gMetaStatus(f).label); }), '');
+    var atv = G.atividades.filter(function(a){ return a.metaId === m.id && a.estado !== 'dispensada'; });
+    var dem = gDemandasVisiveis().filter(function(d){ return d.metaId === m.id; });
+    corpo += '<h3 style="font-size:13.5px;margin:12px 0 4px;">Atividades ligadas ('+atv.length+')</h3>' + gListaLi(atv.map(function(a){ return esc(a.titulo)+(a.estado==='concluida'?' ✔':(gAtivVencida(a)?' — atrasada':'')); }), 'Nenhuma atividade ligada a esta meta.');
+    corpo += '<h3 style="font-size:13.5px;margin:12px 0 4px;">Demandas ligadas ('+dem.length+')</h3>' + gListaLi(dem.map(function(d){ return esc(gNumDem(d)+' · '+d.titulo+' — '+G_ESTADOS[d.estado].label); }), 'Nenhuma demanda ligada a esta meta.');
+    corpo += '<h3 style="font-size:13.5px;margin:12px 0 4px;">Check-ins</h3>' + gListaLi((m.checkins||[]).slice().reverse().map(function(k){ return esc(fmtDate(k.data)+' · '+(k.valor != null ? k.valor : '')+' · '+(k.comentario||'')+' ('+k.autorNome+') — '+(k.statusLabel||'')); }), 'Nenhum check-in ainda.');
+    if((m.historico||[]).length) corpo += '<h3 style="font-size:13.5px;margin:12px 0 4px;">Alterações de alvo e prazo</h3>' + gListaLi(m.historico.slice().reverse().map(function(x){ return esc(fmtDate(x.data)+' · '+x.campo+': '+x.de+' → '+x.para+' — '+x.motivo+' ('+x.autor+')'); }), '');
+    var form = '';
+    if(gUI.acaoMeta === 'checkin'){
+      form = '<div class="card" style="margin:12px 0 0;border:1px solid var(--border-strong);"><div class="card-head"><h2 style="font-size:14px;">Check-in</h2></div><div class="card-body">' +
+        (m.tipo === 'entregavel'
+          ? (m.marcos||[]).map(function(x,i){ return '<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:4px;"><input type="checkbox" style="width:auto;" data-gmarco="'+i+'"'+(x.ok?' checked':'')+'> '+esc(x.t)+'</label>'; }).join('')
+          : '<div class="field"><label for="gkValor">Valor atual'+(m.tipo==='percentual'?' (%)':'')+'</label><input type="number" id="gkValor" step="any" value="'+esc(m.valorAtual)+'"></div>') +
+        '<div class="field"><label for="gkCom">Comentário</label><textarea id="gkCom" rows="2" placeholder="O que mudou desde o último check-in?"></textarea></div><div class="gate-error" id="gModalErro"></div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn" data-g="meta-cancelar-acao">Cancelar</button><button class="btn btn-accent" data-g="meta-checkin-ok">Registrar</button></div></div></div>';
+    }else if(gUI.acaoMeta === 'editar'){
+      form = '<div class="card" style="margin:12px 0 0;border:1px solid var(--border-strong);"><div class="card-head"><h2 style="font-size:14px;">Alterar alvo ou prazo</h2></div><div class="card-body">' +
+        '<div class="field-row">'+(m.tipo === 'entregavel' ? '' : '<div class="field"><label for="gmeAlvo">Alvo</label><input type="number" id="gmeAlvo" step="any" value="'+esc(m.alvo)+'"></div>')+'<div class="field"><label for="gmePrazo">Prazo</label><input type="date" id="gmePrazo" value="'+esc(m.prazo || (c?c.fim:''))+'"></div></div>' +
+        '<div class="field"><label for="gmeMotivo">Motivo da mudança (obrigatório)</label><textarea id="gmeMotivo" rows="2"></textarea></div><div class="gate-error" id="gModalErro"></div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn" data-g="meta-cancelar-acao">Cancelar</button><button class="btn btn-accent" data-g="meta-editar-ok">Salvar</button></div></div></div>';
+    }else if(gUI.acaoMeta === 'encerrar'){
+      form = '<div class="card" style="margin:12px 0 0;border:1px solid var(--border-strong);"><div class="card-head"><h2 style="font-size:14px;">Encerrar meta</h2></div><div class="card-body">' +
+        '<div class="field"><label for="gmeResultado">Resultado final</label><textarea id="gmeResultado" rows="2" placeholder="O que foi alcançado"></textarea></div><div class="field"><label for="gmeAprend">Aprendizado</label><textarea id="gmeAprend" rows="2" placeholder="O que levamos para o próximo ciclo"></textarea></div><div class="gate-error" id="gModalErro"></div>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn" data-g="meta-cancelar-acao">Cancelar</button><button class="btn btn-accent" data-g="meta-encerrar-ok">Encerrar meta</button></div></div></div>';
+    }else if(gUI.acaoMeta === 'desdobrar'){
+      form = gFormDesdobrar(m);
+    }
+    var botoes = '';
+    if(!gUI.acaoMeta){
+      if(gPodeCheckin(m)) botoes += gBtn('meta-acao','Registrar check-in','btn-sm btn-accent',{a:'checkin'});
+      if(m.estado === 'aberta' && (ger || (isCoordenador() && m.nivel === 'time'))) botoes += ' ' + gBtn('meta-acao','Alterar alvo ou prazo','btn-sm',{a:'editar'});
+      if(m.estado === 'aberta' && ger && m.nivel === 'time' && !filhas.length) botoes += ' ' + gBtn('meta-acao','Desdobrar por pessoa','btn-sm',{a:'desdobrar'});
+      if(m.estado === 'aberta' && ger) botoes += ' ' + gBtn('meta-acao','Encerrar meta','btn-sm',{a:'encerrar'});
+    }
+    gModal({ titulo:esc(m.titulo), corpo:corpo + '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">'+botoes+'</div>' + form + (gUI.acaoMeta ? '' : '<div class="gate-error" id="gModalErro"></div>'),
+      rodape:'<button class="btn" data-g="fechar-modal">Fechar</button>', largo:true });
+  }
+  function gAbrirMeta(id){ gUI.detalheMetaId = id; gUI.acaoMeta = null; gRenderMeta(); }
+  function gFormDesdobrar(m){
+    var gente = gUsers().filter(function(u){ return !gEhAdminUser(u); }).sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    return '<div class="card" style="margin:12px 0 0;border:1px solid var(--border-strong);"><div class="card-head"><h2 style="font-size:14px;">Desdobrar por pessoa</h2></div><div class="card-body">' +
+      '<div class="hint" style="margin-bottom:8px;">Marque quem participa e ajuste a parte de cada um. Alvo do time: <strong>'+esc(m.alvo)+'</strong>.</div>' +
+      gente.map(function(u){
+        return '<div style="display:grid;grid-template-columns:auto 1fr 110px;gap:8px;align-items:center;margin-bottom:4px;"><input type="checkbox" style="width:auto;" data-gdes="'+esc(u.id)+'" checked><span style="font-size:13px;">'+esc(u.nome)+'</span><input type="number" step="any" data-gdes-alvo="'+esc(u.id)+'" value="'+Math.round(Number(m.alvo)/Math.max(1,gente.length)*100)/100+'"></div>';
+      }).join('') + '<div id="gDesSoma" class="hint" style="margin-top:6px;"></div><div class="gate-error" id="gModalErro"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;"><button class="btn" data-g="meta-cancelar-acao">Cancelar</button><button class="btn btn-accent" data-g="meta-desdobrar-ok">Criar metas individuais</button></div></div></div>';
+  }
+  function gAtualizaSomaDes(){
+    var m = gById('metas', gUI.detalheMetaId), el = document.getElementById('gDesSoma'); if(!m || !el) return;
+    var soma = 0;
+    document.querySelectorAll('[data-gdes]').forEach(function(c){ if(c.checked){ var v = document.querySelector('[data-gdes-alvo="'+c.getAttribute('data-gdes')+'"]'); soma += Number(v.value||0); } });
+    soma = Math.round(soma*100)/100;
+    el.textContent = 'Soma das partes: '+soma+' (alvo do time: '+m.alvo+')' + (Math.abs(soma - Number(m.alvo)) > 0.001 && Number(m.alvo) >= Number(m.valorInicial||0) ? ' — atenção: a soma não fecha com o alvo.' : '');
+  }
+  async function gMetaAcaoOk(acao){
+    var m = gById('metas', gUI.detalheMetaId); if(!m) return;
+    var n = Object.assign({}, m, { checkins:(m.checkins||[]).slice(), historico:(m.historico||[]).slice(), marcos:(m.marcos||[]).map(function(x){ return Object.assign({}, x); }) });
+    gErroModal('');
+    try{
+      if(acao === 'checkin'){
+        var com = gVal('gkCom').trim(), valor = null;
+        if(m.tipo === 'entregavel'){
+          document.querySelectorAll('[data-gmarco]').forEach(function(c){ n.marcos[parseInt(c.getAttribute('data-gmarco'),10)].ok = c.checked; });
+          valor = n.marcos.filter(function(x){ return x.ok; }).length;
+        }else{
+          if(gVal('gkValor') === ''){ gErroModal('Informe o valor atual.'); return; }
+          valor = Number(gVal('gkValor')); n.valorAtual = valor;
+        }
+        var st = gMetaStatus(n);
+        n.checkins.push({ id:novoId('ck'), data:todayISO(), valor:valor, comentario:com, status:st.id, statusLabel:st.label, autorId:gMeuId(), autorNome:currentUser.nome });
+        if(st.id === 'concluida') n.estado = 'concluida';
+        await gPut('metas', n);
+        if(m.nivel === 'individual' && m.responsavelId !== gMeuId()) gAvisar([m.responsavelId], currentUser.nome+' registrou um check-in em "'+m.titulo+'"', {k:'meta', id:m.id});
+        if(st.id === 'em_risco' || st.id === 'atrasada') gAvisar(gGerentes().map(function(u){ return u.id; }).concat([m.responsavelId]), 'Meta "'+m.titulo+'" está '+st.label.toLowerCase(), {k:'meta', id:m.id});
+        mostrarToastSucesso('Check-in registrado.');
+      }else if(acao === 'editar'){
+        var motivo = gVal('gmeMotivo').trim(), alvo = document.getElementById('gmeAlvo') ? gVal('gmeAlvo') : null, prazo = gVal('gmePrazo');
+        var mudouAlvo = alvo !== null && alvo !== '' && Number(alvo) !== Number(m.alvo);
+        var prazoAtual = m.prazo || (gCicloDe(m)||{}).fim || '';
+        var mudouPrazo = prazo && prazo !== prazoAtual;
+        if(!mudouAlvo && !mudouPrazo){ gErroModal('Nenhuma alteração informada.'); return; }
+        if(!motivo){ gErroModal('Mudar alvo ou prazo exige um motivo.'); return; }
+        if(mudouAlvo){ n.historico.push({ data:todayISO(), campo:'alvo', de:m.alvo, para:Number(alvo), motivo:motivo, autor:currentUser.nome }); n.alvo = Number(alvo); }
+        if(mudouPrazo){ n.historico.push({ data:todayISO(), campo:'prazo', de:fmtDate(prazoAtual), para:fmtDate(prazo), motivo:motivo, autor:currentUser.nome }); n.prazo = prazo; }
+        await gPut('metas', n); mostrarToastSucesso('Meta atualizada.');
+      }else if(acao === 'encerrar'){
+        var res = gVal('gmeResultado').trim(), ap = gVal('gmeAprend').trim();
+        if(!res || !ap){ gErroModal('Registre o resultado final e o aprendizado para encerrar.'); return; }
+        n.estado = 'encerrada'; n.resultadoFinal = res; n.aprendizado = ap; n.encerradaEm = gAgora();
+        await gPut('metas', n); mostrarToastSucesso('Meta encerrada.');
+      }else if(acao === 'desdobrar'){
+        var criadas = [];
+        document.querySelectorAll('[data-gdes]').forEach(function(c){
+          if(!c.checked) return;
+          var uid = c.getAttribute('data-gdes'), alvoI = Number(document.querySelector('[data-gdes-alvo="'+uid+'"]').value || 0);
+          var reduz = Number(m.alvo) < Number(m.valorInicial||0);
+          criadas.push({ id:novoId('meta'), cicloId:m.cicloId, nivel:'individual', titulo:m.titulo, descricao:m.descricao||'', responsavelId:uid, responsavelNome:gNome(uid),
+            tipo:m.tipo, valorInicial: reduz ? m.valorInicial : 0, alvo:alvoI, valorAtual: reduz ? m.valorInicial : 0, peso:null, metaPaiId:m.id, periodicidade:m.periodicidade,
+            estado:'aberta', formula:m.formula||'', marcos:(m.marcos||[]).map(function(x){ return { t:x.t, ok:false }; }), checkins:[], historico:[], prazo:'', criadoEm:gAgora(), criadaPorId:gMeuId() });
+        });
+        if(!criadas.length){ gErroModal('Selecione ao menos uma pessoa.'); return; }
+        for(var i = 0; i < criadas.length; i++) await gPut('metas', criadas[i]);
+        gAvisar(criadas.map(function(x){ return x.responsavelId; }), 'Você recebeu uma meta individual: '+m.titulo, {k:'meta', id:criadas[0].id});
+        mostrarToastSucesso(criadas.length+' meta(s) individuais criadas.');
+      }
+      gUI.acaoMeta = null; renderAll(); gRenderMeta();
+    }catch(e){ gErroModal('Não foi possível salvar: '+detalheErro(e)); }
+  }
+
+  // ---------------- INDICADORES ----------------
+  function gFmtNum(v, un){ return v == null ? '—' : (Math.round(v*10)/10).toString().replace('.', ',') + (un || ''); }
+  function gTabela(cab, linhas){
+    return '<div class="table-wrap"><table><thead><tr>'+cab.map(function(c){ return '<th>'+esc(c)+'</th>'; }).join('')+'</tr></thead><tbody>' +
+      (linhas.length ? linhas.map(function(l){ return '<tr>'+l.map(function(c,i){ return '<td'+(i>0?' class="num"':'')+'>'+c+'</td>'; }).join('')+'</tr>'; }).join('') : '<tr><td colspan="'+cab.length+'" class="hint">Sem dados no período.</td></tr>') +
+      '</tbody></table></div>';
+  }
+  function gDemandasDoMes(mes){ return G.demandas.filter(function(d){ return gData(d.criadoEm).slice(0,7) === mes; }); }
+  function gRenderIndicadores(){
+    var mes = gUI.ind.mes || todayISO().slice(0,7);
+    var dm = gDemandasDoMes(mes);
+    var conc = G.demandas.filter(function(d){ return d.concluidaEm && gData(d.concluidaEm).slice(0,7) === mes; });
+    var primeira = dm.filter(function(d){ return d.primeiraTriagemEm; }).map(function(d){ return (new Date(d.primeiraTriagemEm) - new Date(d.criadoEm)) / 3600000; });
+    var duracao = conc.map(function(d){ return (new Date(d.concluidaEm) - new Date(d.criadoEm)) / 86400000; });
+    var comPrazo = conc.filter(function(d){ return d.prazoPrometido; });
+    var noPrazo = comPrazo.filter(function(d){ return gData(d.concluidaEm) <= d.prazoPrometido; });
+    var resolvCoord = conc.filter(function(d){ return d.resolvidaNaTriagem && d.resolvidaPorId && !gEhAdminUser(gUser(d.resolvidaPorId)); });
+    var recusadas = dm.filter(function(d){ return d.estado === 'recusada'; });
+    var reabertas = dm.filter(function(d){ return (d.eventos||[]).some(function(e){ return e.tipo === 'reaberta'; }); });
+    var h = '<div class="card"><div class="card-head"><div><h2>Indicadores da gestão</h2><div class="hint">Calculados a partir das demandas, atividades, rotina e metas. Indicadores individuais apoiam o 1:1; não são ranking público.</div></div>' +
+      '<div class="queue-actions"><input type="month" id="giMes" value="'+esc(mes)+'" style="width:auto;"><button class="btn btn-sm" data-g="exportar" data-t="demandas">Exportar demandas (CSV)</button><button class="btn btn-sm" data-g="exportar" data-t="atividades">Exportar atividades (CSV)</button></div></div><div class="card-body">' +
+      '<div class="grid-stats" style="margin-top:0;">' +
+      '<div class="stat"><div class="label">Tempo até a 1ª triagem</div><div class="value num" id="giTriagem">'+gFmtNum(gMediaH(primeira),' h')+'</div><div class="sub">'+primeira.length+' demandas</div></div>' +
+      '<div class="stat"><div class="label">Tempo de conclusão</div><div class="value num" id="giConclusao">'+gFmtNum(gMediaH(duracao),' d')+'</div><div class="sub">'+conc.length+' concluídas</div></div>' +
+      '<div class="stat"><div class="label">Prazo prometido cumprido</div><div class="value num" id="giPrazo">'+(comPrazo.length ? Math.round(noPrazo.length*100/comPrazo.length)+'%' : '—')+'</div><div class="sub">'+noPrazo.length+' de '+comPrazo.length+'</div></div>' +
+      '<div class="stat"><div class="label">Resolvidas pela coordenação</div><div class="value num" id="giCoord">'+(conc.length ? Math.round(resolvCoord.length*100/conc.length)+'%' : '—')+'</div><div class="sub">'+resolvCoord.length+' de '+conc.length+' concluídas</div></div></div>' +
+      '<div class="hint">Recusadas: '+recusadas.length+' de '+dm.length+' abertas no mês · Reabertas: '+reabertas.length+'.</div></div></div>';
+    // demandas por estado
+    var porEstado = G_ESTADOS_ORDEM.map(function(e){ var l = G.demandas.filter(function(d){ return d.estado === e; }); return [esc(G_ESTADOS[e].label), l.length, l.length ? gFmtNum(gMediaH(l.map(gDiasAberta)),' d') : '—']; });
+    h += '<div class="card"><div class="card-head"><h2>Demandas por estado</h2></div><div class="card-body">'+gTabela(['Estado','Demandas','Idade média'], porEstado)+'</div></div>';
+    // volume por tipo
+    var porTipo = gCfg().tipos.map(function(t){
+      var l = dm.filter(function(d){ return d.tipo === t.id; }); var rc = l.filter(function(d){ return d.resolvidaNaTriagem && d.resolvidaPorId && !gEhAdminUser(gUser(d.resolvidaPorId)); }).length;
+      var dur = l.filter(function(d){ return d.concluidaEm; }).map(function(d){ return (new Date(d.concluidaEm) - new Date(d.criadoEm)) / 86400000; });
+      return [esc(t.nome), l.length, rc, gFmtNum(gMediaH(dur),' d')];
+    }).filter(function(r){ return r[1] > 0; });
+    h += '<div class="card"><div class="card-head"><h2>Volume por tipo</h2><div class="hint">Resolvidas na triagem pela coordenação mostram quais tipos merecem orientação padronizada.</div></div><div class="card-body">'+gTabela(['Tipo','Abertas no mês','Resolvidas pela coordenação','Tempo médio'], porTipo)+'</div></div>';
+    var sol = {}; dm.forEach(function(d){ sol[d.solicitanteNome||'—'] = (sol[d.solicitanteNome||'—']||0)+1; });
+    h += '<div class="card"><div class="card-head"><h2>Volume por solicitante</h2></div><div class="card-body">'+gTabela(['Solicitante','Demandas'], Object.keys(sol).sort(function(a,b){ return sol[b]-sol[a]; }).map(function(k){ return [esc(k), sol[k]]; }))+'</div></div>';
+    // triadores
+    var tri = {}; G.demandas.filter(function(d){ return d.triadorId && d.primeiraTriagemEm && gData(d.criadoEm).slice(0,7) === mes; }).forEach(function(d){
+      (tri[d.triadorNome] = tri[d.triadorNome] || []).push((new Date(d.primeiraTriagemEm) - new Date(d.criadoEm)) / 3600000);
+    });
+    h += '<div class="card"><div class="card-head"><h2>Triagem por triador</h2></div><div class="card-body">'+gTabela(['Triador','Demandas triadas','Tempo médio até a triagem'], Object.keys(tri).map(function(k){ return [esc(k), tri[k].length, gFmtNum(gMediaH(tri[k]),' h')]; }))+'</div></div>';
+    // carga por pessoa
+    var pessoas = {};
+    G.atividades.filter(function(a){ return a.estado === 'aberta'; }).forEach(function(a){ var p = pessoas[a.responsavelId] = pessoas[a.responsavelId] || { a:0, v:0, d:0 }; p.a++; if(gAtivVencida(a)) p.v++; });
+    G.demandas.filter(function(d){ return d.estado === 'em_andamento' && d.responsavelId; }).forEach(function(d){ var p = pessoas[d.responsavelId] = pessoas[d.responsavelId] || { a:0, v:0, d:0 }; p.d++; });
+    h += '<div class="card"><div class="card-head"><h2>Carga por pessoa</h2></div><div class="card-body">'+gTabela(['Pessoa','Atividades abertas','Vencidas','Demandas atribuídas'], Object.keys(pessoas).map(function(id){ return [esc(gNome(id)), pessoas[id].a, pessoas[id].v, pessoas[id].d]; }))+'</div></div>';
+    // atividades por origem
+    var mIni = mes+'-01', mFim = mes+'-31';
+    var porOrigem = Object.keys(G_ORIGEM_LABEL).map(function(o){
+      var l = G.atividades.filter(function(a){ return a.origem === o; });
+      var cm = l.filter(function(a){ var dt = a.concluidaEm ? gData(a.concluidaEm) : ''; return a.estado === 'concluida' && dt >= mIni && dt <= mFim; }).length;
+      return [esc(G_ORIGEM_LABEL[o]), cm, l.filter(gAtivVencida).length];
+    });
+    h += '<div class="card"><div class="card-head"><h2>Atividades por origem</h2></div><div class="card-body">'+gTabela(['Origem','Concluídas no mês','Vencidas agora'], porOrigem)+'</div></div>';
+    // aderência
+    h += '<div class="card"><div class="card-head"><h2>Aderência à rotina</h2></div><div class="card-body">'+gTabela(['Rotina','Realizadas / previstas (30 dias)','Aderência'], gCfg().modelos.map(function(m){ var a = gAderencia(m.cadencia, 30); return [esc(m.nome), a.feitas+' / '+a.total, a.pct==null?'—':a.pct+'%']; }))+'</div></div>';
+    // metas
+    var ms = gMetasVisiveis(), cont = {};
+    ms.forEach(function(m){ var l = gMetaStatus(m).label; cont[l] = (cont[l]||0)+1; });
+    h += '<div class="card"><div class="card-head"><h2>Metas por status</h2></div><div class="card-body">'+gTabela(['Status','Metas'], Object.keys(cont).map(function(k){ return [esc(k), cont[k]]; }))+'</div></div>';
+    var esforco = ms.filter(function(m){ return m.nivel === 'time' || m.nivel === 'gerente'; }).map(function(m){
+      return [esc(m.titulo), Math.round(gMetaProgresso(m)*100)+'%', G.atividades.filter(function(a){ return a.metaId === m.id; }).length, G.demandas.filter(function(d){ return d.metaId === m.id; }).length];
+    });
+    h += '<div class="card"><div class="card-head"><h2>Distribuição do esforço por meta</h2></div><div class="card-body">'+gTabela(['Meta','Progresso','Atividades ligadas','Demandas ligadas'], esforco)+'</div></div>';
+    return h;
+  }
+  async function gExportar(t){
+    var cab, linhas;
+    if(t === 'demandas'){
+      cab = ['Numero','Titulo','Tipo','Prioridade','Estado','Solicitante','Triador','Responsavel','Criada_em','Prazo_desejado','Prazo_prometido','Concluida_em','Resolvida_na_triagem'];
+      linhas = G.demandas.filter(function(d){ return !d.confidencial; }).map(function(d){ return [gNumDem(d), d.titulo, gTipo(d.tipo).nome, d.prioridade, d.estado, d.solicitanteNome, d.triadorNome, d.responsavelNome, d.criadoEm, d.prazoDesejado, d.prazoPrometido, d.concluidaEm||'', d.resolvidaNaTriagem ? 'sim':'nao']; });
+    }else{
+      cab = ['Titulo','Tipo','Origem','Responsavel','Prazo','Prioridade','Estado','Concluida_em'];
+      linhas = G.atividades.map(function(a){ return [a.titulo, a.tipo, a.origem, a.responsavelNome, a.prazo, a.prioridade, a.estado, a.concluidaEm||'']; });
+    }
+    var csv = [cab].concat(linhas).map(function(r){ return r.map(csvEscape).join(';'); }).join('\n');
+    var downloads = null; try{ downloads = await claude.use('downloads'); }catch(e){}
+    if(downloads){ try{ await downloads.save({ filename:'gestao-'+t+'-'+todayISO()+'.csv', data:'﻿'+csv }); }catch(e){} }
+  }
+
+  // ---------------- CONFIGURAÇÕES DA GESTÃO ----------------
+  function gRenderConfig(){
+    var cfg = gCfg();
+    var h = '<div class="card"><div class="card-head"><div><h2>Tipos de demanda e alçada</h2><div class="hint">Em tipos "somente gerente" a coordenação pode pedir informação e escalar, mas não resolver nem recusar.</div></div></div><div class="card-body">' +
+      cfg.tipos.map(function(t,i){
+        return '<div style="display:grid;grid-template-columns:2fr 1fr;gap:8px;margin-bottom:6px;"><input type="text" data-gcfg-tipo-nome="'+i+'" value="'+esc(t.nome)+'"><select data-gcfg-tipo-alcada="'+i+'">'+gOpts([{v:'ambos',l:'Gerente ou coordenação'},{v:'gerente',l:'Somente gerente'}], t.alcada)+'</select></div>';
+      }).join('') + '<div style="margin-top:6px;">'+gBtn('cfg-add-tipo','+ Novo tipo','btn-sm',{})+'</div></div></div>' +
+      '<div class="card"><div class="card-head"><div><h2>Modelos de rotina</h2><div class="hint">Um item por linha. As ocorrências são geradas no dia certo, com a pauta calculada na hora.</div></div></div><div class="card-body">' +
+      cfg.modelos.map(function(m,i){
+        return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:10px;"><label style="display:flex;gap:8px;align-items:center;font-size:13px;font-weight:600;"><input type="checkbox" style="width:auto;" data-gcfg-mod-ativo="'+i+'"'+(m.ativo?' checked':'')+'> '+esc(m.nome)+' <span class="chip">'+esc(m.cadencia)+'</span></label>' +
+          (m.cadencia === 'semanal' ? '<div class="field" style="margin-top:8px;"><label>Dia da semana</label><select data-gcfg-mod-dia="'+i+'">'+gOpts([1,2,3,4,5].map(function(d){ return {v:d,l:['','segunda','terça','quarta','quinta','sexta'][d]+'-feira'}; }), m.diaSemana != null ? m.diaSemana : 1)+'</select></div>' : '') +
+          '<div class="field" style="margin-top:8px;"><label>Checklist</label><textarea rows="3" data-gcfg-mod-itens="'+i+'">'+esc((m.itens||[]).join('\n'))+'</textarea></div></div>';
+      }).join('') + '</div></div>' +
+      '<div class="card"><div class="card-head"><h2>Limites</h2></div><div class="card-body"><div class="field-row"><div class="field"><label for="gcfgFoco">Limite de atividades de foco por pessoa</label><input type="number" id="gcfgFoco" min="1" value="'+cfg.limiteFoco+'"></div>' +
+      '<div class="field"><label for="gcfgMargem">Margem de risco das metas (pontos percentuais)</label><input type="number" id="gcfgMargem" min="1" value="'+cfg.margemRisco+'"></div></div>' +
+      '<div class="field"><label for="gcfgDias1a1">Dias sem 1:1 para sinalizar</label><input type="number" id="gcfgDias1a1" min="1" value="'+cfg.diasAlerta1a1+'"></div>' +
+      '<div style="margin-top:10px;"><button class="btn btn-accent" data-g="cfg-salvar">Salvar configurações</button></div></div></div>';
+    return h;
+  }
+  function gLerConfig(){
+    var cfg = gCfg();
+    var tipos = cfg.tipos.map(function(t,i){
+      var nome = document.querySelector('[data-gcfg-tipo-nome="'+i+'"]'), al = document.querySelector('[data-gcfg-tipo-alcada="'+i+'"]');
+      return Object.assign({}, t, { nome: nome ? nome.value.trim() || t.nome : t.nome, alcada: al ? al.value : t.alcada });
+    });
+    var modelos = cfg.modelos.map(function(m,i){
+      var at = document.querySelector('[data-gcfg-mod-ativo="'+i+'"]'), it = document.querySelector('[data-gcfg-mod-itens="'+i+'"]'), dia = document.querySelector('[data-gcfg-mod-dia="'+i+'"]');
+      var n = Object.assign({}, m, { ativo: at ? at.checked : m.ativo, itens: it ? it.value.split('\n').map(function(s){ return s.trim(); }).filter(Boolean) : m.itens });
+      if(dia) n.diaSemana = parseInt(dia.value, 10);
+      return n;
+    });
+    return { id:'padrao', tipos:tipos, modelos:modelos, limiteFoco:Math.max(1, parseInt(gVal('gcfgFoco'),10) || 5), margemRisco:Math.max(1, parseInt(gVal('gcfgMargem'),10) || 15), diasAlerta1a1:Math.max(1, parseInt(gVal('gcfgDias1a1'),10) || 14) };
+  }
+
+  // ---------------- PAINEL ----------------
+  function gAlertasDerivados(){
+    var out = [], me = gMeuId(), agora = Date.now();
+    if(gEhTriador()){
+      gDemandasVisiveis().filter(function(d){ return d.estado === 'aberta' && d.slaTriagemAte; }).forEach(function(d){
+        var ate = new Date(d.slaTriagemAte).getTime(), tot = ate - new Date(d.criadoEm).getTime();
+        if(agora > ate) out.push({ texto:'Triagem vencida: '+gNumDem(d)+' · '+d.titulo, link:{k:'demanda', id:d.id}, crit:true });
+        else if(ate - agora < tot*0.25) out.push({ texto:'Triagem perto de vencer: '+gNumDem(d)+' · '+d.titulo, link:{k:'demanda', id:d.id} });
+      });
+    }
+    G.atividades.filter(function(a){ return a.estado === 'aberta' && a.responsavelId === me && gAtivVencida(a); }).forEach(function(a){
+      out.push({ texto:'Atividade vencida: '+a.titulo, link:{k:'atividade', id:a.id}, crit:true });
+    });
+    gMetasVisiveis().filter(function(m){ return m.estado === 'aberta' && (m.responsavelId === me || (gEhGerente() && m.nivel !== 'individual')); }).forEach(function(m){
+      var s = gMetaStatus(m);
+      if(gCheckinAtrasado(m) && (m.responsavelId === me || gEhGerente() && m.responsavelId === me)) out.push({ texto:'Check-in pendente: '+m.titulo, link:{k:'meta', id:m.id} });
+      else if(s.id === 'em_risco' || s.id === 'atrasada') out.push({ texto:'Meta '+s.label.toLowerCase()+': '+m.titulo, link:{k:'meta', id:m.id}, crit:s.id === 'atrasada' });
+    });
+    return out;
+  }
+  function gAbrirLink(l){
+    if(!l) return;
+    if(l.k === 'demanda'){ gIrPara('demandas'); gAbrirDemanda(l.id); }
+    else if(l.k === 'atividade'){ gIrPara('atividades'); }
+    else if(l.k === 'enc'){ gIrPara('umaum'); gAbrirEncontro(l.id); }
+    else if(l.k === 'meta'){ gIrPara('metas'); gAbrirMeta(l.id); }
+  }
+  function gRenderPainelGestao(){
+    var me = gMeuId(), hoje = todayISO(), h = '';
+    var avisos = gMeusAvisos(), alertas = gAlertasDerivados();
+    var abertasAtv = gAtivAbertas(gAtivVisiveis());
+    if(gEhTriador()){
+      var vis = gDemandasVisiveis();
+      var cont = function(f){ return vis.filter(f).length; };
+      h += '<div class="grid-stats" style="margin-top:0;">' +
+        '<div class="stat"><div class="label">Demandas novas</div><div class="value num" id="gpNovas">'+cont(function(d){ return d.estado === 'aberta'; })+'</div></div>' +
+        '<div class="stat"><div class="label">Em triagem</div><div class="value num" id="gpTriagem">'+cont(function(d){ return d.estado === 'em_triagem'; })+'</div></div>' +
+        '<div class="stat"><div class="label">Aguardando gerente</div><div class="value num" id="gpEscaladas">'+cont(function(d){ return d.escaladaAoGerente && G_ESTADOS_ATIVOS.indexOf(d.estado) > -1; })+'</div></div>' +
+        '<div class="stat"><div class="label">Triagens vencidas</div><div class="value num" id="gpVencidas">'+cont(gDemandaSlaVencida)+'</div></div></div>';
+      var novas = vis.filter(function(d){ return d.estado === 'aberta'; }).slice(0,5);
+      h += '<div class="card"><div class="card-head"><h2>Demandas para triar</h2><div class="queue-actions">'+gBtn('ir','Abrir caixa','btn-sm',{aba:'demandas'})+'</div></div><div class="card-body">' + (novas.length ? novas.map(gDemandaLinha).join('') : '<div class="empty-note">Nenhuma demanda nova.</div>') + '</div></div>';
+      var hojeOc = G.ocorrencias.filter(function(o){ return gOcVisivel(o) && o.estado === 'agendada' && o.data <= hoje; });
+      if(hojeOc.length) h += '<div class="card"><div class="card-head"><h2>Rotina de hoje</h2></div><div class="card-body">'+hojeOc.map(gOcLinha).join('')+'</div></div>';
+      var foco = abertasAtv.filter(function(a){ return a.foco; });
+      h += '<div class="card"><div class="card-head"><h2>Foco do dia</h2><div class="queue-actions">'+gBtn('ir','Ver atividades','btn-sm',{aba:'atividades'})+'</div></div><div class="card-body">'+gAtivLista(foco, 'Nenhuma atividade marcada como foco.')+'</div></div>';
+    }else{
+      var minhas = G.demandas.filter(function(d){ return d.solicitanteId === me; });
+      var porEst = G_ESTADOS_ATIVOS.map(function(e){ return [G_ESTADOS[e].label, minhas.filter(function(d){ return d.estado === e; }).length]; });
+      h += '<div class="grid-stats" style="margin-top:0;">' + porEst.slice(0,4).map(function(x,i){ return '<div class="stat"><div class="label">'+esc(x[0])+'</div><div class="value num">'+x[1]+'</div></div>'; }).join('') + '</div>';
+      h += '<div class="card"><div class="card-head"><h2>Minhas atividades</h2><div class="queue-actions">'+gBtn('ir','Ver todas','btn-sm',{aba:'atividades'})+'</div></div><div class="card-body">'+gAtivLista(gOrdenaAtiv(abertasAtv).slice(0,5), 'Nenhuma atividade atribuída a você.')+'</div></div>';
+      var minhasMetas = G.metas.filter(function(m){ return m.responsavelId === me && m.estado === 'aberta'; });
+      h += '<div class="card"><div class="card-head"><h2>Minhas metas</h2><div class="queue-actions">'+gBtn('ir','Ver metas','btn-sm',{aba:'metas'})+'</div></div><div class="card-body">' + (minhasMetas.length ? '<div class="table-wrap"><table><tbody>'+minhasMetas.map(function(m){ return gMetaLinha(m,0); }).join('')+'</tbody></table></div>' : '<div class="empty-note">Você ainda não tem metas neste ciclo.</div>') + '</div></div>';
+      var prox = gProximoEnc(me);
+      if(prox) h += '<div class="card"><div class="card-head"><h2>Próximo 1:1</h2></div><div class="card-body"><div class="queue-row" style="cursor:pointer;" data-g="abrir-enc" data-id="'+esc(prox.id)+'"><div class="queue-main"><div class="queue-name">1:1 com '+esc(gNome(prox.gerenteId))+'</div><div class="queue-meta">'+gChip(fmtDate(prox.data))+'</div></div></div></div></div>';
+    }
+    var cardAv = '<div class="card"><div class="card-head"><h2>Avisos e alertas</h2></div><div class="card-body" id="gAvisos">';
+    if(!avisos.length && !alertas.length) cardAv += '<div class="empty-note">Nada novo por aqui.</div>';
+    cardAv += avisos.slice(0,12).map(function(a){
+      return '<div class="queue-row"><div class="queue-main" style="cursor:pointer;" data-g="aviso-abrir" data-id="'+esc(a.id)+'"><div class="queue-name" style="font-weight:500;">'+esc(a.texto)+'</div><div class="hint">'+gFmtDT(a.criadoEm)+'</div></div><div class="queue-actions">'+gBtn('aviso-lido','Marcar como lido','btn-sm btn-ghost',{id:a.id})+'</div></div>';
+    }).join('');
+    cardAv += alertas.slice(0,10).map(function(a){
+      return '<div class="queue-row" style="cursor:pointer;" data-g="alerta-abrir" data-k="'+esc(a.link ? a.link.k : '')+'" data-id="'+esc(a.link ? a.link.id : '')+'"><div class="queue-main"><div class="queue-name" style="font-weight:500;">'+esc(a.texto)+'</div></div>'+(a.crit?gPill('Atenção','pill-critical'):gPill('Alerta','pill-warning'))+'</div>';
+    }).join('');
+    return h + cardAv + '</div></div>';
+  }
+
+  // ---------------- casca: abas e render ----------------
+  function gAbasVisiveis(){
+    var t = [['painel','Painel'],['demandas','Demandas'],['atividades','Atividades'],['rotina','Rotina'],['umaum','1:1'],['metas','Metas']];
+    if(gEhTriador()) t.push(['indicadores','Indicadores']);
+    if(gEhGerente()) t.push(['config','Configurações']);
+    return t;
+  }
+  function gIrPara(aba){
+    gUI.aba = aba;
+    switchView('gestao');
+    renderGestao(true);
+  }
+  function gAtualizarBadge(){
+    var el = document.getElementById('navGestaoBadge'); if(!el || !currentUser) return;
+    var n = gMeusAvisos().length + (gEhTriador() ? G.demandas.filter(function(d){ return d.estado === 'aberta' && gPodeVerDemanda(d); }).length : 0);
+    el.textContent = n; el.style.display = n ? '' : 'none';
+  }
+  function gRenderCardPainelDoDia(){
+    var el = document.getElementById('painelGestaoCard'); if(!el || !currentUser) return;
+    var me = gMeuId();
+    var minhas = gAtivAbertas(G.atividades).filter(function(a){ return a.responsavelId === me; });
+    var novidades = G.demandas.filter(function(d){ return d.solicitanteId === me && ['aguardando_info','concluida'].indexOf(d.estado) > -1; });
+    var avisos = gMeusAvisos();
+    if(!minhas.length && !novidades.length && !avisos.length){ el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="card"><div class="card-head"><div><h2>Gestão — atribuições e novidades</h2><div class="hint">O que o gerente e a coordenação passaram para você.</div></div><div class="queue-actions">'+gBtn('ir','Abrir Gestão','btn-sm btn-accent',{aba:'painel'})+'</div></div><div class="card-body">' +
+      (minhas.length ? '<div class="hint" style="margin:0 0 4px;"><strong>Atividades atribuídas ('+minhas.length+')</strong></div>' + gOrdenaAtiv(minhas).slice(0,4).map(function(a){ return '<div class="queue-row"><div class="queue-main"><div class="queue-name">'+esc(a.titulo)+'</div><div class="queue-meta">'+gAtivChips(a)+'</div></div></div>'; }).join('') : '') +
+      (novidades.length ? '<div class="hint" style="margin:8px 0 4px;"><strong>Suas demandas com novidade ('+novidades.length+')</strong></div>' + novidades.slice(0,4).map(function(d){ return '<div class="queue-row" style="cursor:pointer;" data-g="abrir-demanda-ir" data-id="'+esc(d.id)+'"><div class="queue-main"><div class="queue-name"><span class="id">'+esc(gNumDem(d))+'</span> '+esc(d.titulo)+'</div><div class="queue-meta">'+gDemandaChips(d)+'</div></div></div>'; }).join('') : '') +
+      (avisos.length ? '<div class="hint" style="margin-top:8px;">'+avisos.length+' aviso(s) novo(s) na Gestão.</div>' : '') + '</div></div>';
+  }
+  function gRenderCorpo(){
+    var corpo = document.getElementById('gestaoCorpo'); if(!corpo) return;
+    var abas = gAbasVisiveis();
+    if(!abas.some(function(a){ return a[0] === gUI.aba; })) gUI.aba = 'painel';
+    var ativo = document.activeElement, idFoco = ativo && ativo.id, selIni = ativo && ativo.selectionStart;
+    var tabs = '<div class="agenda-cal-modos" style="margin-bottom:14px;flex-wrap:wrap;">' + abas.map(function(a){
+      return '<button class="btn btn-sm'+(gUI.aba === a[0] ? ' is-ativo' : '')+'" data-g="aba" data-aba="'+a[0]+'">'+esc(a[1])+'</button>';
+    }).join('') + '</div>';
+    var c = '';
+    if(gUI.aba === 'painel') c = gRenderPainelGestao();
+    else if(gUI.aba === 'demandas') c = gRenderDemandas();
+    else if(gUI.aba === 'atividades') c = gRenderAtividades();
+    else if(gUI.aba === 'rotina') c = gRenderRotina();
+    else if(gUI.aba === 'umaum') c = gRenderUmaUm();
+    else if(gUI.aba === 'metas') c = gRenderMetas();
+    else if(gUI.aba === 'indicadores') c = gRenderIndicadores();
+    else if(gUI.aba === 'config') c = gRenderConfig();
+    corpo.innerHTML = tabs + c;
+    if(idFoco && document.getElementById(idFoco) && /^(gdBusca|gqTitulo)$/.test(idFoco)){
+      var el = document.getElementById(idFoco); el.focus();
+      try{ if(selIni != null) el.setSelectionRange(selIni, selIni); }catch(e){}
+    }
+  }
+  function renderGestao(forcar){
+    if(!currentUser) return;
+    gAtualizarBadge();
+    gRenderCardPainelDoDia();
+    var view = document.getElementById('view-gestao');
+    if(!view || !view.classList.contains('active')) return;
+    var a = document.activeElement;
+    if(!forcar && a && view.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return;
+    gGarantirOcorrencias();
+    gRenderCorpo();
+  }
+
+  // ---------------- dados de demonstração (modo offline) ----------------
+  function gestaoSeedDemo(){
+    var agora = Date.now();
+    function ts(horasAtras){ return new Date(agora - horasAtras*3600000).toISOString(); }
+    function dia(off){ return addDays(todayISO(), off); }
+    var adm = 'coordenacao-cs', coord = 'carolina-coord';
+    function mk(o){
+      var d = Object.assign({
+        id:'', numero:0, titulo:'', tipo:'apoio_cliente', descricao:'', solicitanteId:'', solicitanteNome:'', prioridade:'normal', urgenciaJustificativa:'',
+        prazoDesejado:dia(5), clienteId:'', clienteNome:'', metaId:'', confidencial:false, estado:'aberta',
+        triadorId:'', triadorNome:'', triadoEm:null, primeiraTriagemEm:null, resolvidaNaTriagem:false, resolvidaPorId:'', resolvidaPorNome:'',
+        escaladaAoGerente:false, responsavelId:'', responsavelNome:'', prazoPrometido:'', atividadeId:'', motivoRecusa:'',
+        criadoEm:ts(1), slaTriagemAte:null, concluidaEm:null, encerradaEm:null, compartilhadoCom:[], eventos:[]
+      }, o);
+      d.slaTriagemAte = gSlaAte(d.criadoEm, d.prioridade);
+      return d;
+    }
+    function ev(tipo, quem, nome, horas, texto){ return { id:novoId('ev'), em:ts(horas), autorId:quem, autorNome:nome, tipo:tipo, texto:texto||'' }; }
+    var cli = clientes.slice(0,3);
+    var c1 = cli[0] || {id:'',nome:''}, c2 = cli[1] || {id:'',nome:''};
+
+    var ciclo = { id:'ciclo-demo', nome:'Ciclo '+todayISO().slice(0,7), inicio:todayISO().slice(0,7)+'-01', fim:gUltimoDiaMes(parseISO(todayISO()).getFullYear(), parseISO(todayISO()).getMonth()), estado:'ativo', criadoEm:ts(200) };
+    G.ciclos = [ciclo];
+    G.metas = [
+      { id:'meta-demo-1', cicloId:ciclo.id, nivel:'time', titulo:'Reduzir clientes sem contato dentro do prazo', descricao:'Menos clientes da carteira acima do prazo de contato.', responsavelId:'', responsavelNome:'',
+        tipo:'automatica', formula:'sem_contato', valorInicial:Math.max(clientes.length, 1), alvo:0, valorAtual:0, peso:40, metaPaiId:'', periodicidade:'semanal', estado:'aberta', marcos:[], checkins:[], historico:[], prazo:'', criadoEm:ts(200), criadaPorId:adm },
+      { id:'meta-demo-2', cicloId:ciclo.id, nivel:'time', titulo:'Planos de ação no prazo', descricao:'', responsavelId:'', responsavelNome:'',
+        tipo:'automatica', formula:'planos_no_prazo', valorInicial:0, alvo:90, valorAtual:0, peso:30, metaPaiId:'', periodicidade:'semanal', estado:'aberta', marcos:[], checkins:[], historico:[], prazo:'', criadoEm:ts(200), criadaPorId:adm },
+      { id:'meta-demo-3', cicloId:ciclo.id, nivel:'gerente', titulo:'Padronizar o playbook de risco', descricao:'Entregável do gerente no ciclo.', responsavelId:adm, responsavelNome:gNome(adm),
+        tipo:'entregavel', formula:'', valorInicial:0, alvo:null, valorAtual:0, peso:null, metaPaiId:'', periodicidade:'semanal', estado:'aberta',
+        marcos:[{t:'Levantar casos recentes',ok:true},{t:'Escrever o playbook',ok:false},{t:'Treinar o time',ok:false}], checkins:[], historico:[], prazo:'', criadoEm:ts(200), criadaPorId:adm },
+      { id:'meta-demo-4', cicloId:ciclo.id, nivel:'individual', titulo:'Planos de ação no prazo', descricao:'', responsavelId:'ana-souza', responsavelNome:'Ana Souza',
+        tipo:'numerica', formula:'', valorInicial:0, alvo:90, valorAtual:60, peso:null, metaPaiId:'meta-demo-2', periodicidade:'semanal', estado:'aberta', marcos:[],
+        checkins:[{ id:'ck-demo-1', data:dia(-3), valor:60, comentario:'Fechei a revisão dos planos atrasados.', status:'no_ritmo', statusLabel:'No ritmo', autorId:'ana-souza', autorNome:'Ana Souza' }], historico:[], prazo:'', criadoEm:ts(190), criadaPorId:adm }
+    ];
+
+    G.demandas = [
+      mk({ id:'dem-demo-1', numero:1, titulo:'Desconto de renovação para cliente em risco', tipo:'aprovacao', descricao:'Cliente pede 15% para renovar. Preciso de autorização para negociar.',
+        solicitanteId:'ana-souza', solicitanteNome:'Ana Souza', prioridade:'alta', clienteId:c1.id, clienteNome:c1.nome, criadoEm:ts(3),
+        eventos:[ev('criada','ana-souza','Ana Souza',3,'Abriu a demanda (Aprovação, prioridade Alta)')] }),
+      mk({ id:'dem-demo-2', numero:2, titulo:'Como registrar contato por WhatsApp no cliente?', tipo:'duvida', descricao:'Não encontrei onde lançar contatos feitos por WhatsApp.',
+        solicitanteId:'bruno-lima', solicitanteNome:'Bruno Lima', prioridade:'baixa', criadoEm:ts(30),
+        eventos:[ev('criada','bruno-lima','Bruno Lima',30,'Abriu a demanda (Dúvida de processo, prioridade Baixa)')] }),
+      mk({ id:'dem-demo-3', numero:3, titulo:'Acesso ao painel financeiro do cliente', tipo:'recurso', descricao:'Preciso do acesso para conferir as faturas antes da reunião.',
+        solicitanteId:'carla-mendes', solicitanteNome:'Carla Mendes', prioridade:'normal', estado:'concluida', triadorId:coord, triadorNome:'Carolina Coordenadora', triadoEm:ts(46), primeiraTriagemEm:ts(46),
+        resolvidaNaTriagem:true, resolvidaPorId:coord, resolvidaPorNome:'Carolina Coordenadora', concluidaEm:ts(45), criadoEm:ts(48),
+        eventos:[ev('criada','carla-mendes','Carla Mendes',48,'Abriu a demanda (Recurso ou acesso, prioridade Normal)'),
+                 ev('triagem',coord,'Carolina Coordenadora',46,'Assumiu a triagem'),
+                 ev('resolvida',coord,'Carolina Coordenadora',45,'Acesso liberado no perfil financeiro. Confirme se está funcionando.')] }),
+      mk({ id:'dem-demo-4', numero:4, titulo:'Folga na semana do fechamento', tipo:'pessoas', descricao:'Gostaria de conversar sobre uma folga na última semana do mês.',
+        solicitanteId:'bruno-lima', solicitanteNome:'Bruno Lima', prioridade:'normal', confidencial:true, criadoEm:ts(5),
+        eventos:[ev('criada','bruno-lima','Bruno Lima',5,'Abriu a demanda (Pessoas, prioridade Normal)')] }),
+      mk({ id:'dem-demo-5', numero:5, titulo:'Cliente quer cancelar após falha de integração', tipo:'apoio_cliente', descricao:'O cliente relatou três falhas na integração e ameaça cancelar. Preciso de apoio na conversa.',
+        solicitanteId:'ana-souza', solicitanteNome:'Ana Souza', prioridade:'urgente', urgenciaJustificativa:'Reunião com o cliente amanhã cedo.', clienteId:c2.id, clienteNome:c2.nome,
+        estado:'em_triagem', triadorId:coord, triadorNome:'Carolina Coordenadora', triadoEm:ts(6), primeiraTriagemEm:ts(6), escaladaAoGerente:true, criadoEm:ts(8),
+        eventos:[ev('criada','ana-souza','Ana Souza',8,'Abriu a demanda (Apoio em cliente, prioridade Urgente)'),
+                 ev('triagem',coord,'Carolina Coordenadora',6,'Assumiu a triagem'),
+                 ev('escalada',coord,'Carolina Coordenadora',5,'Envolve possível concessão comercial; o gerente precisa decidir.')] }),
+      mk({ id:'dem-demo-6', numero:6, titulo:'Sugestão: filtro por segmento na lista de clientes', tipo:'melhoria', descricao:'Facilitaria montar rotas de contato por segmento.',
+        solicitanteId:'carla-mendes', solicitanteNome:'Carla Mendes', prioridade:'baixa', estado:'em_andamento', triadorId:adm, triadorNome:gNome(adm), triadoEm:ts(70), primeiraTriagemEm:ts(70),
+        responsavelId:coord, responsavelNome:'Carolina Coordenadora', prazoPrometido:dia(4), atividadeId:'atv-dem-demo-6', criadoEm:ts(72),
+        eventos:[ev('criada','carla-mendes','Carla Mendes',72,'Abriu a demanda (Melhoria, prioridade Baixa)'),
+                 ev('aceita',adm,gNome(adm),70,'Aceitou e atribuiu a Carolina Coordenadora')] }),
+      mk({ id:'dem-demo-7', numero:7, titulo:'Revisar carteira após saída de colega', tipo:'pessoas', descricao:'Quero entender como a carteira será redistribuída.',
+        solicitanteId:'ana-souza', solicitanteNome:'Ana Souza', prioridade:'normal', estado:'aguardando_info', triadorId:coord, triadorNome:'Carolina Coordenadora', triadoEm:ts(20), primeiraTriagemEm:ts(20), criadoEm:ts(22),
+        eventos:[ev('criada','ana-souza','Ana Souza',22,'Abriu a demanda (Pessoas, prioridade Normal)'),
+                 ev('triagem',coord,'Carolina Coordenadora',20,'Assumiu a triagem'),
+                 ev('info',coord,'Carolina Coordenadora',20,'Qual é o prazo que você precisa para ter essa definição?')] })
+    ];
+    G.atividades = [
+      { id:'atv-dem-demo-6', titulo:'[DEM-0006] Sugestão: filtro por segmento na lista de clientes', descricao:'', tipo:'demanda', origem:'demanda', origemId:'dem-demo-6',
+        responsavelId:coord, responsavelNome:'Carolina Coordenadora', criadaPorId:adm, delegadaPorId:adm, delegacao:'pendente', motivoDevolucao:'', prazo:dia(4), prioridade:'baixa', estado:'aberta', foco:false,
+        checklist:[], clienteId:'', clienteNome:'', metaId:'', recorrencia:'nenhuma', concluidaEm:null, criadoEm:ts(70) },
+      { id:'atv-demo-2', titulo:'Preparar a conversa de renovação com cliente crítico', descricao:'', tipo:'acompanhamento', origem:'manual', origemId:'',
+        responsavelId:adm, responsavelNome:gNome(adm), criadaPorId:adm, delegadaPorId:'', delegacao:'aceita', motivoDevolucao:'', prazo:todayISO(), prioridade:'alta', estado:'aberta', foco:true,
+        checklist:[{t:'Reunir histórico',ok:true},{t:'Definir limite de concessão',ok:false}], clienteId:c1.id, clienteNome:c1.nome, metaId:'meta-demo-1', recorrencia:'nenhuma', concluidaEm:null, criadoEm:ts(30) },
+      { id:'atv-demo-3', titulo:'Revisar planos de ação atrasados da Ana', descricao:'', tipo:'analise', origem:'manual', origemId:'',
+        responsavelId:'ana-souza', responsavelNome:'Ana Souza', criadaPorId:adm, delegadaPorId:adm, delegacao:'aceita', motivoDevolucao:'', prazo:dia(-1), prioridade:'normal', estado:'aberta', foco:false,
+        checklist:[], clienteId:'', clienteNome:'', metaId:'meta-demo-2', recorrencia:'nenhuma', concluidaEm:null, criadoEm:ts(100) },
+      { id:'atv-demo-4', titulo:'Atualizar a planilha de capacidade do time', descricao:'', tipo:'outro', origem:'manual', origemId:'',
+        responsavelId:'bruno-lima', responsavelNome:'Bruno Lima', criadaPorId:coord, delegadaPorId:coord, delegacao:'pendente', motivoDevolucao:'', prazo:dia(2), prioridade:'normal', estado:'aberta', foco:false,
+        checklist:[], clienteId:'', clienteNome:'', metaId:'', recorrencia:'nenhuma', concluidaEm:null, criadoEm:ts(10) }
+    ];
+    G.ocorrencias = []; G.avisos = []; G.config = []; G.notas = [];
+    G.encontros = [
+      { id:'enc-demo-1', colaboradorId:'ana-souza', colaboradorNome:'Ana Souza', gerenteId:adm, data:dia(-20), estado:'realizado',
+        pauta:[{id:'p1',texto:'Balanço da carteira',autorId:adm,autorNome:gNome(adm)}], acordos:[{id:'ac1',texto:'Revisar planos atrasados até sexta',feito:false}], criadoEm:ts(500), realizadoEm:ts(480) },
+      { id:'enc-demo-2', colaboradorId:'bruno-lima', colaboradorNome:'Bruno Lima', gerenteId:adm, data:dia(3), estado:'agendado',
+        pauta:[], acordos:[], criadoEm:ts(20), realizadoEm:null }
+    ];
+    G.avisos = [
+      { id:'av-demo-1', paraId:adm, texto:'Nova demanda DEM-0001: Desconto de renovação para cliente em risco', link:{k:'demanda',id:'dem-demo-1'}, criadoEm:ts(3), lido:false },
+      { id:'av-demo-2', paraId:coord, texto:'Nova demanda DEM-0002: Como registrar contato por WhatsApp no cliente?', link:{k:'demanda',id:'dem-demo-2'}, criadoEm:ts(30), lido:false }
+    ];
+    Object.keys(GTAB).forEach(function(k){ gLoaded[k] = true; });
+  }
+
+  // ---------------- eventos da Gestão ----------------
+  function wireGestao(){
+    var debounceBusca = null;
+    function dentroGestao(el){
+      return !!(el.closest && (el.closest('#view-gestao') || el.closest('#overlayGestao') || el.closest('#painelGestaoCard')));
+    }
+    function toast(msg){ mostrarToastErro(msg); }
+
+    async function acionar(acao, el, ev){
+      var id = el.getAttribute('data-id');
+      switch(acao){
+        case 'aba': gUI.aba = el.getAttribute('data-aba'); renderGestao(true); break;
+        case 'ir': gIrPara(el.getAttribute('data-aba')); break;
+        case 'dem-visao': gUI.dem.visao = el.getAttribute('data-v'); renderGestao(true); break;
+        case 'abrir-demanda': gAbrirDemanda(id); break;
+        case 'abrir-demanda-ir': gIrPara('demandas'); gAbrirDemanda(id); break;
+        case 'iniciar-acao':
+          var a = el.getAttribute('data-a');
+          if(a === 'assumir' || a === 'encerrar') gExecutarAcaoDemanda(a);
+          else { gUI.acaoDemanda = a; gRenderDetalheDemanda(); }
+          break;
+        case 'cancelar-acao': gUI.acaoDemanda = null; gRenderDetalheDemanda(); break;
+        case 'executar-acao': gExecutarAcaoDemanda(); break;
+        case 'comentar': gExecutarAcaoDemanda('comentar'); break;
+        case 'salvar-descricao': gExecutarAcaoDemanda('salvar-descricao'); break;
+        case 'salvar-nova-demanda': gSalvarNovaDemanda(); break;
+        case 'fechar-modal': gFecharModal(); break;
+        case 'aviso-abrir':
+          var av = gById('avisos', id);
+          if(av){ gMarcarAvisoLido(id); gAbrirLink(av.link); }
+          break;
+        case 'aviso-lido': gMarcarAvisoLido(id); renderAll(); break;
+        case 'alerta-abrir': gAbrirLink({ k:el.getAttribute('data-k'), id:id }); break;
+        // atividades
+        case 'atv-visao': gUI.ativ.visao = el.getAttribute('data-v'); renderGestao(true); break;
+        case 'atv-semana':
+          var dd = parseInt(el.getAttribute('data-d'), 10);
+          gUI.ativ.semanaOff = dd === 0 ? 0 : (gUI.ativ.semanaOff || 0) + dd;
+          renderGestao(true); break;
+        case 'atv-rapida': gAtivRapida(); break;
+        case 'atv-foco': gAtivFoco(id); break;
+        case 'atv-aceitar': gAtivDelegacao(id, true); break;
+        case 'atv-devolver': gAtivDelegacao(id, false); break;
+        case 'atv-devolver-ok': gAtivDevolverOk(); break;
+        case 'atv-editar': gAbrirEditarAtividade(id); break;
+        case 'atv-salvar': gSalvarAtividade(); break;
+        case 'atv-dispensar': gDispensarAtividade(); break;
+        case 'atv-chk-add':
+          gLerFormAtv();
+          var ni = gVal('gaeNovoItem').trim();
+          if(ni){ gUI.atvEdit.checklist.push({ t:ni, ok:false }); gRenderEditarAtividade(); }
+          break;
+        case 'atv-chk-rem':
+          gLerFormAtv(); gUI.atvEdit.checklist.splice(parseInt(el.getAttribute('data-i'), 10), 1); gRenderEditarAtividade(); break;
+        // rotina
+        case 'abrir-oc': gAbrirOcorrencia(id); break;
+        case 'oc-topico':
+          var tp = gVal('goTopico').trim(); if(!tp) break;
+          gLerFormOc(); gUI.ocEdit.topicos = (gUI.ocEdit.topicos || []).concat([{ id:novoId('t'), texto:tp, autorId:gMeuId(), autorNome:currentUser.nome }]);
+          gPersistirOc('Tópico sugerido.'); break;
+        case 'oc-acao-add':
+          var tx = gVal('goAcaoTexto').trim(), rs = gVal('goAcaoResp'), pz = gVal('goAcaoPrazo');
+          if(!tx || !rs || !pz){ gErroModal('Toda ação precisa de texto, responsável e prazo.'); break; }
+          gLerFormOc(); gUI.ocEdit.acoes = (gUI.ocEdit.acoes || []).concat([{ texto:tx, responsavelId:rs, prazo:pz, atividadeId:'' }]);
+          gPersistirOc(); break;
+        case 'oc-acao-rem':
+          gLerFormOc(); gUI.ocEdit.acoes.splice(parseInt(el.getAttribute('data-i'), 10), 1); gPersistirOc(); break;
+        case 'oc-realizar': gOcRealizar(); break;
+        case 'oc-adiar':
+        case 'oc-pular':
+          var ex = document.getElementById('gOcExtra');
+          if(!ex){
+            ex = document.createElement('div'); ex.id = 'gOcExtra'; ex.style.cssText = 'margin-top:12px;border:1px solid var(--border-strong);border-radius:10px;padding:10px 12px;';
+            var err = document.getElementById('gModalErro'); err.parentNode.insertBefore(ex, err);
+          }
+          ex.innerHTML = acao === 'oc-adiar'
+            ? '<div class="field"><label for="gOcNova">Nova data</label><input type="date" id="gOcNova" value="'+addDiasUteis(todayISO(),1)+'"></div><button class="btn btn-accent btn-sm" data-g="oc-adiar-ok">Confirmar adiamento</button>'
+            : '<div class="field"><label for="gOcMotivo">Motivo para pular</label><input type="text" id="gOcMotivo" placeholder="Obrigatório"></div><button class="btn btn-accent btn-sm" data-g="oc-pular-ok">Confirmar</button>';
+          break;
+        case 'oc-adiar-ok': gOcAdiarOk(); break;
+        case 'oc-pular-ok': gOcPularOk(); break;
+        // 1:1
+        case 'agendar-1a1': gAbrirAgendar1a1(el.getAttribute('data-u')); break;
+        case 'agendar-1a1-ok': gAgendar1a1Ok(); break;
+        case 'abrir-enc': if(ev) ev.preventDefault(); gAbrirEncontro(id); break;
+        case 'enc-topico': gEncAcao('topico'); break;
+        case 'enc-acordo': gEncAcao('acordo'); break;
+        case 'enc-nota': gEncAcao('nota'); break;
+        case 'enc-realizar': gEncAcao('realizar'); break;
+        case 'enc-cancelar': gEncAcao('cancelar'); break;
+        // metas
+        case 'abrir-meta': gAbrirMeta(id); break;
+        case 'meta-acao':
+          gUI.acaoMeta = el.getAttribute('data-a'); gRenderMeta();
+          if(gUI.acaoMeta === 'desdobrar') gAtualizaSomaDes();
+          break;
+        case 'meta-cancelar-acao': gUI.acaoMeta = null; gRenderMeta(); break;
+        case 'meta-checkin-ok': gMetaAcaoOk('checkin'); break;
+        case 'meta-editar-ok': gMetaAcaoOk('editar'); break;
+        case 'meta-encerrar-ok': gMetaAcaoOk('encerrar'); break;
+        case 'meta-desdobrar-ok': gMetaAcaoOk('desdobrar'); break;
+        case 'novo-ciclo': gAbrirNovoCiclo(); break;
+        case 'novo-ciclo-ok': gNovoCicloOk(); break;
+        case 'encerrar-ciclo': gEncerrarCiclo(); break;
+        case 'nova-meta': gAbrirNovaMeta(); gAjustaFormMeta(); break;
+        case 'nova-meta-ok': gNovaMetaOk(); break;
+        // indicadores e configurações
+        case 'exportar': gExportar(el.getAttribute('data-t')); break;
+        case 'cfg-add-tipo':
+          var cfg = gLerConfig();
+          cfg.tipos.push({ id:'tipo_'+Date.now().toString(36), nome:'Novo tipo', alcada:'ambos' });
+          try{ await gPut('config', cfg); renderGestao(true); }catch(e){ toast('Não foi possível salvar: '+detalheErro(e)); }
+          break;
+        case 'cfg-salvar':
+          try{ await gPut('config', gLerConfig()); mostrarToastSucesso('Configurações salvas.'); renderGestao(true); }
+          catch(e){ toast('Não foi possível salvar: '+detalheErro(e)); }
+          break;
+      }
+    }
+
+    document.addEventListener('click', function(ev){
+      var t = ev.target; if(!t || !t.closest) return;
+      var el = t.closest('[data-g]');
+      if(!el || !dentroGestao(el)) return;
+      // caixas de seleção são tratadas no evento "change"
+      if(el.tagName === 'INPUT' && el.type === 'checkbox') return;
+      if(el.disabled) return;
+      acionar(el.getAttribute('data-g'), el, ev);
+    });
+    document.addEventListener('change', function(ev){
+      var t = ev.target; if(!t || !dentroGestao(t)) return;
+      var g = t.getAttribute && t.getAttribute('data-g');
+      if(g === 'atv-concluir') return gConcluirAtividade(t.getAttribute('data-id'), t.checked);
+      if(g === 'oc-item'){
+        gLerFormOc(); var e = gUI.ocEdit; var i = parseInt(t.getAttribute('data-i'), 10);
+        if(e && e.itens[i]){ e.itens[i].ok = t.checked; gPersistirOc(); }
+        return;
+      }
+      if(g === 'enc-acordo-toggle') return gEncAcao('toggle', { i:t.getAttribute('data-i') });
+      var f = t.getAttribute && t.getAttribute('data-gfiltro');
+      if(f){ gUI.dem[f] = t.value; renderGestao(true); return; }
+      if(t.id === 'gnPrio'){ document.getElementById('gnUrgWrap').style.display = t.value === 'urgente' ? '' : 'none'; return; }
+      if(t.id === 'gnTipo'){ if(t.value === 'pessoas') document.getElementById('gnConf').checked = true; return; }
+      if(t.id === 'gmTipo' || t.id === 'gmNivel') return gAjustaFormMeta();
+      if(t.id === 'gmCiclo'){ gUI.metas.cicloId = t.value; renderGestao(true); return; }
+      if(t.id === 'giMes'){ gUI.ind.mes = t.value; renderGestao(true); return; }
+      if(t.hasAttribute && (t.hasAttribute('data-gdes') || t.hasAttribute('data-gdes-alvo'))) return gAtualizaSomaDes();
+    });
+    document.addEventListener('input', function(ev){
+      var t = ev.target; if(!t || !dentroGestao(t)) return;
+      if(t.id === 'gdBusca'){
+        clearTimeout(debounceBusca);
+        debounceBusca = setTimeout(function(){ gUI.dem.busca = t.value; renderGestao(true); }, 250);
+      }else if(t.hasAttribute && t.hasAttribute('data-gdes-alvo')) gAtualizaSomaDes();
+    });
+    document.addEventListener('keydown', function(ev){
+      if(ev.key === 'Enter' && ev.target && ev.target.id === 'gqTitulo'){ ev.preventDefault(); gAtivRapida(); }
+    });
+    // arrastar e soltar na visão semanal
+    document.addEventListener('dragstart', function(ev){
+      var c = ev.target.closest && ev.target.closest('[data-gdrag]'); if(!c || !dentroGestao(c)) return;
+      ev.dataTransfer.setData('text/plain', c.getAttribute('data-gdrag')); ev.dataTransfer.effectAllowed = 'move';
+    });
+    document.addEventListener('dragover', function(ev){
+      var col = ev.target.closest && ev.target.closest('[data-gdia]'); if(!col || !dentroGestao(col)) return;
+      ev.preventDefault();
+    });
+    document.addEventListener('drop', function(ev){
+      var col = ev.target.closest && ev.target.closest('[data-gdia]'); if(!col || !dentroGestao(col)) return;
+      ev.preventDefault();
+      var id = ev.dataTransfer.getData('text/plain'); if(id) gMoverAtividade(id, col.getAttribute('data-gdia'));
+    });
+    var bNova = document.getElementById('btnGestaoNovaDemanda');
+    if(bNova) bNova.addEventListener('click', function(){ gAbrirNovaDemanda(); });
+  }
+
   // ---------------------------------------------------------------
   // Start
   // ---------------------------------------------------------------
@@ -13083,6 +15250,7 @@
       return;
     }
     wireEvents();
+    wireGestao();
     renderAll(); // mostra o gate em "carregando" imediatamente
     seedLocalDemo().then(function(){
       if(!dataPronta) renderAll(); // dados locais prontos; dataPronta só vira true quando initDb() concluir
