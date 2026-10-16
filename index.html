@@ -2369,6 +2369,7 @@
     </div>
     <div class="modal-foot">
       <button class="btn" data-close="overlayHistorico">Fechar</button>
+      <button class="btn" id="btnDemandaHistorico" data-nova-demanda="1" data-cli="" title="Abrir demanda para o gerente">Abrir demanda</button>
       <button class="btn btn-accent" id="btnNovoContatoHistorico">Registrar novo contato</button>
     </div>
   </div>
@@ -6938,7 +6939,7 @@
       return '<div class="queue-row"><div class="queue-main">' +
         '<div class="queue-name"><a href="#" data-open-historico="'+esc(c.clienteId)+'">'+esc(c.clienteNome||'Cliente')+'</a>'+tagOnboardingCarteiraHtml(c.clienteId)+'</div>' +
         '<div class="queue-meta">'+esc(c.observacao||'Contato registrado')+' <span class="id">'+esc(c.csm||'')+'</span></div>' +
-        '</div><div class="queue-actions">'+repBotaoCliente(c.clienteId)+'</div></div>';
+        '</div><div class="queue-actions">'+repBotaoCliente(c.clienteId)+gDemandaBotao(c.clienteId)+'</div></div>';
     }).join('') : '<div class="empty-note">Nenhum contato registrado para '+esc(diaLabelCurto)+'.</div>';
 
     var agendaDoDia = agendamentos.filter(function(a){ return a.data === painelDiaSelecionado && a.status !== 'cancelado' && noEscopo(a.csmNome, escopoCsm); })
@@ -7008,7 +7009,7 @@
           '</div>' +
           '<div class="queue-side">Último: '+(s.last?fmtDate(s.last.data):'nunca')+'</div>' +
           '<div class="queue-actions">' +
-            botaoAcaoFila+repBotaoCliente(s.cliente.id) +
+            botaoAcaoFila+repBotaoCliente(s.cliente.id)+gDemandaBotao(s.cliente.id) +
           '</div>' +
         '</div>';
       }).join('');
@@ -7055,7 +7056,7 @@
             '<div class="queue-name">'+esc(c.clienteNome)+tagOnboardingCarteiraHtml(c.clienteId)+' <span class="id">'+esc(c.csm||'')+' · '+fmtDate(c.data)+'</span></div>' +
             '<div style="font-size:12.5px; color:var(--ink-2); margin-top:4px;">'+esc(c.planoAcao || c.observacao || '')+'</div>' +
           '</div>' +
-          '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(c.clienteId)+'">Ver</button>'+repBotaoCliente(c.clienteId)+'</div>' +
+          '<div class="queue-actions"><button class="btn btn-sm" data-open-historico="'+esc(c.clienteId)+'">Ver</button>'+repBotaoCliente(c.clienteId)+gDemandaBotao(c.clienteId)+'</div>' +
         '</div>';
       }).join('');
     }
@@ -7118,7 +7119,7 @@
             ? '<button class="btn btn-sm" data-abrir-onboarding="'+esc(x.clienteId)+'">Abrir</button>'
             : (x.atividade.origemAuto === 'treinamentoCascata'
               ? '<button class="btn btn-sm" data-treinamento-abrir="'+esc(x.treinamentoIds)+'">Abrir</button>'
-              : '<button class="btn btn-sm" data-open-historico="'+esc(x.clienteId)+'">Ver</button>'))+repBotaoCliente(x.clienteId)+'</div>' +
+              : '<button class="btn btn-sm" data-open-historico="'+esc(x.clienteId)+'">Ver</button>'))+repBotaoCliente(x.clienteId)+gDemandaBotao(x.clienteId, x.atividade.titulo)+'</div>' +
         '</div>';
       }).join('');
       // Item 3 da spec de usabilidade: avisar quando a lista foi cortada.
@@ -7270,9 +7271,10 @@
         '<td data-label="Saúde">'+healthPill(s.health)+'</td>' +
         '<td data-label="Risco">'+riscoPill+'</td>' +
         '<td class="num" data-label="NPS">'+(s.nps==null?'—':s.nps)+'</td>' +
-        '<td class="td-acoes"><div style="display:flex; gap:4px; justify-content:flex-end;">' +
+        '<td class="td-acoes"><div style="display:flex; gap:4px; justify-content:flex-end; flex-wrap:wrap;">' +
           '<button class="btn btn-sm" data-open-historico="'+esc(c.id)+'">Histórico</button>' +
           '<button class="btn btn-sm btn-accent" data-open-contato="'+esc(c.id)+'">Contato</button>' +
+          gDemandaBotao(c.id, '', '', 'Demanda') +
           '<button class="icon-btn" data-open-editar="'+esc(c.id)+'" title="Editar" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></button>' +
         '</div></td>' +
       '</tr>';
@@ -8366,6 +8368,8 @@
     }
     pendingContatoClienteId = clienteId;
     pendingPlanoClienteId = clienteId;
+    var btnDemHist = document.getElementById('btnDemandaHistorico');
+    if(btnDemHist) btnDemHist.setAttribute('data-cli', clienteId);
     renderPlanosSecaoHistorico(clienteId);
     openOverlay('overlayHistorico');
   }
@@ -13216,6 +13220,7 @@
     return gCfg().tipos.filter(function(t){ return t.id === id; })[0] || { id:id, nome:id||'—', alcada:'ambos' };
   }
   function gUsers(){ return usuarios.filter(function(u){ return u.ativo !== false; }); }
+  function gCliente(id){ return clientes.filter(function(c){ return c.id === id; })[0] || null; }
   function gUser(id){ return usuarios.filter(function(u){ return u.id === id; })[0] || null; }
   function gNome(id){ var u = gUser(id); return u ? u.nome : '—'; }
   function gEhAdminUser(u){ return !!(u && (u.perfil === 'admin' || u.acessoAdmin)); }
@@ -13349,6 +13354,14 @@
     return ev;
   }
 
+  // Botão "Abrir demanda" para o gerente, usado no Painel do dia, na
+  // Carteira e no Histórico do cliente. Abre o formulário já com o cliente
+  // (e, se houver, o contexto da atividade) preenchido.
+  function gDemandaBotao(clienteId, contexto, cls, rotulo){
+    if(!currentUser) return '';
+    return '<button type="button" class="btn btn-sm'+(cls?' '+cls:'')+'" data-nova-demanda="1" data-cli="'+esc(clienteId||'')+'"'+(contexto?' data-ctx="'+esc(contexto)+'"':'')+' title="Abrir demanda para o gerente">'+(rotulo||'Abrir demanda')+'</button>';
+  }
+
   // ---------------- modal genérico da Gestão ----------------
   function gModal(opts){
     var ov = document.getElementById('overlayGestao');
@@ -13472,13 +13485,14 @@
   }
 
   // ---------------- DEMANDAS: nova demanda ----------------
-  function gAbrirNovaDemanda(clienteId){
+  function gAbrirNovaDemanda(clienteId, pre){
+    pre = pre || {};
     var metas = gMetasVisiveis().filter(function(m){ return m.estado !== 'encerrada'; });
-    var corpo = '<div class="field"><label for="gnTitulo">Título</label><input type="text" id="gnTitulo" maxlength="120" placeholder="Resumo do que você precisa"></div>' +
+    var corpo = '<div class="field"><label for="gnTitulo">Título</label><input type="text" id="gnTitulo" maxlength="120" placeholder="Resumo do que você precisa" value="'+esc(pre.titulo||'')+'"></div>' +
       '<div class="field-row"><div class="field"><label for="gnTipo">Tipo</label><select id="gnTipo">'+gOpts(gCfg().tipos.map(function(t){ return {v:t.id,l:t.nome}; }), 'apoio_cliente')+'</select></div>' +
       '<div class="field"><label for="gnPrio">Prioridade</label><select id="gnPrio">'+gOpts(G_PRIO_ORDEM.map(function(p){ return {v:p,l:G_PRIO[p].label}; }), 'normal')+'</select></div></div>' +
       '<div class="field" id="gnUrgWrap" style="display:none;"><label for="gnUrg">Por que é urgente?</label><input type="text" id="gnUrg" placeholder="Uma frase de justificativa"></div>' +
-      '<div class="field"><label for="gnDescricao">Descrição</label><textarea id="gnDescricao" rows="4" placeholder="Contexto suficiente para triar sem reunião: o que aconteceu, o que já foi tentado, o que você espera."></textarea></div>' +
+      '<div class="field"><label for="gnDescricao">Descrição</label><textarea id="gnDescricao" rows="4" placeholder="Contexto suficiente para triar sem reunião: o que aconteceu, o que já foi tentado, o que você espera.">'+esc(pre.descricao||'')+'</textarea></div>' +
       '<div class="field-row"><div class="field"><label for="gnPrazo">Prazo desejado</label><input type="date" id="gnPrazo"></div>' +
       '<div class="field"><label for="gnCliente">Cliente (opcional)</label><select id="gnCliente">'+gOpts(clientes.slice().sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome),'pt-BR'); }).map(function(c){ return {v:c.id,l:c.nome+' ('+c.id+')'}; }), clienteId||'', 'Nenhum')+'</select></div></div>' +
       '<div class="field"><label for="gnMeta">Meta relacionada (opcional)</label><select id="gnMeta">'+gOpts(metas.map(function(m){ return {v:m.id,l:m.titulo}; }), '', 'Nenhuma')+'</select></div>' +
@@ -15173,6 +15187,19 @@
       }
     }
 
+    // Botão "Abrir demanda" espalhado pelo app (Painel do dia, Carteira, Histórico)
+    document.addEventListener('click', function(ev){
+      var t = ev.target; if(!t || !t.closest) return;
+      var b = t.closest('[data-nova-demanda]'); if(!b) return;
+      ev.preventDefault();
+      var cli = b.getAttribute('data-cli') || '', ctx = b.getAttribute('data-ctx') || '', c = cli ? gCliente(cli) : null;
+      var pre = {};
+      if(ctx){
+        pre.titulo = ('Apoio na atividade: ' + ctx).slice(0, 120);
+        pre.descricao = 'Atividade do plano de ação: ' + ctx + (c ? '\nCliente: ' + c.nome : '') + '\n\n';
+      }
+      gAbrirNovaDemanda(cli, pre);
+    });
     document.addEventListener('click', function(ev){
       var t = ev.target; if(!t || !t.closest) return;
       var el = t.closest('[data-g]');
