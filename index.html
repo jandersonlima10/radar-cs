@@ -800,7 +800,9 @@
   }
 
   /* ---------------- Gestão ---------------- */
-  #view-gestao .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  #view-gestao .btn.is-ativo, #view-qualidade .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  #view-qualidade .agenda-cal-modos, #overlayQualidade .agenda-cal-modos{ flex-wrap:wrap; }
+  #overlayQualidade .modal-body > *{ flex-shrink:0; }
   #view-gestao .agenda-cal-modos{ flex-wrap:wrap; }
   #view-gestao .g-card[draggable="true"]{ cursor:grab; }
   #overlayGestao{ z-index:1100; }
@@ -2057,6 +2059,7 @@
       </div>
       <div class="field-row">
         <div class="field"><label for="ciTempoContrato">Tempo de contrato</label><input id="ciTempoContrato" type="text" placeholder="Ex: 12 meses"></div>
+        <div class="field"><label for="ciSmart" style="display:flex;gap:8px;align-items:center;"><input id="ciSmart" type="checkbox" style="width:auto;"> Cliente SMART</label></div>
         <div class="field"><label for="ciSistemaAnterior">Sistema anterior</label><input id="ciSistemaAnterior" type="text" placeholder="Se houver"></div>
       </div>
       <div class="field-row">
@@ -2638,7 +2641,7 @@
       <div class="field-row">
         <div class="field"><label for="tdData">Data agendada</label><input id="tdData" type="date"></div>
         <div class="field"><label for="tdHora">Horário agendado</label><input id="tdHora" type="time"></div>
-        <div class="field"><label for="tdAnalista">Analista</label><select id="tdAnalista"></select></div>
+        <div class="field"><label for="tdAnalista">Analista de treinamento <span id="tdAnalistaObrig">*</span></label><select id="tdAnalista"></select></div>
       </div>
       <div class="field"><label for="tdParticipantes">Participantes</label><textarea id="tdParticipantes" placeholder="Ex.: Dra. Helena, Ana (recepção)"></textarea></div>
       <div class="field"><label for="tdObservacoes">Observações</label><textarea id="tdObservacoes"></textarea></div>
@@ -2821,7 +2824,14 @@
       gestaoCiclos: 'gestao_ciclos',
       gestaoMetas: 'gestao_metas',
       gestaoAvisos: 'gestao_avisos',
-      gestaoConfig: 'gestao_config'
+      gestaoConfig: 'gestao_config',
+      qualidadeAcessos: 'qualidade_acessos',
+      qualidadeCasos: 'qualidade_casos',
+      qualidadeLancamentos: 'qualidade_lancamentos',
+      qualidadeNps: 'qualidade_nps',
+      qualidadePropostas: 'qualidade_propostas',
+      qualidadeConfig: 'qualidade_config',
+      qualidadeAuditoria: 'qualidade_auditoria'
     };
 
     function novoIdPadrao(){
@@ -4751,7 +4761,7 @@
     clientesCarregados = true;
     // Dados de exemplo da Gestão só no modo demonstração (offline): com o
     // banco real, os documentos vêm do Supabase.
-    if(offline) gestaoSeedDemo();
+    if(offline){ gestaoSeedDemo(); qSeedDemo(); }
   }
 
   // ---------------------------------------------------------------
@@ -4874,6 +4884,7 @@
     }, function(){});
 
     gSubscribe();
+    qIniciarAcesso();
   }
 
   async function initDb(){
@@ -6584,7 +6595,7 @@
     }
     if((renov || csrev) && !admin){
       var avGestao = document.querySelector('.view.active');
-      if(!avGestao || avGestao.id !== 'view-gestao') switchView('renovacao');
+      if(!avGestao || (avGestao.id !== 'view-gestao' && avGestao.id !== 'view-qualidade')) switchView('renovacao');
     }
     if(currentUser){
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
@@ -7750,7 +7761,7 @@
     if(publicBookingMode){ renderPublicBooking(); return; }
     resolveCurrentUser();
     renderGate();
-    if(!currentUser){ return; }
+    if(!currentUser){ if(qMontado) qDesmontar(); return; }
     applyRoleVisibility();
     populateCsmSelect();
     renderPainel();
@@ -7763,6 +7774,7 @@
     renderAgenda();
     renderReclamacoesRA();
     renderGestao();
+    qSincronizar();
     if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); renderRenovacao(); backfillClientesCsmId(); }
     else if(isCoordenador()){ renderRelatorios(); }
     else if(isRenovacao() || isCsRevenue()){ renderRenovacao(); }
@@ -7904,19 +7916,21 @@
     // mandava o Coordenador de volta pro Painel ao clicar em Relatórios.
     if(view === 'relatorios' && !isAdmin() && !isCoordenador()) view = 'painel';
     if(view === 'renovacao' && !isAdmin() && !isRenovacao() && !isCsRevenue()) view = 'painel';
+    if(view === 'qualidade' && !qAcesso) view = 'painel';
     // Especialista de renovação e CS Revenue: ambiente próprio e exclusivo —
     // sem Painel do CSM, Onboarding, Playbooks, Agenda etc. (seção 3 da spec,
     // estendido ao CS Revenue). Reforçado aqui (e não só escondendo os
     // botões do menu) para que a restrição valha mesmo se algo tentar
     // navegar direto por fora do menu.
-    if((isRenovacao() || isCsRevenue()) && !isAdmin() && view !== 'renovacao' && view !== 'gestao') view = 'renovacao';
+    if((isRenovacao() || isCsRevenue()) && !isAdmin() && view !== 'renovacao' && view !== 'gestao' && !(view === 'qualidade' && qAcesso)) view = 'renovacao';
     // Analista de Treinamento: só Treinamento, Onboarding (+ Reimplantação,
     // que é uma aba dentro de Onboarding) e Agenda — reforçado aqui pelo
     // mesmo motivo do bloco acima.
-    if(isAnalistaTreinamento() && !isAdmin() && ['treinamento','onboarding','agenda','gestao'].indexOf(view) === -1) view = 'treinamento';
+    if(isAnalistaTreinamento() && !isAdmin() && ['treinamento','onboarding','agenda','gestao'].indexOf(view) === -1 && !(view === 'qualidade' && qAcesso)) view = 'treinamento';
     document.querySelectorAll('.nav-item[data-view]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-view')===view); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
     if(view === 'gestao') renderGestao(true);
+    if(view === 'qualidade') qRender();
   }
 
   // ---------------------------------------------------------------
@@ -7962,6 +7976,7 @@
     document.getElementById('ciResponsavelClinica').value = '';
     document.getElementById('ciDataInicio').value = todayISO();
     document.getElementById('ciTempoContrato').value = '';
+    document.getElementById('ciSmart').checked = false;
     document.getElementById('ciSistemaAnterior').value = '';
     document.getElementById('ciQtdUsuarios').value = '';
     document.getElementById('ciUnidadesAtendidas').value = '';
@@ -8004,6 +8019,7 @@
     document.getElementById('ciResponsavelClinica').value = c.responsavelClinica||'';
     document.getElementById('ciDataInicio').value = c.dataInicio||'';
     document.getElementById('ciTempoContrato').value = c.tempoContrato||'';
+    document.getElementById('ciSmart').checked = !!c.smart;
     document.getElementById('ciSistemaAnterior').value = c.sistemaAnterior||'';
     document.getElementById('ciQtdUsuarios').value = c.qtdUsuarios!=null ? c.qtdUsuarios : '';
     document.getElementById('ciUnidadesAtendidas').value = c.unidadesAtendidas!=null ? c.unidadesAtendidas : '';
@@ -8066,6 +8082,7 @@
       responsavelClinica: document.getElementById('ciResponsavelClinica').value.trim(),
       dataInicio: document.getElementById('ciDataInicio').value || null,
       tempoContrato: document.getElementById('ciTempoContrato').value.trim(),
+      smart: document.getElementById('ciSmart').checked,
       sistemaAnterior: document.getElementById('ciSistemaAnterior').value.trim(),
       qtdUsuarios: document.getElementById('ciQtdUsuarios').value ? Number(document.getElementById('ciQtdUsuarios').value) : null,
       unidadesAtendidas: document.getElementById('ciUnidadesAtendidas').value ? Number(document.getElementById('ciUnidadesAtendidas').value) : null,
@@ -9631,6 +9648,7 @@
       var resumoTreinamento=document.getElementById('repResumoTreinamento').value.trim();
       var motivo=document.getElementById('repMotivo').value.trim();
       var erro=!c?'Selecione o cliente.':!repPodeVer(c.id,c.csm)?'Cliente fora da sua carteira.':!resumo?'Preencha o resumo da reimplantação.':!REP_STATUS[status]?'Selecione um status válido.':status==='cancelado'&&!motivo?'Informe o motivo do cancelamento.':status==='concluido'&&(!treinamento||!data||!resumoTreinamento)?'Para concluir, preencha o treinamento, a data e o resumo do treinamento.':'';
+      if(!erro) erro=msgAnalistaObrigatorio(repEdit.reunioes);
       if(erro){err.textContent=erro;err.classList.add('show');return;}
       var ativa=repAtiva(c.id);
       if(ativa && ativa.id!==repEdit.id && (!repEdit.id || status==='aguardando'||status==='andamento')){
@@ -10358,7 +10376,7 @@
         '<div class="field-row">' +
           '<div class="field"><label>Data agendada</label><input type="date" data-'+prefix+'-reuniao-field="data" data-'+prefix+'-reuniao-id="'+esc(r.id)+'" value="'+esc(r.data||'')+'"></div>' +
           '<div class="field"><label>Horário agendado</label><input type="time" data-'+prefix+'-reuniao-field="horaInicio" data-'+prefix+'-reuniao-id="'+esc(r.id)+'" value="'+esc(r.horaInicio||'')+'"></div>' +
-          '<div class="field"><label>Analista designada</label><select data-'+prefix+'-reuniao-field="analista" data-'+prefix+'-reuniao-id="'+esc(r.id)+'"><option value="">—</option>'+listaAnalistasTreinamento().map(function(a){ return '<option value="'+esc(a)+'"'+(r.analista===a?' selected':'')+'>'+esc(a)+'</option>'; }).join('')+'</select></div>' +
+          '<div class="field"><label>Analista de treinamento *</label><select required aria-required="true" data-'+prefix+'-reuniao-field="analista" data-'+prefix+'-reuniao-id="'+esc(r.id)+'"'+((r.data && !r.analista && !r.validada) ? ' style="border-color:var(--critical);"' : '')+'><option value="">Selecione...</option>'+listaAnalistasTreinamento().map(function(a){ return '<option value="'+esc(a)+'"'+(r.analista===a?' selected':'')+'>'+esc(a)+'</option>'; }).join('')+'</select></div>' +
         '</div>' +
         '<div class="field"><label>Participantes da reunião</label><textarea data-'+prefix+'-reuniao-field="participantes" data-'+prefix+'-reuniao-id="'+esc(r.id)+'" placeholder="Ex.: Dra. Helena, Ana (recepção), João (financeiro)">'+esc(r.participantes||'')+'</textarea></div>' +
         '<div class="field"><label>Observações da reunião</label><textarea data-'+prefix+'-reuniao-field="observacoes" data-'+prefix+'-reuniao-id="'+esc(r.id)+'">'+esc(r.observacoes||'')+'</textarea></div>' +
@@ -10367,6 +10385,17 @@
     '</div>';
   }
   function renderOnbReuniao(r, idx){ return renderReuniaoCard(r, idx, 'onb'); }
+
+  // Agendar um treinamento exige o Analista de treinamento: toda reunião
+  // com data marcada (e ainda não validada) precisa de uma analista.
+  function reunioesSemAnalista(lista){
+    return (lista || []).filter(function(r){ return r && r.data && !String(r.analista || '').trim() && !r.validada; });
+  }
+  function msgAnalistaObrigatorio(lista){
+    var f = reunioesSemAnalista(lista);
+    if(!f.length) return '';
+    return 'Selecione o Analista de treinamento para agendar: ' + f.map(function(r){ return r.titulo || 'Reunião'; }).join(', ') + '.';
+  }
 
   // ---------------------------------------------------------------
   // Treinamento — fila de validação de CSAT (aba própria)
@@ -10808,7 +10837,7 @@
     document.getElementById('tdData').value = d ? (d.data || '') : '';
     document.getElementById('tdHora').value = d ? (d.horaInicio || '') : '';
     var selA = document.getElementById('tdAnalista');
-    selA.innerHTML = '<option value="">—</option>' + listaAnalistasTreinamento().map(function(a){ return '<option value="'+esc(a)+'">'+esc(a)+'</option>'; }).join('');
+    selA.innerHTML = '<option value="">Selecione...</option>' + listaAnalistasTreinamento().map(function(a){ return '<option value="'+esc(a)+'">'+esc(a)+'</option>'; }).join('');
     selA.value = d ? (d.analista || '') : (isAnalistaTreinamento() ? currentUser.nome : '');
     document.getElementById('tdParticipantes').value = d ? (d.participantes || '') : '';
     document.getElementById('tdObservacoes').value = d ? (d.observacoes || '') : '';
@@ -10825,6 +10854,7 @@
     var c = clientes.filter(function(x){ return x.id === clienteId; })[0];
     var assunto = document.getElementById('tdAssunto').value.trim();
     var erro = !c ? 'Selecione o cliente.' : !assunto ? 'Descreva o assunto da dúvida.' : '';
+    if(!erro && document.getElementById('tdData').value && !document.getElementById('tdAnalista').value) erro = 'Selecione o Analista de treinamento para agendar.';
     if(erro){ err.textContent = erro; err.classList.add('show'); return; }
     var isNovo = !(tdEdit && tdEdit.id);
     var id = isNovo ? novoId('tiraduvida') : tdEdit.id;
@@ -11184,6 +11214,8 @@
   // Único bloqueio real: dados mínimos do cadastro (D0). Todo o resto do
   // gating da Implantação Intensiva apenas AVISA (ver avisosAvancoOnboarding).
   function validarAvancoOnboarding(onb){
+    var faltaAnalista = msgAnalistaObrigatorio(onb.reunioes);
+    if(faltaAnalista) return faltaAnalista;
     if(onb.faseAtual === 'd0'){
       var cliente = clientes.filter(function(c){ return c.id === onb.clienteId; })[0] || {};
       var faltandoCadastro = [];
@@ -11261,6 +11293,8 @@
   }
 
   async function salvarOnboarding(){
+    var faltaAnalista = msgAnalistaObrigatorio(onboardingEdit && onboardingEdit.reunioes);
+    if(faltaAnalista){ mostrarSalvoOnboarding(false, faltaAnalista); return; }
     try{
       await persistirOnboarding(onboardingEdit);
       mostrarSalvoOnboarding(true);
@@ -15256,6 +15290,973 @@
     if(bNova) bNova.addEventListener('click', function(){ gAbrirNovaDemanda(); });
   }
 
+
+  // ===============================================================
+  // QUALIDADE DO CS (CSM Master) — ambiente OCULTO
+  // ---------------------------------------------------------------
+  // Quem vê: só quem tem uma linha em qualidade_acessos (a "flag").
+  // Perfil admin NÃO dá acesso. Sem a flag, o menu, a tela e o modal
+  // nem existem no DOM, e o servidor (RLS) devolve zero linhas.
+  // Quem concede/revoga a flag é o dono do projeto, no Supabase.
+  // ===============================================================
+  var Q = { casos:[], lancs:[], nps:[], propostas:[], config:[], audit:[] };
+  var QTAB = { casos:'qualidadeCasos', lancs:'qualidadeLancamentos', nps:'qualidadeNps',
+               propostas:'qualidadePropostas', config:'qualidadeConfig', audit:'qualidadeAuditoria' };
+  var qAcessosRows = [];      // linhas visíveis de qualidade_acessos (a RLS só entrega a minha)
+  var qAcessoAssinado = false, qDadosAssinados = false, qMontado = false, qAcesso = false;
+  var qLidosNaSessao = {};
+  var qUI = { aba:'fila', fil:{ estado:'abertos', risco:'todos', gerente:'todos', busca:'' }, elegTodos:false, casoId:null, modal:null, form:null };
+
+  var Q_ESTADOS = {
+    novo:{ label:'Novo', cls:'pill-neutral' },
+    em_apuracao:{ label:'Em apuração', cls:'pill-warning' },
+    em_tratativa:{ label:'Em tratativa', cls:'pill-warning' },
+    aguardando_cliente:{ label:'Aguardando cliente', cls:'pill-neutral' },
+    aguardando_setor:{ label:'Aguardando outro setor', cls:'pill-neutral' },
+    concluido:{ label:'Concluído', cls:'pill-good' },
+    cancelado:{ label:'Cancelado', cls:'pill-neutral' }
+  };
+  var Q_ESTADOS_ABERTOS = ['novo','em_apuracao','em_tratativa','aguardando_cliente','aguardando_setor'];
+  var Q_MOTIVOS = [['baixa_usabilidade','Baixa usabilidade'],['sem_treinamento','Sem treinamento'],['risco_churn','Risco de churn'],
+    ['extracao_dados','Solicitação de extração de dados'],['nps_negativo','NPS negativo'],['reclamacao','Reclamação'],['falha_processo','Falha no processo'],['outro','Outro']];
+  var Q_ORIGENS = [['radar','Radar CS'],['gerente_contas','Gerente de Contas'],['csm','CSM'],['nps','NPS'],['cliente','Solicitação do cliente'],['usabilidade','Análise de usabilidade'],['outro','Outro']];
+  var Q_PRIO = [['alta','Alta'],['media','Média'],['baixa','Baixa']];
+  var Q_RISCO = [['alto','Alto'],['medio','Médio'],['baixo','Baixo'],['nao_identificado','Não identificado']];
+  var Q_TREINO = [['nao_realizado','Não realizado'],['parcial','Parcial'],['concluido','Concluído'],['reforco','Precisa de reforço']];
+  var Q_UTIL = [['sem_utilizacao','Sem utilização'],['baixa','Baixa'],['parcial','Parcial'],['adequada','Adequada'],['avaliar','A avaliar']];
+  var Q_AREAS = [['onboarding','Onboarding'],['cs_csm','CS/CSM'],['gerencia_contas','Gerência de Contas'],['suporte','Suporte'],['sales','Sales'],['outra','Outra']];
+  var Q_ORIGEM_FALHA = [['area','Área'],['setor','Setor'],['analista','Analista'],['processo','Processo'],['cliente','Cliente'],['nao_identificada','Não identificada']];
+  var Q_SIMNAO = [['sim','Sim'],['nao','Não'],['avaliar','A avaliar']];
+  var Q_ACOES = [['ligacao','Ligação'],['whatsapp','WhatsApp'],['email','E-mail'],['reuniao','Reunião online'],['treinamento','Treinamento'],['ajuste','Ajuste de configuração'],['escalonar','Escalonar para outro setor'],['apuracao','Apuração interna'],['outra','Outra']];
+  var Q_CANAIS = [['telefone','Telefone'],['whatsapp','WhatsApp'],['email','E-mail'],['video','Videochamada'],['presencial','Presencial'],['interno','Interno (sem contato com o cliente)']];
+  var Q_STATUS_CONTATO = [['contatado','Contatado'],['sem_resposta','Sem resposta'],['reagendado','Reagendado'],['recusou','Recusou'],['na','Não se aplica']];
+  var Q_RESULTADOS = [['recuperado','Cliente recuperado'],['parcial','Recuperado parcialmente'],['sem_mudanca','Mantido sem mudança'],['cancelou','Cancelamento confirmado'],['sem_retorno','Sem retorno do cliente']];
+  var Q_MOTIVOS_FIM = [['resolvido','Problema resolvido'],['reengajado','Cliente reengajado'],['decidiu_cancelar','Cliente decidiu cancelar'],['sem_contato','Sem contato após tentativas'],['falha_corrigida','Falha confirmada e corrigida'],['duplicado','Caso duplicado']];
+  var Q_UTIL_RECUP = [['sim','Sim'],['parcial','Parcial'],['nao','Não']];
+  var Q_NPS_STATUS = [['pendente','Pendente'],['andamento','Em andamento'],['concluida','Concluída'],['sem_necessidade','Sem necessidade']];
+  var Q_PROP_STATUS = [['rascunho','Rascunho'],['enviada','Enviada'],['aceita','Aceita'],['implantacao','Em implantação'],['concluida','Concluída'],['recusada','Recusada']];
+  var Q_TIPOS_LANC = { abertura:'Abertura', apuracao:'Apuração', contato:'Contato', acao:'Ação', escalonamento:'Escalonamento',
+                       status:'Mudança de status', diagnostico:'Diagnóstico', retificacao:'Retificação', encerramento:'Encerramento', cancelamento:'Cancelamento' };
+  var Q_CFG_PADRAO = { diasParado:5, mesesElegiveis:6, smartBloqueiaLigacao:false };
+
+  function qRot(lista, v){ var r = lista.filter(function(x){ return x[0] === v; })[0]; return r ? r[1] : (v || '—'); }
+  function qOpts(lista, sel, vazio){
+    return gOpts(lista.map(function(x){ return { v:x[0], l:x[1] }; }), sel, vazio);
+  }
+  function qAgora(){ return new Date().toISOString(); }
+  function qHoje(){ return todayISO(); }
+  function qCfg(){
+    var c = Q.config.filter(function(x){ return x.id === 'padrao'; })[0] || {};
+    return {
+      diasParado: c.diasParado != null ? Number(c.diasParado) : Q_CFG_PADRAO.diasParado,
+      mesesElegiveis: c.mesesElegiveis != null ? Number(c.mesesElegiveis) : Q_CFG_PADRAO.mesesElegiveis,
+      smartBloqueiaLigacao: !!c.smartBloqueiaLigacao
+    };
+  }
+  function qNumCaso(c){ return 'CQ-' + ('0000' + (c.numero || 0)).slice(-4); }
+  function qCasoById(id){ return Q.casos.filter(function(c){ return c.id === id; })[0] || null; }
+  function qCliente(id){ return clientes.filter(function(c){ return c.id === id; })[0] || null; }
+  function qAberto(c){ return Q_ESTADOS_ABERTOS.indexOf(c.estado) > -1; }
+  function qLancsDoCaso(id){
+    return Q.lancs.filter(function(l){ return l.casoId === id; }).sort(function(a,b){ return a.em < b.em ? 1 : (a.em > b.em ? -1 : 0); });
+  }
+  function qDiasUteis(de, ate){ // dias úteis entre duas datas ISO (de exclusivo, ate inclusivo); 0 se ate <= de
+    if(!de || !ate || ate <= de) return 0;
+    var n = 0, d = parseISO(de), fim = parseISO(ate);
+    while(true){
+      d.setDate(d.getDate()+1);
+      if(d > fim) break;
+      var w = d.getDay(); if(w !== 0 && w !== 6) n++;
+    }
+    return n;
+  }
+  function qMesesDesde(iso){
+    if(!iso) return null;
+    var a = parseISO(iso), b = parseISO(qHoje());
+    var m = (b.getFullYear()-a.getFullYear())*12 + (b.getMonth()-a.getMonth());
+    if(b.getDate() < a.getDate()) m--;
+    return Math.max(m, 0);
+  }
+  function qFase(cli){
+    var onb = onboardingDoCliente(cli.id);
+    return (onb && onb.faseAtual !== 'concluido') ? 'onboarding' : 'base';
+  }
+  function qElegivel(cli){
+    if(!cli || cli.ativo === false) return false;
+    if(qFase(cli) === 'onboarding') return true;
+    var m = qMesesDesde(cli.dataInicio);
+    return m != null && m <= qCfg().mesesElegiveis;
+  }
+  function qTreinoCliente(cli){
+    var onb = onboardingDoCliente(cli.id);
+    if(!onb) return 'nao_realizado';
+    var fixas = (onb.reunioes || []).filter(function(r){ return r.fixa; });
+    if(!fixas.length) return 'nao_realizado';
+    var ok = fixas.filter(function(r){ return r.validada; }).length;
+    return ok === 0 ? 'nao_realizado' : (ok < fixas.length ? 'parcial' : 'concluido');
+  }
+  function qSinais(cli){
+    var s = computeStats(cli), out = [];
+    s.motivos.forEach(function(m){ if(m.tipo === 'crit') out.push(m.texto); });
+    if(qTreinoCliente(cli) === 'nao_realizado' && qFase(cli) === 'base') out.push('Sem treinamento registrado');
+    return out;
+  }
+  function qRiscoSugerido(cli){
+    var r = computeStats(cli).risco;
+    return (r === 'alto' || r === 'medio' || r === 'baixo') ? r : 'nao_identificado';
+  }
+  function qUltimoMov(c){ return (c.ultimoMovimentoEm || c.criadoEm || '').slice(0,10); }
+  function qDiasParado(c){ return qDiasUteis(qUltimoMov(c), qHoje()); }
+  function qAtrasado(c){
+    if(!qAberto(c)) return false;
+    if(c.proximaAcaoData && c.proximaAcaoData < qHoje()) return true;
+    return qDiasParado(c) > qCfg().diasParado;
+  }
+  function qCasoAbertoDoCliente(clienteId){
+    return Q.casos.filter(function(c){ return c.clienteId === clienteId && qAberto(c); })[0] || null;
+  }
+  function qPillEstado(c){ var e = Q_ESTADOS[c.estado] || { label:c.estado, cls:'pill-neutral' }; return gPill(e.label, e.cls); }
+  function qPillRisco(r){
+    if(r === 'alto') return gPill('Risco alto', 'pill-critical');
+    if(r === 'medio') return gPill('Risco médio', 'pill-warning');
+    if(r === 'baixo') return gPill('Risco baixo', 'pill-good');
+    return gPill('Risco não identificado', 'pill-neutral');
+  }
+  function qNome(id){ var u = usuarios.filter(function(x){ return x.id === id; })[0]; return u ? u.nome : '—'; }
+
+  // ---------------- acesso (a flag) ----------------
+  function qTemAcesso(){
+    return !!currentUser && qAcessosRows.some(function(a){ return a.id === currentUser.id && a.ativo !== false; });
+  }
+  function qIniciarAcesso(){
+    if(qAcessoAssinado || !db) return;
+    qAcessoAssinado = true;
+    db.collection('qualidadeAcessos').onSnapshot(function(snap){
+      qAcessosRows = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderAll();
+    }, function(){ /* sem tabela ou sem permissão: o módulo simplesmente não existe */ });
+  }
+  function qSubscribeDados(){
+    if(qDadosAssinados || !db) return;
+    qDadosAssinados = true;
+    Object.keys(QTAB).forEach(function(k){
+      db.collection(QTAB[k]).onSnapshot(function(snap){
+        if(!qAcesso){ Q[k] = []; return; }
+        Q[k] = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+        renderAll();
+      }, function(){});
+    });
+  }
+  function qSincronizar(){
+    var tem = qTemAcesso();
+    if(tem && !qMontado) qMontar();
+    if(!tem && qMontado) qDesmontar();
+    qAcesso = tem;
+    if(tem && db && !offline) qSubscribeDados();
+    if(tem && qMontado) qRender();
+  }
+
+  // ---------------- montagem / desmontagem do DOM ----------------
+  function qMontar(){
+    if(qMontado) return;
+    var ref = document.querySelector('.nav-item[data-view="reclamacoesRA"]');
+    var nav = document.createElement('button');
+    nav.className = 'nav-item'; nav.id = 'navQualidade'; nav.setAttribute('data-view', 'qualidade');
+    nav.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>Qualidade CS<span class="nav-badge" id="navQualidadeBadge" style="display:none;">0</span>';
+    nav.addEventListener('click', function(){ switchView('qualidade'); if(typeof fecharMenuMobile === 'function') fecharMenuMobile(); });
+    if(ref && ref.parentNode) ref.parentNode.insertBefore(nav, ref); else document.querySelector('.sidebar').appendChild(nav);
+
+    var sec = document.createElement('section');
+    sec.className = 'view'; sec.id = 'view-qualidade';
+    sec.innerHTML = '<div class="topbar"><div><h1>Qualidade do CS</h1><div class="subtitle">Casos críticos, diagnóstico de falhas e insumos de processo.</div></div>' +
+      '<div class="topbar-actions"><button class="btn btn-accent" data-q="novo-caso">+ Abrir caso</button></div></div>' +
+      '<div class="content"><div id="qualidadeCorpo"></div></div>';
+    var gv = document.getElementById('view-gestao');
+    if(gv && gv.parentNode) gv.parentNode.insertBefore(sec, gv.nextSibling); else document.querySelector('.main').appendChild(sec);
+
+    var ov = document.createElement('div');
+    ov.className = 'overlay'; ov.id = 'overlayQualidade'; ov.style.zIndex = '1100';
+    ov.innerHTML = '<div class="modal" style="max-width:680px;"><div class="modal-head"><h3 id="qModalTitulo"></h3>' +
+      '<button class="icon-btn" data-q="fechar-modal" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>' +
+      '<div class="modal-body" id="qModalCorpo" style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow:auto;"></div><div class="modal-foot" id="qModalRodape"></div></div>';
+    document.body.appendChild(ov);
+    qMontado = true;
+  }
+  function qDesmontar(){
+    ['navQualidade','view-qualidade','overlayQualidade'].forEach(function(id){
+      var el = document.getElementById(id); if(el && el.parentNode) el.parentNode.removeChild(el);
+    });
+    Object.keys(Q).forEach(function(k){ Q[k] = []; });
+    qLidosNaSessao = {}; qUI.casoId = null; qUI.modal = null;
+    qMontado = false; qAcesso = false;
+  }
+
+  // ---------------- persistência ----------------
+  function qPut(k, obj){
+    var arr = Q[k];
+    var i = arr.findIndex(function(x){ return x.id === obj.id; });
+    var anterior = i > -1 ? arr[i] : null;
+    if(i > -1) arr[i] = obj; else arr.push(obj);
+    var body = Object.assign({}, obj); delete body.id;
+    if(db && !offline){
+      return db.collection(QTAB[k]).doc(obj.id).set(body).catch(function(e){
+        var j = arr.findIndex(function(x){ return x.id === obj.id; });
+        if(anterior){ if(j > -1) arr[j] = anterior; } else if(j > -1){ arr.splice(j,1); }
+        throw e;
+      });
+    }
+    return Promise.resolve();
+  }
+  function qAuditar(acao, casoId, extra){
+    var a = { id: novoId('aud'), em: qAgora(), usuarioId: currentUser.id, usuarioNome: currentUser.nome, acao: acao, casoId: casoId || '', extra: extra || '' };
+    qPut('audit', a).catch(function(){});
+  }
+  function qProximoNumero(){
+    return Q.casos.reduce(function(m, c){ return Math.max(m, c.numero || 0); }, 0) + 1;
+  }
+  function qAtualizarBadge(){
+    var b = document.getElementById('navQualidadeBadge'); if(!b) return;
+    var n = Q.casos.filter(function(c){ return qAberto(c) && (qAtrasado(c) || c.risco === 'alto'); }).length;
+    b.textContent = n; b.style.display = n ? '' : 'none';
+  }
+  function qToast(m){ mostrarToastErro(m); }
+  function qVal(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+  function qErro(msg){ var el = document.getElementById('qModalErro'); if(el) el.textContent = msg || ''; }
+  function qModal(opts){
+    var ov = document.getElementById('overlayQualidade'); if(!ov) return;
+    ov.querySelector('.modal').style.maxWidth = opts.largo ? '900px' : '680px';
+    document.getElementById('qModalTitulo').innerHTML = opts.titulo || '';
+    document.getElementById('qModalCorpo').innerHTML = opts.corpo || '';
+    document.getElementById('qModalRodape').innerHTML = opts.rodape || '';
+    openOverlay('overlayQualidade');
+  }
+  function qFecharModal(){
+    closeOverlay('overlayQualidade'); qUI.modal = null; qUI.casoId = null; qUI.form = null;
+  }
+
+  // ---------------- FILA DE CASOS ----------------
+  function qCmpCasos(a, b){
+    var ab = qAberto(a) ? 0 : 1, bb = qAberto(b) ? 0 : 1; if(ab !== bb) return ab - bb;
+    var ra = a.risco === 'alto' ? 0 : 1, rb = b.risco === 'alto' ? 0 : 1; if(ra !== rb) return ra - rb;
+    var ta = qAtrasado(a) ? 0 : 1, tb = qAtrasado(b) ? 0 : 1; if(ta !== tb) return ta - tb;
+    return (a.criadoEm || '') < (b.criadoEm || '') ? -1 : 1;
+  }
+  function qFiltrarCasos(){
+    var f = qUI.fil, busca = (f.busca || '').trim().toLowerCase();
+    return Q.casos.filter(function(c){
+      var ab = qAberto(c);
+      if(f.estado === 'abertos' && !ab) return false;
+      if(f.estado === 'atrasados' && !qAtrasado(c)) return false;
+      if(f.estado === 'aguardando' && ['aguardando_cliente','aguardando_setor'].indexOf(c.estado) === -1) return false;
+      if(f.estado === 'encerrados' && ab) return false;
+      if(f.risco !== 'todos' && c.risco !== f.risco) return false;
+      if(f.gerente !== 'todos' && c.gerenteContas !== f.gerente) return false;
+      if(busca && (c.clienteNome + ' ' + c.clienteId + ' ' + qNumCaso(c)).toLowerCase().indexOf(busca) === -1) return false;
+      return true;
+    }).sort(qCmpCasos);
+  }
+  function qLinhaProxima(c){
+    if(!qAberto(c)) return '<span class="hint">—</span>';
+    var atras = c.proximaAcaoData && c.proximaAcaoData < qHoje();
+    return esc(c.proximaAcao || '—') + '<div class="hint"'+(atras ? ' style="color:var(--critical-ink);font-weight:600;"' : '')+'>' + (c.proximaAcaoData ? fmtDate(c.proximaAcaoData) : 'sem data') + (atras ? ' · vencida' : '') + '</div>';
+  }
+  function qRenderFila(){
+    var abertos = Q.casos.filter(qAberto);
+    var gerentes = {}; Q.casos.forEach(function(c){ if(c.gerenteContas) gerentes[c.gerenteContas] = 1; });
+    var h = '<div class="grid-stats" style="margin-top:0;margin-bottom:14px;">' +
+      '<div class="stat"><div class="label">Casos abertos</div><div class="value num" id="qStAbertos">'+abertos.length+'</div></div>' +
+      '<div class="stat"><div class="label">Atrasados ou parados</div><div class="value num" id="qStAtrasados">'+abertos.filter(qAtrasado).length+'</div></div>' +
+      '<div class="stat"><div class="label">Risco alto</div><div class="value num" id="qStAlto">'+abertos.filter(function(c){ return c.risco === 'alto'; }).length+'</div></div>' +
+      '<div class="stat"><div class="label">Aguardando cliente ou setor</div><div class="value num">'+abertos.filter(function(c){ return c.estado === 'aguardando_cliente' || c.estado === 'aguardando_setor'; }).length+'</div></div></div>';
+    h += '<div class="filters" style="margin-bottom:12px;">' +
+      '<select id="qfEstado">'+gOpts([{v:'abertos',l:'Abertos'},{v:'atrasados',l:'Atrasados ou parados'},{v:'aguardando',l:'Aguardando'},{v:'encerrados',l:'Encerrados'},{v:'todos',l:'Todos'}], qUI.fil.estado)+'</select>' +
+      '<select id="qfRisco">'+gOpts([{v:'todos',l:'Todos os riscos'},{v:'alto',l:'Risco alto'},{v:'medio',l:'Risco médio'},{v:'baixo',l:'Risco baixo'}], qUI.fil.risco)+'</select>' +
+      '<select id="qfGerente">'+gOpts([{v:'todos',l:'Todos os gerentes de contas'}].concat(Object.keys(gerentes).sort().map(function(g){ return {v:g,l:g}; })), qUI.fil.gerente)+'</select>' +
+      '<input type="search" id="qBusca" placeholder="Buscar cliente, ID ou nº do caso" value="'+esc(qUI.fil.busca)+'" style="min-width:230px;"></div>';
+    var lista = qFiltrarCasos();
+    h += '<div class="card"><div class="card-body pad-top"><div class="table-wrap"><table><thead><tr><th>Caso</th><th>Cliente</th><th>Gerente de contas</th><th>Risco</th><th>Status</th><th>Próxima ação</th><th>Sem movimento</th><th>Responsável</th></tr></thead><tbody>' +
+      (lista.length ? lista.map(function(c){
+        var atras = qAtrasado(c), dias = qDiasParado(c);
+        return '<tr data-q="abrir" data-id="'+esc(c.id)+'" style="cursor:pointer;'+(atras && qAberto(c) ? 'background:var(--critical-soft);' : '')+'">' +
+          '<td><b>'+esc(qNumCaso(c))+'</b></td>' +
+          '<td>'+esc(c.clienteNome)+'<div class="hint">'+esc(c.clienteId)+' · '+(c.faseCliente === 'onboarding' ? 'Onboarding' : 'Base')+(c.smart ? ' · <b>SMART</b>' : '')+'</div></td>' +
+          '<td>'+esc(c.gerenteContas || '—')+'</td>' +
+          '<td>'+qPillEstadoRisco(c)+'</td>' +
+          '<td>'+qPillEstado(c)+(atras && qAberto(c) ? ' '+gPill('Atrasado','pill-critical') : '')+'</td>' +
+          '<td>'+qLinhaProxima(c)+'</td>' +
+          '<td class="num">'+(qAberto(c) ? dias+' d úteis' : '—')+'</td>' +
+          '<td>'+esc(c.responsavelNome || '—')+'</td></tr>';
+      }).join('') : '<tr><td colspan="8" class="hint">Nenhum caso neste filtro. Casos abertos nunca saem da fila até serem encerrados ou cancelados.</td></tr>') +
+      '</tbody></table></div></div></div>';
+    return h;
+  }
+  function qPillEstadoRisco(c){ return qPillRisco(c.risco); }
+
+  // ---------------- ABRIR CASO ----------------
+  function qAbrirNovoCaso(clienteId, pre){
+    pre = pre || {};
+    qUI.modal = 'novo-caso'; qUI.form = { cli: clienteId || '', casoAnteriorId: pre.casoAnteriorId || '' };
+    var opcoes = clientesAtivos().sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome),'pt-BR'); })
+      .map(function(c){ return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>'; }).join('');
+    var corpo =
+      '<div class="field"><label for="qnId">ID da clínica *</label><input type="text" id="qnId" list="qnLista" autocomplete="off" placeholder="Digite o ID ou escolha na lista" value="'+esc(clienteId||'')+'"><datalist id="qnLista">'+opcoes+'</datalist>' +
+      '<div class="hint" id="qnPrev" style="margin-top:6px;">O caso só abre com um ID que exista no cadastro: nome, gerente de contas, fase e data de início vêm de lá.</div></div>' +
+      '<div class="field" id="qnExcWrap" style="display:none;"><label for="qnExc">Justificativa de exceção de elegibilidade *</label><input type="text" id="qnExc" placeholder="Por que este cliente entra mesmo fora da regra?"></div>' +
+      '<div class="field-row"><div class="field"><label for="qnMotivoP">Motivo principal *</label><select id="qnMotivoP">'+qOpts(Q_MOTIVOS, '', 'Selecione...')+'</select></div>' +
+      '<div class="field"><label for="qnOrigem">Origem da identificação *</label><select id="qnOrigem">'+qOpts(Q_ORIGENS, pre.origem || 'radar', 'Selecione...')+'</select></div></div>' +
+      '<div class="field"><label>Outros motivos (opcional)</label><div style="display:flex;flex-wrap:wrap;gap:6px 14px;">' +
+        Q_MOTIVOS.map(function(m){ return '<label style="display:flex;gap:5px;align-items:center;font-size:12.5px;"><input type="checkbox" class="qnMot" value="'+m[0]+'" style="width:auto;"> '+esc(m[1])+'</label>'; }).join('') + '</div></div>' +
+      '<div class="field-row"><div class="field"><label for="qnPrio">Prioridade *</label><select id="qnPrio">'+qOpts(Q_PRIO, 'media')+'</select></div>' +
+      '<div class="field"><label for="qnRisco">Risco de churn *</label><select id="qnRisco">'+qOpts(Q_RISCO, 'nao_identificado')+'</select></div></div>' +
+      '<div class="field-row"><div class="field"><label for="qnTreino">Status de treinamento *</label><select id="qnTreino">'+qOpts(Q_TREINO, 'nao_realizado')+'</select></div>' +
+      '<div class="field"><label for="qnUtil">Utilização da plataforma *</label><select id="qnUtil">'+qOpts(Q_UTIL, 'avaliar')+'</select></div></div>' +
+      '<div class="field"><label for="qnObs">Observações *</label><textarea id="qnObs" rows="3" placeholder="O que levou à abertura do caso.">'+esc(pre.obs||'')+'</textarea></div>' +
+      '<div class="field-row"><div class="field"><label for="qnProx">Próxima ação *</label><input type="text" id="qnProx" placeholder="Ex.: Apurar o histórico de treinamento"></div>' +
+      '<div class="field"><label for="qnProxData">Data da próxima ação *</label><input type="date" id="qnProxData" value="'+esc(addDays(qHoje(), 2))+'"></div></div>' +
+      '<div class="gate-error" id="qModalErro"></div>';
+    qModal({ titulo:'Abrir caso de qualidade', corpo:corpo,
+      rodape:'<button class="btn" data-q="fechar-modal">Cancelar</button><button class="btn btn-accent" data-q="salvar-caso">Abrir caso</button>' });
+    qAtualizarPrevia();
+  }
+  function qResolverClienteDigitado(){
+    var v = qVal('qnId').trim().toLowerCase(); if(!v) return null;
+    return clientes.filter(function(c){ return String(c.id).toLowerCase() === v; })[0] || null;
+  }
+  function qAtualizarPrevia(){
+    var prev = document.getElementById('qnPrev'); if(!prev) return;
+    var cli = qResolverClienteDigitado();
+    var exc = document.getElementById('qnExcWrap');
+    if(!cli){
+      prev.innerHTML = qVal('qnId').trim() ? '<span style="color:var(--critical-ink);">ID não encontrado no cadastro.</span>' : 'O caso só abre com um ID que exista no cadastro: nome, gerente de contas, fase e data de início vêm de lá.';
+      if(exc) exc.style.display = 'none';
+      qUI.form.cli = ''; return;
+    }
+    var fase = qFase(cli), meses = qMesesDesde(cli.dataInicio), elig = qElegivel(cli), aberto = qCasoAbertoDoCliente(cli.id);
+    var partes = ['<b>'+esc(cli.nome)+'</b>', 'Gerente de contas: '+esc(cli.csm || '—'), fase === 'onboarding' ? 'Onboarding' : 'Base',
+      meses != null ? meses+' meses de plataforma' : 'sem data de início', cli.smart ? '<b>SMART</b>'+(qCfg().smartBloqueiaLigacao ? ' (ligações bloqueadas)' : '') : ''];
+    var aviso = '';
+    if(aberto) aviso += '<div style="color:var(--critical-ink);margin-top:4px;">Já existe o caso aberto '+esc(qNumCaso(aberto))+' para este cliente.</div>';
+    if(!elig) aviso += '<div style="color:var(--warning-ink);margin-top:4px;">Fora da elegibilidade (Onboarding ou Base com até '+qCfg().mesesElegiveis+' meses). Abrir exige justificativa.</div>';
+    prev.innerHTML = partes.filter(Boolean).join(' · ') + aviso;
+    if(exc) exc.style.display = elig ? 'none' : '';
+    if(qUI.form.cli !== cli.id){ // sugere os valores só quando o cliente muda
+      qUI.form.cli = cli.id;
+      var r = document.getElementById('qnRisco'); if(r) r.value = qRiscoSugerido(cli);
+      var t = document.getElementById('qnTreino'); if(t) t.value = qTreinoCliente(cli) === 'concluido' ? 'concluido' : qTreinoCliente(cli);
+      var p = document.getElementById('qnPrio'); if(p) p.value = qRiscoSugerido(cli) === 'alto' ? 'alta' : (qRiscoSugerido(cli) === 'medio' ? 'media' : 'baixa');
+    }
+  }
+  async function qSalvarNovoCaso(){
+    qErro('');
+    var cli = qResolverClienteDigitado();
+    if(!cli){ qErro('Informe um ID de clínica que exista no cadastro.'); return; }
+    var aberto = qCasoAbertoDoCliente(cli.id);
+    if(aberto){ qErro('Já existe o caso aberto '+qNumCaso(aberto)+' para este cliente. Trabalhe nele em vez de abrir outro.'); return; }
+    var elig = qElegivel(cli), exc = qVal('qnExc').trim();
+    if(!elig && !exc){ qErro('Cliente fora da elegibilidade: informe a justificativa de exceção.'); return; }
+    var mp = qVal('qnMotivoP'), origem = qVal('qnOrigem'), obs = qVal('qnObs').trim(), prox = qVal('qnProx').trim(), proxData = qVal('qnProxData');
+    if(!mp || !origem){ qErro('Escolha o motivo principal e a origem da identificação.'); return; }
+    if(!obs){ qErro('Escreva as observações: o que levou à abertura do caso.'); return; }
+    if(!prox || !proxData){ qErro('Todo caso aberto precisa de próxima ação e data.'); return; }
+    var motivos = [mp];
+    document.querySelectorAll('#overlayQualidade .qnMot:checked').forEach(function(el){ if(motivos.indexOf(el.value) === -1) motivos.push(el.value); });
+    var agora = qAgora();
+    var anterior = Q.casos.filter(function(c){ return c.clienteId === cli.id; }).sort(function(a,b){ return a.criadoEm < b.criadoEm ? 1 : -1; })[0];
+    var c = {
+      id: novoId('cq'), numero: qProximoNumero(), clienteId: cli.id, clienteNome: cli.nome, gerenteContas: cli.csm || '',
+      faseCliente: qFase(cli), dataInicioCliente: cli.dataInicio || '', mesesPlataforma: qMesesDesde(cli.dataInicio), smart: !!cli.smart,
+      motivoPrincipal: mp, motivos: motivos, origem: origem, prioridade: qVal('qnPrio'), risco: qVal('qnRisco'),
+      treino: qVal('qnTreino'), utilizacao: qVal('qnUtil'),
+      diag: { area:'', origemFalha:'', setor:'', analistaId:'', analistaNome:'', problema:'', evidencias:'', retornoOnboarding:'', acompanhamentoCsm:'' },
+      responsavelId: currentUser.id, responsavelNome: currentUser.nome, estado: 'novo',
+      proximaAcao: prox, proximaAcaoData: proxData, criadoEm: agora, iniciadoEm: qHoje(), ultimoMovimentoEm: agora,
+      excecaoElegibilidade: elig ? '' : exc, casoAnteriorId: (qUI.form && qUI.form.casoAnteriorId) || (anterior ? anterior.id : ''), encerramento: null
+    };
+    var l = qNovoLanc(c.id, 'abertura', obs, { paraEstado:'novo', paraRisco:c.risco });
+    try{
+      await qPut('casos', c);
+      await qPut('lancs', l);
+      qAuditar('abriu_caso', c.id);
+      qFecharModal(); mostrarToastSucesso('Caso '+qNumCaso(c)+' aberto.'); renderAll();
+    }catch(e){ qErro('Não foi possível abrir agora: '+detalheErro(e)); }
+  }
+  function qNovoLanc(casoId, tipo, texto, extra){
+    return Object.assign({ id: novoId('lq'), casoId: casoId, em: qAgora(), autorId: currentUser.id, autorNome: currentUser.nome, tipo: tipo, texto: texto || '' }, extra || {});
+  }
+
+  // ---------------- DETALHE DO CASO ----------------
+  function qAbrirCaso(id){
+    var c = qCasoById(id); if(!c) return;
+    qUI.casoId = id; qUI.modal = 'caso'; qUI.painel = qAberto(c) ? 'registrar' : 'retificar';
+    if(!qLidosNaSessao[id]){ qLidosNaSessao[id] = true; qAuditar('leu_caso', id); }
+    qRenderDetalhe();
+  }
+  function qRenderDetalhe(){
+    var c = qCasoById(qUI.casoId); if(!c){ qFecharModal(); return; }
+    var aberto = qAberto(c), atras = qAtrasado(c);
+    var cab = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + qPillEstado(c) + qPillRisco(c.risco) +
+      (atras ? gPill('Atrasado', 'pill-critical') : '') + (c.smart ? gChip('SMART') : '') + gChip('Prioridade '+qRot(Q_PRIO, c.prioridade)) +
+      (c.excecaoElegibilidade ? gChip('Exceção de elegibilidade', 'c-warn') : '') + '</div>';
+    function kv(k, v){ return '<div><div class="hint">'+esc(k)+'</div><div>'+(v || '—')+'</div></div>'; }
+    var resumo = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 16px;">' +
+      kv('Gerente de contas', esc(c.gerenteContas)) + kv('Fase do cliente', c.faseCliente === 'onboarding' ? 'Onboarding' : 'Base') +
+      kv('Início na plataforma', c.dataInicioCliente ? fmtDate(c.dataInicioCliente)+(c.mesesPlataforma != null ? ' ('+c.mesesPlataforma+' meses)' : '') : '') +
+      kv('Motivo principal', esc(qRot(Q_MOTIVOS, c.motivoPrincipal))) + kv('Origem da identificação', esc(qRot(Q_ORIGENS, c.origem))) +
+      kv('Treinamento', esc(qRot(Q_TREINO, c.treino))) + kv('Utilização', esc(qRot(Q_UTIL, c.utilizacao))) +
+      kv('Responsável', esc(c.responsavelNome)) + kv('Aberto em', fmtDate(c.iniciadoEm)) +
+      kv('Próxima ação', aberto ? qLinhaProxima(c) : '') + '</div>';
+    if(c.excecaoElegibilidade) resumo += '<div class="hint">Exceção: '+esc(c.excecaoElegibilidade)+'</div>';
+    var barra = '';
+    if(aberto){
+      barra = '<div class="agenda-cal-modos" style="flex-wrap:wrap;">' + [['registrar','Registrar contato ou ação'],['diagnostico','Diagnóstico'],['encerrar','Encerrar'],['cancelar','Cancelar caso']].map(function(p){
+        return '<button class="btn btn-sm'+(qUI.painel === p[0] ? ' is-ativo' : '')+'" data-q="painel" data-p="'+p[0]+'">'+p[1]+'</button>';
+      }).join('') + '</div>';
+    }else{
+      barra = '<div class="agenda-cal-modos" style="flex-wrap:wrap;"><button class="btn btn-sm'+(qUI.painel === 'retificar' ? ' is-ativo' : '')+'" data-q="painel" data-p="retificar">Registrar retificação</button>' +
+        '<button class="btn btn-sm" data-q="reabrir" data-id="'+esc(c.id)+'">Abrir novo caso ligado a este</button></div>' +
+        '<div class="hint">Caso encerrado é somente leitura. Para corrigir algo, registre uma retificação: o lançamento original permanece.</div>';
+    }
+    var painel = qRenderPainelCaso(c);
+    var enc = '';
+    if(c.encerramento){
+      var e = c.encerramento;
+      enc = '<div class="card" style="margin:0;"><div class="card-body pad-top" style="padding-top:12px;"><b>Encerramento</b> · '+esc(qRot(Q_RESULTADOS, e.resultado))+' · '+esc(qRot(Q_MOTIVOS_FIM, e.motivo))+' · Utilização recuperada: '+esc(qRot(Q_UTIL_RECUP, e.utilizacaoRecuperada))+
+        '<div style="margin-top:6px;white-space:pre-line;">'+esc(e.resumo)+'</div>'+(e.licao ? '<div class="hint" style="margin-top:6px;">Lição: '+esc(e.licao)+'</div>' : '')+'</div></div>';
+    }
+    var ant = Q.casos.filter(function(x){ return x.clienteId === c.clienteId && x.id !== c.id && x.criadoEm < c.criadoEm; }).sort(function(a,b){ return a.criadoEm < b.criadoEm ? 1 : -1; });
+    var hist = ant.length ? '<div><b>Casos anteriores deste cliente</b>' + ant.map(function(x){
+      return '<div class="hint"><a href="#" data-q="abrir" data-id="'+esc(x.id)+'">'+esc(qNumCaso(x))+'</a> · '+esc(qRot(Q_MOTIVOS, x.motivoPrincipal))+' · '+esc(Q_ESTADOS[x.estado] ? Q_ESTADOS[x.estado].label : x.estado)+(x.encerramento ? ' · '+esc(qRot(Q_RESULTADOS, x.encerramento.resultado)) : '')+'</div>';
+    }).join('') + '</div>' : '';
+    var corpo = cab + resumo + enc + barra + '<div id="qPainelCaso">' + painel + '</div><div class="gate-error" id="qModalErro"></div>' +
+      '<div><b>Linha do tempo</b><div id="qTimeline" style="margin-top:8px;">' + qRenderTimeline(c) + '</div></div>' + hist;
+    qModal({ titulo: esc(qNumCaso(c))+' · '+esc(c.clienteNome)+' <span class="hint" style="font-weight:400;">('+esc(c.clienteId)+')</span>', corpo: corpo, largo: true,
+      rodape:'<button class="btn" data-q="fechar-modal">Fechar</button>' });
+  }
+  function qRenderTimeline(c){
+    var ls = qLancsDoCaso(c.id);
+    if(!ls.length) return '<div class="hint">Sem lançamentos.</div>';
+    return ls.map(function(l){
+      var chips = [];
+      if(l.acao) chips.push(gChip(qRot(Q_ACOES, l.acao)));
+      if(l.canal) chips.push(gChip(qRot(Q_CANAIS, l.canal)));
+      if(l.statusContato) chips.push(gChip(qRot(Q_STATUS_CONTATO, l.statusContato), l.statusContato === 'sem_resposta' ? 'c-warn' : ''));
+      if(l.situacao) chips.push(gChip(l.situacao === 'concluida' ? 'Ação concluída' : 'Ação planejada', l.situacao === 'concluida' ? 'c-good' : ''));
+      if(l.respNome) chips.push(gChip('Responsável: '+l.respNome));
+      if(l.deEstado && l.paraEstado && l.deEstado !== l.paraEstado) chips.push(gChip((Q_ESTADOS[l.deEstado] ? Q_ESTADOS[l.deEstado].label : l.deEstado)+' → '+(Q_ESTADOS[l.paraEstado] ? Q_ESTADOS[l.paraEstado].label : l.paraEstado)));
+      if(l.deRisco && l.paraRisco && l.deRisco !== l.paraRisco) chips.push(gChip('Risco: '+qRot(Q_RISCO, l.deRisco)+' → '+qRot(Q_RISCO, l.paraRisco), 'c-warn'));
+      if(l.smartAviso) chips.push(gChip('Cliente SMART', 'c-warn'));
+      var prox = l.proximaAcao ? '<div class="hint">Próxima ação: '+esc(l.proximaAcao)+(l.proximaAcaoData ? ' · '+fmtDate(l.proximaAcaoData) : '')+'</div>' : '';
+      var retif = l.retificaLancId ? '<div class="hint">Corrige o lançamento de '+esc(gFmtDT((Q.lancs.filter(function(x){ return x.id === l.retificaLancId; })[0] || {}).em))+'.</div>' : '';
+      return '<div class="q-lanc" style="border-left:3px solid var(--border-strong);padding:4px 0 4px 12px;margin:0 0 10px 2px;">' +
+        '<div class="hint"><b>'+esc(Q_TIPOS_LANC[l.tipo] || l.tipo)+'</b> · '+esc(gFmtDT(l.em))+' · '+esc(l.autorNome)+'</div>' +
+        (l.texto ? '<div style="white-space:pre-line;">'+esc(l.texto)+'</div>' : '') +
+        (chips.length ? '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;">'+chips.join('')+'</div>' : '') + prox + retif + '</div>';
+    }).join('');
+  }
+  function qRenderPainelCaso(c){
+    var p = qUI.painel, d = c.diag || {};
+    if(!qAberto(c)){
+      if(p !== 'retificar') return '';
+      var ls = qLancsDoCaso(c.id);
+      return '<div class="field"><label for="qtLanc">Lançamento que está sendo corrigido (opcional)</label><select id="qtLanc"><option value="">Nenhum específico</option>' +
+        ls.map(function(l){ return '<option value="'+esc(l.id)+'">'+esc(gFmtDT(l.em)+' · '+(Q_TIPOS_LANC[l.tipo]||l.tipo)+' · '+l.autorNome)+'</option>'; }).join('') + '</select></div>' +
+        '<div class="field"><label for="qtTexto">Retificação *</label><textarea id="qtTexto" rows="3" placeholder="O que estava errado e qual é a informação correta."></textarea></div>' +
+        '<div><button class="btn btn-accent" data-q="salvar-retificacao">Registrar retificação</button></div>';
+    }
+    if(p === 'registrar'){
+      var proxEstado = c.estado === 'novo' ? 'em_apuracao' : c.estado;
+      var smartAviso = c.smart ? '<div class="hint" style="color:var(--warning-ink);">Cliente SMART'+(qCfg().smartBloqueiaLigacao ? ': ligações estão bloqueadas pela configuração.' : ': prefira outro canal que não seja ligação.')+'</div>' : '';
+      return smartAviso +
+        '<div class="field-row"><div class="field"><label for="qrTipo">Tipo de lançamento</label><select id="qrTipo">'+qOpts([['contato','Contato com o cliente'],['acao','Ação'],['apuracao','Apuração interna'],['escalonamento','Escalonamento']], 'contato')+'</select></div>' +
+        '<div class="field"><label for="qrAcao">Ação planejada</label><select id="qrAcao">'+qOpts(Q_ACOES, 'whatsapp')+'</select></div></div>' +
+        '<div class="field-row"><div class="field"><label for="qrCanal">Canal</label><select id="qrCanal">'+qOpts(Q_CANAIS, 'whatsapp')+'</select></div>' +
+        '<div class="field"><label for="qrStatusC">Status do contato</label><select id="qrStatusC">'+qOpts(Q_STATUS_CONTATO, 'contatado')+'</select></div></div>' +
+        '<div class="field-row"><div class="field"><label for="qrSituacao">Situação da ação</label><select id="qrSituacao">'+qOpts([['concluida','Concluída'],['planejada','Planejada']], 'concluida')+'</select></div>' +
+        '<div class="field"><label for="qrResp">Responsável pela ação</label><select id="qrResp">'+gOptsUsers(c.responsavelId)+'</select></div></div>' +
+        '<div class="field"><label for="qrObs">Observações *</label><textarea id="qrObs" rows="3" placeholder="O que foi feito, falado ou descoberto."></textarea></div>' +
+        '<div class="field-row"><div class="field"><label for="qrEstado">Status geral do caso</label><select id="qrEstado">'+qOpts(Q_ESTADOS_ABERTOS.map(function(e){ return [e, Q_ESTADOS[e].label]; }), proxEstado)+'</select></div>' +
+        '<div class="field"><label for="qrRisco">Risco de churn</label><select id="qrRisco">'+qOpts(Q_RISCO, c.risco)+'</select></div></div>' +
+        '<div class="field-row"><div class="field"><label for="qrProx">Próxima ação *</label><input type="text" id="qrProx" value="'+esc(c.proximaAcao||'')+'"></div>' +
+        '<div class="field"><label for="qrProxData">Data da próxima ação *</label><input type="date" id="qrProxData" value="'+esc(c.proximaAcaoData && c.proximaAcaoData >= qHoje() ? c.proximaAcaoData : addDays(qHoje(), 2))+'"></div></div>' +
+        '<div><button class="btn btn-accent" data-q="salvar-lancamento">Registrar</button></div>';
+    }
+    if(p === 'diagnostico'){
+      return '<div class="field-row"><div class="field"><label for="qdArea">Área relacionada</label><select id="qdArea">'+qOpts(Q_AREAS, d.area, 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="qdOrigem">Origem da falha</label><select id="qdOrigem">'+qOpts(Q_ORIGEM_FALHA, d.origemFalha, 'Selecione...')+'</select></div></div>' +
+        '<div class="field-row"><div class="field"><label for="qdSetor">Setor ou processo envolvido</label><input type="text" id="qdSetor" value="'+esc(d.setor||'')+'" placeholder="Ex.: Onboarding, Sales, Suporte"></div>' +
+        '<div class="field"><label for="qdAnalista">Analista envolvido (se houver)</label><select id="qdAnalista">'+gOptsUsers(d.analistaId, 'Nenhum')+'</select></div></div>' +
+        '<div class="field"><label for="qdProblema">Problema identificado</label><textarea id="qdProblema" rows="3">'+esc(d.problema||'')+'</textarea></div>' +
+        '<div class="field"><label for="qdEvid">Evidências e histórico</label><textarea id="qdEvid" rows="2" placeholder="Chamados, contatos, planos ou etapas de onboarding relacionados.">'+esc(d.evidencias||'')+'</textarea></div>' +
+        '<div class="field-row"><div class="field"><label for="qdRetorno">Necessita retorno ao Onboarding?</label><select id="qdRetorno">'+qOpts(Q_SIMNAO, d.retornoOnboarding, 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="qdAcomp">Necessita acompanhamento do CSM?</label><select id="qdAcomp">'+qOpts(Q_SIMNAO, d.acompanhamentoCsm, 'Selecione...')+'</select></div></div>' +
+        '<div><button class="btn btn-accent" data-q="salvar-diagnostico">Salvar diagnóstico</button></div>';
+    }
+    if(p === 'encerrar'){
+      var falta = qDiagFalta(c);
+      return (falta.length ? '<div class="hint" style="color:var(--warning-ink);">Para encerrar, complete antes o diagnóstico: '+esc(falta.join(', '))+'.</div>' : '') +
+        '<div class="field-row"><div class="field"><label for="qeResultado">Resultado *</label><select id="qeResultado">'+qOpts(Q_RESULTADOS, '', 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="qeMotivo">Motivo do encerramento *</label><select id="qeMotivo">'+qOpts(Q_MOTIVOS_FIM, '', 'Selecione...')+'</select></div></div>' +
+        '<div class="field"><label for="qeUtil">Utilização recuperada? *</label><select id="qeUtil">'+qOpts(Q_UTIL_RECUP, '', 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="qeResumo">Resumo da apuração *</label><textarea id="qeResumo" rows="3" placeholder="O que aconteceu e onde falhou."></textarea></div>' +
+        '<div class="field"><label for="qeLicao">Lição aprendida ou sugestão de processo</label><textarea id="qeLicao" rows="2"></textarea></div>' +
+        '<div><button class="btn btn-accent" data-q="encerrar-caso">Encerrar caso</button></div>';
+    }
+    if(p === 'cancelar'){
+      return '<div class="field"><label for="qcMotivo">Motivo do cancelamento *</label><textarea id="qcMotivo" rows="3" placeholder="Por que este caso não deve seguir (ex.: aberto por engano)."></textarea></div>' +
+        '<div><button class="btn btn-danger-fill" data-q="cancelar-caso">Cancelar caso</button></div>';
+    }
+    return '';
+  }
+  function qDiagFalta(c){
+    var d = c.diag || {}, f = [];
+    if(!d.area) f.push('área relacionada'); if(!d.origemFalha) f.push('origem da falha'); if(!String(d.problema||'').trim()) f.push('problema identificado');
+    if(!d.retornoOnboarding) f.push('retorno ao Onboarding'); if(!d.acompanhamentoCsm) f.push('acompanhamento do CSM');
+    return f;
+  }
+
+  // ---------------- AÇÕES SOBRE O CASO ----------------
+  async function qGravarCaso(c, lanc, msgOk){
+    try{
+      await qPut('lancs', lanc);
+      await qPut('casos', c);
+      qAuditar('gravou_'+lanc.tipo, c.id);
+      if(msgOk) mostrarToastSucesso(msgOk);
+      renderAll();
+      if(qUI.modal === 'caso') qRenderDetalhe();
+    }catch(e){ qErro('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+  function qSalvarLancamento(){
+    qErro('');
+    var c = qCasoById(qUI.casoId); if(!c || !qAberto(c)) return;
+    var tipo = qVal('qrTipo'), acao = qVal('qrAcao'), canal = qVal('qrCanal'), obs = qVal('qrObs').trim();
+    var novoEstado = qVal('qrEstado'), novoRisco = qVal('qrRisco'), prox = qVal('qrProx').trim(), proxData = qVal('qrProxData');
+    if(!obs){ qErro('Escreva as observações.'); return; }
+    if(!prox || !proxData){ qErro('Todo caso aberto precisa de próxima ação e data.'); return; }
+    var ligacao = (acao === 'ligacao' || canal === 'telefone') && (tipo === 'contato' || tipo === 'acao');
+    if(c.smart && ligacao && qCfg().smartBloqueiaLigacao){ qErro('Cliente SMART: ligações estão bloqueadas pela configuração. Escolha outro canal.'); return; }
+    var resp = usuarios.filter(function(u){ return u.id === qVal('qrResp'); })[0];
+    var l = qNovoLanc(c.id, tipo, obs, { acao:acao, canal:canal, statusContato: tipo === 'contato' ? qVal('qrStatusC') : '', situacao: (tipo === 'contato' || tipo === 'acao') ? qVal('qrSituacao') : '',
+      respId: resp ? resp.id : '', respNome: resp ? resp.nome : '', proximaAcao:prox, proximaAcaoData:proxData,
+      deEstado:c.estado, paraEstado:novoEstado, deRisco:c.risco, paraRisco:novoRisco, smartAviso: !!(c.smart && ligacao) });
+    var novo = Object.assign({}, c, { estado:novoEstado, risco:novoRisco, proximaAcao:prox, proximaAcaoData:proxData, ultimoMovimentoEm:l.em });
+    qGravarCaso(novo, l, 'Lançamento registrado.');
+  }
+  function qSalvarDiagnostico(){
+    qErro('');
+    var c = qCasoById(qUI.casoId); if(!c || !qAberto(c)) return;
+    var an = usuarios.filter(function(u){ return u.id === qVal('qdAnalista'); })[0];
+    var diag = { area:qVal('qdArea'), origemFalha:qVal('qdOrigem'), setor:qVal('qdSetor').trim(), analistaId: an ? an.id : '', analistaNome: an ? an.nome : '',
+      problema:qVal('qdProblema').trim(), evidencias:qVal('qdEvid').trim(), retornoOnboarding:qVal('qdRetorno'), acompanhamentoCsm:qVal('qdAcomp') };
+    var resumo = 'Área: '+qRot(Q_AREAS, diag.area)+' · Origem: '+qRot(Q_ORIGEM_FALHA, diag.origemFalha)+(diag.setor ? ' · Setor: '+diag.setor : '')+(diag.analistaNome ? ' · Analista: '+diag.analistaNome : '')+(diag.problema ? '\n'+diag.problema : '');
+    var l = qNovoLanc(c.id, 'diagnostico', resumo, { deEstado:c.estado, paraEstado:c.estado });
+    var novo = Object.assign({}, c, { diag:diag, ultimoMovimentoEm:l.em });
+    qGravarCaso(novo, l, 'Diagnóstico salvo.');
+  }
+  function qEncerrarCaso(){
+    qErro('');
+    var c = qCasoById(qUI.casoId); if(!c || !qAberto(c)) return;
+    var falta = qDiagFalta(c);
+    if(falta.length){ qErro('Complete o diagnóstico antes de encerrar: '+falta.join(', ')+'.'); return; }
+    var res = qVal('qeResultado'), mot = qVal('qeMotivo'), util = qVal('qeUtil'), resumo = qVal('qeResumo').trim();
+    if(!res || !mot || !util){ qErro('Resultado, motivo e utilização recuperada são obrigatórios para encerrar.'); return; }
+    if(!resumo){ qErro('Escreva o resumo da apuração.'); return; }
+    var l = qNovoLanc(c.id, 'encerramento', resumo, { deEstado:c.estado, paraEstado:'concluido' });
+    var enc = { resultado:res, motivo:mot, utilizacaoRecuperada:util, resumo:resumo, licao:qVal('qeLicao').trim(), em:l.em, porId:currentUser.id, porNome:currentUser.nome };
+    var novo = Object.assign({}, c, { estado:'concluido', encerramento:enc, proximaAcao:'', proximaAcaoData:'', ultimoMovimentoEm:l.em });
+    qUI.painel = 'retificar';
+    qGravarCaso(novo, l, 'Caso encerrado.');
+  }
+  function qCancelarCaso(){
+    qErro('');
+    var c = qCasoById(qUI.casoId); if(!c || !qAberto(c)) return;
+    var mot = qVal('qcMotivo').trim();
+    if(!mot){ qErro('Informe o motivo do cancelamento.'); return; }
+    var l = qNovoLanc(c.id, 'cancelamento', mot, { deEstado:c.estado, paraEstado:'cancelado' });
+    var novo = Object.assign({}, c, { estado:'cancelado', encerramento:{ resultado:'', motivo:'cancelado', utilizacaoRecuperada:'', resumo:mot, licao:'', em:l.em, porId:currentUser.id, porNome:currentUser.nome }, proximaAcao:'', proximaAcaoData:'', ultimoMovimentoEm:l.em });
+    qUI.painel = 'retificar';
+    qGravarCaso(novo, l, 'Caso cancelado.');
+  }
+  async function qSalvarRetificacao(){
+    qErro('');
+    var c = qCasoById(qUI.casoId); if(!c || qAberto(c)) return;
+    var t = qVal('qtTexto').trim();
+    if(!t){ qErro('Descreva a retificação.'); return; }
+    var l = qNovoLanc(c.id, 'retificacao', t, { retificaLancId: qVal('qtLanc') || '' });
+    try{
+      await qPut('lancs', l); qAuditar('gravou_retificacao', c.id);
+      mostrarToastSucesso('Retificação registrada.'); qRenderDetalhe();
+    }catch(e){ qErro('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+
+  // ---------------- ELEGÍVEIS ----------------
+  function qEligiveisSemCaso(){
+    return clientesAtivos().filter(function(c){ return qElegivel(c) && !qCasoAbertoDoCliente(c.id); }).map(function(c){
+      return { cli:c, sinais:qSinais(c), risco:qRiscoSugerido(c), fase:qFase(c), meses:qMesesDesde(c.dataInicio), treino:qTreinoCliente(c) };
+    });
+  }
+  function qRenderElegiveis(){
+    var todos = qEligiveisSemCaso();
+    var lista = todos.filter(function(x){ return qUI.elegTodos || x.sinais.length; }).sort(function(a,b){
+      var ra = a.risco === 'alto' ? 0 : 1, rb = b.risco === 'alto' ? 0 : 1; if(ra !== rb) return ra - rb;
+      return b.sinais.length - a.sinais.length;
+    });
+    var h = '<div class="card"><div class="card-head"><div><h2>Elegíveis que pedem acompanhamento</h2><div class="hint">Clientes em Onboarding ou na Base com até '+qCfg().mesesElegiveis+' meses, sem caso aberto. Por padrão só aparecem os que têm algum sinal de risco.</div></div>' +
+      '<div class="queue-actions"><button class="btn btn-sm" data-q="eleg-todos">'+(qUI.elegTodos ? 'Mostrar só com sinais' : 'Mostrar todos os elegíveis')+'</button></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Gerente de contas</th><th>Fase</th><th>Treinamento</th><th>Risco</th><th>Sinais</th><th></th></tr></thead><tbody>' +
+      (lista.length ? lista.map(function(x){
+        return '<tr><td>'+esc(x.cli.nome)+'<div class="hint">'+esc(x.cli.id)+(x.cli.smart ? ' · <b>SMART</b>' : '')+'</div></td><td>'+esc(x.cli.csm || '—')+'</td>' +
+          '<td>'+(x.fase === 'onboarding' ? 'Onboarding' : 'Base · '+(x.meses != null ? x.meses+' m' : '—'))+'</td><td>'+esc(qRot(Q_TREINO, x.treino))+'</td><td>'+qPillRisco(x.risco)+'</td>' +
+          '<td>'+(x.sinais.length ? x.sinais.map(function(s){ return esc(s); }).join('<br>') : '<span class="hint">Nenhum</span>')+'</td>' +
+          '<td><button class="btn btn-sm btn-accent" data-q="novo-caso" data-cli="'+esc(x.cli.id)+'">Abrir caso</button></td></tr>';
+      }).join('') : '<tr><td colspan="7" class="hint">Nenhum elegível com sinal de risco no momento.</td></tr>') + '</tbody></table></div></div></div>';
+    return h;
+  }
+
+  // ---------------- NPS: TRATATIVAS ----------------
+  function qNpsRecebeuContato(n){ return !!(n.dataContato && n.dataEnvio && n.dataContato >= n.dataEnvio); }
+  function qRenderNps(){
+    var lista = Q.nps.slice().sort(function(a,b){
+      var pa = a.status === 'pendente' ? 0 : 1, pb = b.status === 'pendente' ? 0 : 1; if(pa !== pb) return pa - pb;
+      return (a.nota == null ? 11 : a.nota) - (b.nota == null ? 11 : b.nota);
+    });
+    return '<div class="card"><div class="card-head"><div><h2>Tratativas de NPS</h2><div class="hint">Nota até 6 sugere tratativa. Uma tratativa pendente continua visível até ser concluída.</div></div>' +
+      '<div class="queue-actions"><button class="btn btn-sm btn-accent" data-q="nps-novo">+ Registrar NPS</button></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Gerente de contas</th><th>Nota</th><th>Enviada</th><th>Contato do CSM</th><th>Recebeu contato?</th><th>Necessita tratativa?</th><th>Status</th><th>Responsável</th><th>Resultado</th><th></th></tr></thead><tbody>' +
+      (lista.length ? lista.map(function(n){
+        var rc = qNpsRecebeuContato(n);
+        return '<tr><td>'+esc(n.clienteNome)+'<div class="hint">'+esc(n.clienteId)+'</div></td><td>'+esc(n.gerenteContas || '—')+'</td><td class="num">'+(n.nota == null ? '—' : n.nota)+'</td>' +
+          '<td>'+(n.enviada === 'sim' ? fmtDate(n.dataEnvio) : 'Não')+'</td><td>'+(n.dataContato ? fmtDate(n.dataContato) : '—')+'</td><td>'+(rc ? 'Sim' : (n.enviada === 'sim' ? gPill('Não','pill-warning') : '—'))+'</td>' +
+          '<td>'+(n.necessitaTratativa === 'sim' ? 'Sim' : 'Não')+'</td><td>'+esc(qRot(Q_NPS_STATUS, n.status))+'</td><td>'+esc(n.responsavelNome || '—')+'</td><td>'+esc(n.resultado ? qRot(Q_RESULTADOS, n.resultado) : '—')+'</td>' +
+          '<td><button class="btn btn-sm" data-q="nps-editar" data-id="'+esc(n.id)+'">Editar</button></td></tr>';
+      }).join('') : '<tr><td colspan="11" class="hint">Nenhum NPS registrado.</td></tr>') + '</tbody></table></div></div></div>';
+  }
+  function qAbrirNps(id){
+    var n = id ? Q.nps.filter(function(x){ return x.id === id; })[0] : null;
+    n = n || { clienteId:'', nota:'', dataEnvio:'', enviada:'sim', dataContato:'', necessitaTratativa:'avaliar', comentario:'', status:'pendente', responsavelId:currentUser.id, resultado:'' };
+    qUI.modal = 'nps'; qUI.form = { id:id || '' };
+    var opcoes = clientesAtivos().sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome),'pt-BR'); })
+      .map(function(c){ return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>'; }).join('');
+    var corpo = '<div class="field"><label for="qpId">ID da clínica *</label><input type="text" id="qpId" list="qpLista" autocomplete="off" value="'+esc(n.clienteId)+'"'+(id ? ' readonly' : '')+'><datalist id="qpLista">'+opcoes+'</datalist></div>' +
+      '<div class="field-row"><div class="field"><label for="qpNota">Nota NPS (0 a 10)</label><input type="number" id="qpNota" min="0" max="10" step="1" value="'+esc(n.nota)+'"></div>' +
+      '<div class="field"><label for="qpEnviada">Pesquisa enviada?</label><select id="qpEnviada">'+qOpts([['sim','Sim'],['nao','Não']], n.enviada)+'</select></div></div>' +
+      '<div class="field-row"><div class="field"><label for="qpEnvio">Data de envio</label><input type="date" id="qpEnvio" value="'+esc(n.dataEnvio)+'"></div>' +
+      '<div class="field"><label for="qpContato">Data do contato do CSM</label><input type="date" id="qpContato" value="'+esc(n.dataContato)+'"></div></div>' +
+      '<div class="field-row"><div class="field"><label for="qpNecessita">Necessita tratativa?</label><select id="qpNecessita">'+qOpts([['sim','Sim'],['nao','Não'],['avaliar','A avaliar']], n.necessitaTratativa)+'</select></div>' +
+      '<div class="field"><label for="qpStatus">Status da tratativa</label><select id="qpStatus">'+qOpts(Q_NPS_STATUS, n.status)+'</select></div></div>' +
+      '<div class="field-row"><div class="field"><label for="qpResp">Responsável</label><select id="qpResp">'+gOptsUsers(n.responsavelId, 'Sem responsável')+'</select></div>' +
+      '<div class="field"><label for="qpResultado">Resultado da tratativa</label><select id="qpResultado">'+qOpts(Q_RESULTADOS, n.resultado, 'Ainda sem resultado')+'</select></div></div>' +
+      '<div class="field"><label for="qpComent">Comentário do cliente</label><textarea id="qpComent" rows="2">'+esc(n.comentario)+'</textarea></div>' +
+      '<div class="gate-error" id="qModalErro"></div>';
+    qModal({ titulo: id ? 'Editar NPS' : 'Registrar NPS', corpo:corpo,
+      rodape:'<button class="btn" data-q="fechar-modal">Cancelar</button><button class="btn btn-accent" data-q="nps-salvar">Salvar</button>' });
+  }
+  async function qSalvarNps(){
+    qErro('');
+    var cli = clientes.filter(function(c){ return String(c.id).toLowerCase() === qVal('qpId').trim().toLowerCase(); })[0];
+    if(!cli){ qErro('Informe um ID de clínica que exista no cadastro.'); return; }
+    var notaTxt = qVal('qpNota').trim(), nota = notaTxt === '' ? null : Number(notaTxt);
+    if(nota != null && (isNaN(nota) || nota < 0 || nota > 10)){ qErro('A nota vai de 0 a 10.'); return; }
+    var status = qVal('qpStatus'), resultado = qVal('qpResultado'), necessita = qVal('qpNecessita');
+    if(nota != null && nota <= 6 && necessita === 'avaliar') necessita = 'sim';
+    if(status === 'concluida' && !resultado){ qErro('Tratativa concluída exige o resultado.'); return; }
+    if(necessita === 'sim' && !qVal('qpResp')){ qErro('Tratativa necessária exige um responsável.'); return; }
+    var resp = usuarios.filter(function(u){ return u.id === qVal('qpResp'); })[0];
+    var atual = qUI.form && qUI.form.id ? Q.nps.filter(function(x){ return x.id === qUI.form.id; })[0] : null;
+    var n = Object.assign({}, atual || {}, { id: atual ? atual.id : novoId('nps'), clienteId:cli.id, clienteNome:cli.nome, gerenteContas:cli.csm || '', nota:nota,
+      enviada:qVal('qpEnviada'), dataEnvio:qVal('qpEnvio'), dataContato:qVal('qpContato'), necessitaTratativa:necessita, status:status,
+      responsavelId: resp ? resp.id : '', responsavelNome: resp ? resp.nome : '', resultado:resultado, comentario:qVal('qpComent').trim(), criadoEm: atual ? atual.criadoEm : qAgora() });
+    try{ await qPut('nps', n); qAuditar(atual ? 'editou_nps' : 'criou_nps', ''); qFecharModal(); mostrarToastSucesso('NPS salvo.'); renderAll(); }
+    catch(e){ qErro('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+
+  // ---------------- INSUMOS DE PROCESSO ----------------
+  function qContagem(lista, fn){
+    var o = {}; lista.forEach(function(c){ var k = fn(c); if(k) o[k] = (o[k] || 0) + 1; });
+    return Object.keys(o).sort(function(a,b){ return o[b] - o[a]; }).map(function(k){ return [k, o[k]]; });
+  }
+  function qCasosComDiag(){ return Q.casos.filter(function(c){ return c.diag && (c.diag.area || c.diag.origemFalha); }); }
+  function qAntesDepois(p){
+    if(!p.dataImplantacao || !p.area) return '—';
+    var ini = addDays(p.dataImplantacao, -90), fim = addDays(p.dataImplantacao, 90);
+    var mesma = qCasosComDiag().filter(function(c){ return c.diag.area === p.area; });
+    var antes = mesma.filter(function(c){ var d = (c.criadoEm||'').slice(0,10); return d >= ini && d < p.dataImplantacao; }).length;
+    var depois = mesma.filter(function(c){ var d = (c.criadoEm||'').slice(0,10); return d >= p.dataImplantacao && d <= fim; }).length;
+    return antes+' → '+depois;
+  }
+  function qRenderInsumos(){
+    var cs = qCasosComDiag();
+    function tab(titulo, pares, rotulo){
+      return '<div class="card"><div class="card-head"><h2>'+esc(titulo)+'</h2></div><div class="card-body">'+gTabela(['Causa','Casos'], pares.map(function(p){ return [esc(rotulo ? rotulo(p[0]) : p[0]), p[1]]; }))+'</div></div>';
+    }
+    var h = '<div class="hint" style="margin-bottom:10px;">Causas recorrentes vêm do diagnóstico dos casos. Cada proposta de mudança liga os casos que a justificam.</div>' +
+      '<div class="grid-2" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">' +
+      tab('Falhas por área', qContagem(cs, function(c){ return c.diag.area; }), function(k){ return qRot(Q_AREAS, k); }) +
+      tab('Falhas por origem', qContagem(cs, function(c){ return c.diag.origemFalha; }), function(k){ return qRot(Q_ORIGEM_FALHA, k); }) +
+      tab('Falhas por setor ou processo', qContagem(cs, function(c){ return (c.diag.setor || '').trim(); })) +
+      tab('Falhas por analista', qContagem(cs, function(c){ return c.diag.analistaNome; })) + '</div>';
+    h += '<div class="card" style="margin-top:14px;"><div class="card-head"><div><h2>Propostas de mudança de processo</h2><div class="hint">Antes e depois compara os casos da mesma área nos 90 dias antes e depois da data de implantação.</div></div>' +
+      '<div class="queue-actions"><button class="btn btn-sm btn-accent" data-q="prop-nova">+ Nova proposta</button></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Proposta</th><th>Área</th><th>Status</th><th>Casos ligados</th><th>Antes → depois (90 d)</th><th></th></tr></thead><tbody>' +
+      (Q.propostas.length ? Q.propostas.slice().sort(function(a,b){ return a.criadoEm < b.criadoEm ? 1 : -1; }).map(function(p){
+        return '<tr><td>'+esc(p.titulo)+'<div class="hint">'+esc((p.descricao||'').slice(0,110))+'</div></td><td>'+esc(p.area ? qRot(Q_AREAS, p.area) : '—')+'</td><td>'+esc(qRot(Q_PROP_STATUS, p.status))+'</td>' +
+          '<td class="num">'+(p.casosIds||[]).length+'</td><td class="num">'+esc(qAntesDepois(p))+'</td><td><button class="btn btn-sm" data-q="prop-editar" data-id="'+esc(p.id)+'">Abrir</button></td></tr>';
+      }).join('') : '<tr><td colspan="6" class="hint">Nenhuma proposta ainda. Ao concluir casos com o mesmo padrão de falha, registre aqui a mudança sugerida.</td></tr>') +
+      '</tbody></table></div></div></div>';
+    return h;
+  }
+  function qAbrirProposta(id){
+    var p = id ? Q.propostas.filter(function(x){ return x.id === id; })[0] : null;
+    p = p || { titulo:'', descricao:'', area:'', status:'rascunho', casosIds:[], dataImplantacao:'' };
+    qUI.modal = 'proposta'; qUI.form = { id:id || '' };
+    var casos = qCasosComDiag().sort(function(a,b){ return a.criadoEm < b.criadoEm ? 1 : -1; }).slice(0, 60);
+    var corpo = '<div class="field"><label for="qiTitulo">Título *</label><input type="text" id="qiTitulo" maxlength="140" value="'+esc(p.titulo)+'"></div>' +
+      '<div class="field"><label for="qiDesc">Mudança sugerida *</label><textarea id="qiDesc" rows="3" placeholder="O que muda no processo e por quê.">'+esc(p.descricao)+'</textarea></div>' +
+      '<div class="field-row"><div class="field"><label for="qiArea">Área foco</label><select id="qiArea">'+qOpts(Q_AREAS, p.area, 'Nenhuma')+'</select></div>' +
+      '<div class="field"><label for="qiStatus">Status</label><select id="qiStatus">'+qOpts(Q_PROP_STATUS, p.status)+'</select></div></div>' +
+      '<div class="field"><label for="qiData">Data de implantação (para o antes e depois)</label><input type="date" id="qiData" value="'+esc(p.dataImplantacao)+'"></div>' +
+      '<div class="field"><label>Casos que justificam a proposta</label><div style="max-height:170px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:8px;">' +
+        (casos.length ? casos.map(function(c){
+          return '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;margin-bottom:4px;"><input type="checkbox" class="qiCaso" value="'+esc(c.id)+'" style="width:auto;"'+((p.casosIds||[]).indexOf(c.id) > -1 ? ' checked' : '')+'> '+esc(qNumCaso(c)+' · '+c.clienteNome+' · '+qRot(Q_AREAS, c.diag.area))+'</label>';
+        }).join('') : '<span class="hint">Nenhum caso com diagnóstico ainda.</span>') + '</div></div>' +
+      '<div class="gate-error" id="qModalErro"></div>';
+    qModal({ titulo: id ? 'Proposta de mudança' : 'Nova proposta de mudança', corpo:corpo,
+      rodape:'<button class="btn" data-q="fechar-modal">Cancelar</button><button class="btn btn-accent" data-q="prop-salvar">Salvar</button>' });
+  }
+  async function qSalvarProposta(){
+    qErro('');
+    var t = qVal('qiTitulo').trim(), d = qVal('qiDesc').trim();
+    if(!t || !d){ qErro('Preencha o título e a mudança sugerida.'); return; }
+    var atual = qUI.form && qUI.form.id ? Q.propostas.filter(function(x){ return x.id === qUI.form.id; })[0] : null;
+    var ids = []; document.querySelectorAll('#overlayQualidade .qiCaso:checked').forEach(function(el){ ids.push(el.value); });
+    var status = qVal('qiStatus');
+    var hist = (atual && atual.historico) ? atual.historico.slice() : [];
+    if(!atual || atual.status !== status) hist.push({ em:qAgora(), de: atual ? atual.status : '', para: status, porNome: currentUser.nome });
+    var p = Object.assign({}, atual || {}, { id: atual ? atual.id : novoId('prop'), titulo:t, descricao:d, area:qVal('qiArea'), status:status,
+      dataImplantacao:qVal('qiData'), casosIds:ids, historico:hist, criadoEm: atual ? atual.criadoEm : qAgora(), autorNome: atual ? atual.autorNome : currentUser.nome });
+    try{ await qPut('propostas', p); qAuditar(atual ? 'editou_proposta' : 'criou_proposta', ''); qFecharModal(); mostrarToastSucesso('Proposta salva.'); renderAll(); }
+    catch(e){ qErro('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+
+  // ---------------- PAINEL ----------------
+  function qMesKey(iso){ return (iso || '').slice(0,7); }
+  function qUltimosMeses(n){
+    var out = [], d = parseISO(qHoje()); d.setDate(1);
+    for(var i = n-1; i >= 0; i--){ var x = new Date(d.getFullYear(), d.getMonth()-i, 1); out.push(x.getFullYear()+'-'+pad(x.getMonth()+1)); }
+    return out;
+  }
+  function qBarras(linhas){ // linhas: [rotulo, a, b]
+    var max = linhas.reduce(function(m, l){ return Math.max(m, l[1], l[2]); }, 1);
+    return '<div style="display:flex;flex-direction:column;gap:8px;">' + linhas.map(function(l){
+      return '<div style="display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;font-size:12.5px;"><div class="hint">'+esc(l[0])+'</div><div>' +
+        '<div style="display:flex;align-items:center;gap:6px;"><div style="height:10px;border-radius:5px;background:var(--accent);width:'+Math.round(l[1]*100/max)+'%;min-width:'+(l[1] ? 4 : 0)+'px;"></div>'+l[1]+' abertos</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-top:3px;"><div style="height:10px;border-radius:5px;background:var(--good);width:'+Math.round(l[2]*100/max)+'%;min-width:'+(l[2] ? 4 : 0)+'px;"></div>'+l[2]+' encerrados</div></div></div>';
+    }).join('') + '</div>';
+  }
+  function qRenderPainel(){
+    var abertos = Q.casos.filter(qAberto), encerrados = Q.casos.filter(function(c){ return c.estado === 'concluido'; });
+    var atrasados = abertos.filter(qAtrasado);
+    var elegSemCaso = qEligiveisSemCaso(), elegSinais = elegSemCaso.filter(function(x){ return x.sinais.length; });
+    var semTreino = elegSemCaso.filter(function(x){ return x.treino !== 'concluido'; }).length;
+    var altoCasos = abertos.filter(function(c){ return c.risco === 'alto'; }).length;
+    var altoElegiveis = elegSemCaso.filter(function(x){ return x.risco === 'alto'; }).length;
+    var npsNec = Q.nps.filter(function(n){ return n.necessitaTratativa === 'sim'; });
+    var npsConc = npsNec.filter(function(n){ return n.status === 'concluida'; });
+    var recup = encerrados.filter(function(c){ return c.encerramento && c.encerramento.utilizacaoRecuperada === 'sim'; }).length;
+    var parc = encerrados.filter(function(c){ return c.encerramento && c.encerramento.utilizacaoRecuperada === 'parcial'; }).length;
+    var tempos = encerrados.map(function(c){ return diffDays((c.encerramento && c.encerramento.em ? c.encerramento.em : qAgora()).slice(0,10), c.iniciadoEm || c.criadoEm.slice(0,10)); });
+    var paradosDias = atrasados.map(qDiasParado);
+    function pct(a, b){ return b ? Math.round(a*100/b)+'%' : '—'; }
+    var h = '<div class="grid-stats" style="margin-top:0;margin-bottom:14px;">' +
+      '<div class="stat"><div class="label">Casos parados ou atrasados</div><div class="value num" id="qpAtrasados">'+atrasados.length+'</div><div class="sub">Tempo parado médio '+gFmtNum(gMediaH(paradosDias), ' d úteis')+'</div></div>' +
+      '<div class="stat"><div class="label">Tratativas de NPS concluídas</div><div class="value num" id="qpNps">'+pct(npsConc.length, npsNec.length)+'</div><div class="sub">'+npsConc.length+' de '+npsNec.length+' necessárias</div></div>' +
+      '<div class="stat"><div class="label">Usabilidade recuperada</div><div class="value num" id="qpRecup">'+pct(recup + parc, encerrados.length)+'</div><div class="sub">'+recup+' total · '+parc+' parcial · de '+encerrados.length+' concluídos</div></div>' +
+      '<div class="stat"><div class="label">Tempo médio de tratativa</div><div class="value num">'+gFmtNum(gMediaH(tempos), ' d')+'</div><div class="sub">casos concluídos</div></div>' +
+      '<div class="stat"><div class="label">Elegíveis a acompanhar</div><div class="value num" id="qpElegiveis">'+elegSinais.length+'</div><div class="sub">de '+elegSemCaso.length+' elegíveis sem caso</div></div>' +
+      '<div class="stat"><div class="label">Sem treinamento concluído</div><div class="value num">'+semTreino+'</div><div class="sub">entre os elegíveis sem caso</div></div>' +
+      '<div class="stat"><div class="label">Alto risco de churn</div><div class="value num">'+(altoCasos + altoElegiveis)+'</div><div class="sub">'+altoCasos+' em caso · '+altoElegiveis+' elegíveis sem caso</div></div></div>';
+    // evolução mensal
+    var meses = qUltimosMeses(6);
+    var serie = meses.map(function(m){
+      return [m.slice(5)+'/'+m.slice(2,4), Q.casos.filter(function(c){ return qMesKey(c.criadoEm) === m; }).length,
+        encerrados.filter(function(c){ return qMesKey((c.encerramento||{}).em) === m; }).length];
+    });
+    h += '<div class="card"><div class="card-head"><h2>Evolução dos casos tratados</h2></div><div class="card-body">'+qBarras(serie)+'</div></div>';
+    var recMes = meses.map(function(m){
+      var l = encerrados.filter(function(c){ return qMesKey((c.encerramento||{}).em) === m; });
+      var r = l.filter(function(c){ return c.encerramento.utilizacaoRecuperada === 'sim' || c.encerramento.utilizacaoRecuperada === 'parcial'; }).length;
+      return [m.slice(5)+'/'+m.slice(2,4), l.length, r, pct(r, l.length)];
+    });
+    h += '<div class="card"><div class="card-head"><h2>Recuperação de usabilidade por mês</h2></div><div class="card-body">'+gTabela(['Mês','Encerrados','Recuperados (total ou parcial)','Taxa'], recMes)+'</div></div>';
+    // pendências por analista
+    var pend = {}; abertos.forEach(function(c){ var k = c.responsavelNome || '—'; var o = pend[k] = pend[k] || { a:0, t:0 }; o.a++; if(qAtrasado(c)) o.t++; });
+    h += '<div class="card"><div class="card-head"><h2>Pendências por analista</h2></div><div class="card-body">'+gTabela(['Analista','Casos abertos','Atrasados'], Object.keys(pend).map(function(k){ return [esc(k), pend[k].a, pend[k].t]; }))+'</div></div>';
+    // contatados x sem resposta
+    var cont = { contatado:0, sem_resposta:0, outros:0, sem:0 };
+    abertos.forEach(function(c){
+      var u = qLancsDoCaso(c.id).filter(function(l){ return l.statusContato; })[0];
+      if(!u) cont.sem++; else if(u.statusContato === 'contatado') cont.contatado++; else if(u.statusContato === 'sem_resposta') cont.sem_resposta++; else cont.outros++;
+    });
+    h += '<div class="card"><div class="card-head"><h2>Contatados x sem resposta</h2><div class="hint">Último status de contato de cada caso aberto.</div></div><div class="card-body">'+gTabela(['Situação','Casos'], [['Contatado', cont.contatado], ['Sem resposta', cont.sem_resposta], ['Reagendado, recusou ou não se aplica', cont.outros], ['Nenhum contato registrado', cont.sem]])+'</div></div>';
+    // gerentes concentrando risco
+    var ger = {};
+    abertos.filter(function(c){ return c.risco === 'alto'; }).forEach(function(c){ var o = ger[c.gerenteContas || '—'] = ger[c.gerenteContas || '—'] || { c:0, e:0 }; o.c++; });
+    elegSemCaso.filter(function(x){ return x.risco === 'alto'; }).forEach(function(x){ var k = x.cli.csm || '—'; var o = ger[k] = ger[k] || { c:0, e:0 }; o.e++; });
+    h += '<div class="card"><div class="card-head"><h2>Gerentes de contas concentrando risco alto</h2></div><div class="card-body">'+gTabela(['Gerente de contas','Em caso aberto','Elegíveis sem caso','Total'],
+      Object.keys(ger).sort(function(a,b){ return (ger[b].c+ger[b].e) - (ger[a].c+ger[a].e); }).map(function(k){ return [esc(k), ger[k].c, ger[k].e, ger[k].c+ger[k].e]; }))+'</div></div>';
+    // produtividade justa
+    var prod = {};
+    function po(n){ return prod[n] = prod[n] || { cont:0, acoes:0, pend:0, res:0 }; }
+    Q.lancs.forEach(function(l){
+      if(l.tipo === 'contato' && l.statusContato === 'contatado') po(l.autorNome).cont++;
+      if((l.tipo === 'acao' || l.tipo === 'contato') && l.situacao === 'concluida') po(l.autorNome).acoes++;
+    });
+    abertos.forEach(function(c){ po(c.responsavelNome || '—').pend++; });
+    encerrados.forEach(function(c){ if(c.encerramento && (c.encerramento.resultado === 'recuperado' || c.encerramento.resultado === 'parcial')) po(c.encerramento.porNome || c.responsavelNome || '—').res++; });
+    h += '<div class="card"><div class="card-head"><div><h2>Produtividade por analista</h2><div class="hint">Quatro leituras separadas, sem somar em um número único: volume de contatos, ações concluídas, pendências abertas e resultados.</div></div></div><div class="card-body">'+gTabela(['Analista','Contatos realizados','Ações concluídas','Pendências abertas','Casos com recuperação'],
+      Object.keys(prod).map(function(k){ return [esc(k), prod[k].cont, prod[k].acoes, prod[k].pend, prod[k].res]; }))+'</div></div>';
+    return h;
+  }
+
+  // ---------------- CONFIGURAÇÃO ----------------
+  function qRenderConfig(){
+    var c = qCfg();
+    var aud = Q.audit.slice().sort(function(a,b){ return a.em < b.em ? 1 : -1; }).slice(0, 30);
+    return '<div class="card"><div class="card-head"><div><h2>Regras configuráveis</h2><div class="hint">Mudar uma regra não reescreve casos antigos. Só quem tem acesso ao módulo vê esta tela.</div></div></div><div class="card-body">' +
+      '<div class="field-row"><div class="field"><label for="qcgDias">Dias úteis sem movimento para marcar o caso como parado</label><input type="number" id="qcgDias" min="1" max="60" value="'+c.diasParado+'"></div>' +
+      '<div class="field"><label for="qcgMeses">Meses de plataforma para a Base ser elegível</label><input type="number" id="qcgMeses" min="1" max="36" value="'+c.mesesElegiveis+'"></div></div>' +
+      '<div class="field"><label for="qcgSmart">Cliente SMART</label><select id="qcgSmart">'+gOpts([{v:'nao',l:'Apenas sinalizar nos casos'},{v:'sim',l:'Bloquear lançamentos de ligação'}], c.smartBloqueiaLigacao ? 'sim' : 'nao')+'</select></div>' +
+      '<div class="hint" style="margin:6px 0 10px;">Regras fixas: ID obrigatório e vinculado ao cadastro, histórico nunca editado, pendências sempre visíveis, encerramento com resultado e motivo, um caso aberto por cliente.</div>' +
+      '<button class="btn btn-accent" data-q="cfg-salvar">Salvar regras</button></div></div>' +
+      '<div class="card"><div class="card-head"><div><h2>Auditoria recente</h2><div class="hint">Toda leitura de caso e toda escrita registra quem fez e quando. Só você lê esta lista.</div></div></div><div class="card-body">'+
+      gTabela(['Quando','Quem','Ação','Caso'], aud.map(function(a){ var cs = qCasoById(a.casoId); return [esc(gFmtDT(a.em)), esc(a.usuarioNome), esc(a.acao.replace(/_/g,' ')), cs ? esc(qNumCaso(cs)) : '—']; }))+'</div></div>';
+  }
+  async function qSalvarConfig(){
+    var dias = Number(qVal('qcgDias')), meses = Number(qVal('qcgMeses'));
+    if(!(dias >= 1) || !(meses >= 1)){ qToast('Informe valores válidos.'); return; }
+    var atual = Q.config.filter(function(x){ return x.id === 'padrao'; })[0] || {};
+    var c = Object.assign({}, atual, { id:'padrao', diasParado:dias, mesesElegiveis:meses, smartBloqueiaLigacao: qVal('qcgSmart') === 'sim' });
+    try{ await qPut('config', c); qAuditar('alterou_config', ''); mostrarToastSucesso('Regras salvas.'); renderAll(); }
+    catch(e){ qToast('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+
+  // ---------------- TELA PRINCIPAL ----------------
+  function qRender(){
+    if(!qMontado) return;
+    qAtualizarBadge();
+    var view = document.getElementById('view-qualidade');
+    if(!view || !view.classList.contains('active')) return;
+    var corpo = document.getElementById('qualidadeCorpo'); if(!corpo) return;
+    var a = document.activeElement;
+    if(a && corpo.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.id !== 'qBusca' && a.id !== 'qcgDias' && a.id !== 'qcgMeses') return;
+    var idFoco = a && a.id, selIni = a && a.selectionStart;
+    var abas = [['fila','Casos'],['elegiveis','Elegíveis'],['nps','NPS'],['insumos','Insumos de processo'],['painel','Painel'],['config','Regras e auditoria']];
+    var tabs = '<div class="agenda-cal-modos" style="margin-bottom:14px;flex-wrap:wrap;">' + abas.map(function(x){
+      return '<button class="btn btn-sm'+(qUI.aba === x[0] ? ' is-ativo' : '')+'" data-q="aba" data-aba="'+x[0]+'">'+esc(x[1])+'</button>';
+    }).join('') + '</div>';
+    var c = '';
+    if(qUI.aba === 'fila') c = qRenderFila();
+    else if(qUI.aba === 'elegiveis') c = qRenderElegiveis();
+    else if(qUI.aba === 'nps') c = qRenderNps();
+    else if(qUI.aba === 'insumos') c = qRenderInsumos();
+    else if(qUI.aba === 'painel') c = qRenderPainel();
+    else if(qUI.aba === 'config') c = qRenderConfig();
+    corpo.innerHTML = tabs + c;
+    if(idFoco && /^(qBusca)$/.test(idFoco)){
+      var el = document.getElementById(idFoco); if(el){ el.focus(); try{ if(selIni != null) el.setSelectionRange(selIni, selIni); }catch(e){} }
+    }
+  }
+
+  // ---------------- eventos ----------------
+  function wireQualidade(){
+    var deb = null;
+    function dentro(el){ return !!(el && el.closest && (el.closest('#view-qualidade') || el.closest('#overlayQualidade'))); }
+    document.addEventListener('click', function(ev){
+      var el = ev.target.closest && ev.target.closest('[data-q]');
+      if(!el || !dentro(el)) return;
+      if(el.tagName === 'A') ev.preventDefault();
+      var acao = el.getAttribute('data-q'), id = el.getAttribute('data-id');
+      switch(acao){
+        case 'aba': qUI.aba = el.getAttribute('data-aba'); qRender(); break;
+        case 'novo-caso': qAbrirNovoCaso(el.getAttribute('data-cli') || ''); break;
+        case 'salvar-caso': qSalvarNovoCaso(); break;
+        case 'fechar-modal': qFecharModal(); break;
+        case 'abrir': qAbrirCaso(id); break;
+        case 'painel': qUI.painel = el.getAttribute('data-p'); qRenderDetalhe(); break;
+        case 'salvar-lancamento': qSalvarLancamento(); break;
+        case 'salvar-diagnostico': qSalvarDiagnostico(); break;
+        case 'encerrar-caso': qEncerrarCaso(); break;
+        case 'cancelar-caso': qCancelarCaso(); break;
+        case 'salvar-retificacao': qSalvarRetificacao(); break;
+        case 'reabrir':
+          var cx = qCasoById(id); if(cx) qAbrirNovoCaso(cx.clienteId, { casoAnteriorId: cx.id, origem:'radar' });
+          break;
+        case 'eleg-todos': qUI.elegTodos = !qUI.elegTodos; qRender(); break;
+        case 'nps-novo': qAbrirNps(''); break;
+        case 'nps-editar': qAbrirNps(id); break;
+        case 'nps-salvar': qSalvarNps(); break;
+        case 'prop-nova': qAbrirProposta(''); break;
+        case 'prop-editar': qAbrirProposta(id); break;
+        case 'prop-salvar': qSalvarProposta(); break;
+        case 'cfg-salvar': qSalvarConfig(); break;
+      }
+    });
+    document.addEventListener('change', function(ev){
+      var t = ev.target; if(!t || !dentro(t)) return;
+      if(t.id === 'qfEstado'){ qUI.fil.estado = t.value; qRender(); }
+      else if(t.id === 'qfRisco'){ qUI.fil.risco = t.value; qRender(); }
+      else if(t.id === 'qfGerente'){ qUI.fil.gerente = t.value; qRender(); }
+      else if(t.id === 'qnId') qAtualizarPrevia();
+    });
+    document.addEventListener('input', function(ev){
+      var t = ev.target; if(!t || !dentro(t)) return;
+      if(t.id === 'qBusca'){ clearTimeout(deb); deb = setTimeout(function(){ qUI.fil.busca = t.value; qRender(); }, 250); }
+      else if(t.id === 'qnId') qAtualizarPrevia();
+    });
+  }
+
+  // ---------------- demonstração (modo offline) ----------------
+  // Só a Carolina Coordenadora recebe a flag no demo — e não a conta de
+  // administrador, justamente para mostrar que o admin não vê nada.
+  function qSeedDemo(){
+    var me = 'carolina-coord', nomeMe = 'Carolina Coordenadora';
+    qAcessosRows = [{ id: me, ativo: true }];
+    function ts(h){ return new Date(Date.now() - h*3600000).toISOString(); }
+    function dia(o){ return addDays(todayISO(), o); }
+    function cli(id){ return clientes.filter(function(c){ return c.id === id; })[0]; }
+    function lanc(caso, tipo, h, texto, extra){
+      return Object.assign({ id: novoId('lq'), casoId: caso, em: ts(h), autorId: me, autorNome: nomeMe, tipo: tipo, texto: texto }, extra || {});
+    }
+    function caso(o){
+      var c = cli(o.cliId) || { id:o.cliId, nome:o.cliId, csm:'' };
+      return Object.assign({ id:o.id, numero:o.numero, clienteId:c.id, clienteNome:c.nome, gerenteContas:c.csm || '', faseCliente:qFase(c), dataInicioCliente:c.dataInicio || '',
+        mesesPlataforma:qMesesDesde(c.dataInicio), smart:!!c.smart, motivoPrincipal:'risco_churn', motivos:[o.motivo || 'risco_churn'], origem:'radar', prioridade:'alta', risco:'alto',
+        treino:'nao_realizado', utilizacao:'baixa', diag:{ area:'', origemFalha:'', setor:'', analistaId:'', analistaNome:'', problema:'', evidencias:'', retornoOnboarding:'', acompanhamentoCsm:'' },
+        responsavelId:me, responsavelNome:nomeMe, estado:'em_tratativa', proximaAcao:'Ligar para o responsável da clínica', proximaAcaoData:dia(1), criadoEm:ts(o.horas || 100),
+        iniciadoEm:dia(-Math.round((o.horas || 100)/24)), ultimoMovimentoEm:ts(o.mov != null ? o.mov : 20), excecaoElegibilidade:'', casoAnteriorId:'', encerramento:null }, o.extra || {});
+    }
+    var c1 = caso({ id:'cq-demo-1', numero:1, cliId:'C002', horas:240, mov:200, extra:{ proximaAcaoData:dia(-3), proximaAcao:'Retornar o contato sem resposta', treino:'parcial',
+      diag:{ area:'onboarding', origemFalha:'processo', setor:'Onboarding', analistaId:'', analistaNome:'', problema:'Treinamento T2 não foi realizado antes do go-live.', evidencias:'', retornoOnboarding:'sim', acompanhamentoCsm:'sim' } } });
+    var c2 = caso({ id:'cq-demo-2', numero:2, cliId:'C010', horas:60, mov:10, motivo:'baixa_usabilidade', extra:{ risco:'medio', prioridade:'media', estado:'aguardando_cliente', proximaAcao:'Confirmar a data do treinamento de reforço', proximaAcaoData:dia(2) } });
+    var c3 = caso({ id:'cq-demo-3', numero:3, cliId:'C003', horas:600, mov:300, motivo:'sem_treinamento', extra:{ estado:'concluido', risco:'baixo', proximaAcao:'', proximaAcaoData:'',
+      diag:{ area:'sales', origemFalha:'area', setor:'Sales', analistaId:'', analistaNome:'', problema:'Cliente vendido com expectativa de integração que o plano não inclui.', evidencias:'', retornoOnboarding:'nao', acompanhamentoCsm:'sim' },
+      encerramento:{ resultado:'recuperado', motivo:'falha_corrigida', utilizacaoRecuperada:'sim', resumo:'Alinhamos o escopo com o cliente e refizemos o treinamento. Utilização voltou ao normal.', licao:'Revisar o roteiro de venda sobre integrações.', em:ts(300), porId:me, porNome:nomeMe } } });
+    Q.casos = [c1, c2, c3];
+    Q.lancs = [
+      lanc('cq-demo-1', 'abertura', 240, 'Cliente com alerta de risco e sem treinamento T2.', { paraEstado:'novo', paraRisco:'alto' }),
+      lanc('cq-demo-1', 'contato', 210, 'Tentei contato por telefone, sem resposta.', { acao:'ligacao', canal:'telefone', statusContato:'sem_resposta', situacao:'concluida', respNome:nomeMe, deEstado:'novo', paraEstado:'em_tratativa', proximaAcao:'Retornar o contato sem resposta', proximaAcaoData:dia(-3) }),
+      lanc('cq-demo-2', 'abertura', 60, 'Utilização baixa após o onboarding.', { paraEstado:'novo', paraRisco:'medio' }),
+      lanc('cq-demo-2', 'contato', 10, 'Falei com a recepção; vão confirmar a data do reforço.', { acao:'whatsapp', canal:'whatsapp', statusContato:'contatado', situacao:'concluida', respNome:nomeMe, deEstado:'novo', paraEstado:'aguardando_cliente' }),
+      lanc('cq-demo-3', 'abertura', 600, 'Cliente reclamou de integração prometida na venda.', { paraEstado:'novo' }),
+      lanc('cq-demo-3', 'contato', 580, 'Reunião de alinhamento de escopo.', { acao:'reuniao', canal:'video', statusContato:'contatado', situacao:'concluida', respNome:nomeMe }),
+      lanc('cq-demo-3', 'encerramento', 300, 'Alinhamos o escopo e refizemos o treinamento.', { deEstado:'em_tratativa', paraEstado:'concluido' })
+    ];
+    Q.nps = [
+      { id:'nps-demo-1', clienteId:'C002', clienteNome:'Grupo Vértice', gerenteContas:'Ana Souza', nota:4, enviada:'sim', dataEnvio:dia(-12), dataContato:'', necessitaTratativa:'sim', status:'pendente', responsavelId:me, responsavelNome:nomeMe, resultado:'', comentario:'Suporte demora para responder.', criadoEm:ts(280) },
+      { id:'nps-demo-2', clienteId:'C010', clienteNome:'Clínica Vida Plena', gerenteContas:'Carla Mendes', nota:6, enviada:'sim', dataEnvio:dia(-20), dataContato:dia(-18), necessitaTratativa:'sim', status:'concluida', responsavelId:me, responsavelNome:nomeMe, resultado:'parcial', comentario:'', criadoEm:ts(480) }
+    ];
+    Q.propostas = [
+      { id:'prop-demo-1', titulo:'Checar escopo de integração antes de fechar a venda', descricao:'Incluir no roteiro de Sales a confirmação do que o plano cobre.', area:'sales', status:'enviada', casosIds:['cq-demo-3'], dataImplantacao:'', historico:[{ em:ts(200), de:'', para:'enviada', porNome:nomeMe }], criadoEm:ts(200), autorNome:nomeMe }
+    ];
+    Q.config = []; Q.audit = [];
+  }
+
   // ---------------------------------------------------------------
   // Start
   // ---------------------------------------------------------------
@@ -15278,6 +16279,7 @@
     }
     wireEvents();
     wireGestao();
+    wireQualidade();
     renderAll(); // mostra o gate em "carregando" imediatamente
     seedLocalDemo().then(function(){
       if(!dataPronta) renderAll(); // dados locais prontos; dataPronta só vira true quando initDb() concluir
