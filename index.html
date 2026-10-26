@@ -15422,6 +15422,15 @@
     if(r === 'baixo') return gPill('Risco baixo', 'pill-good');
     return gPill('Risco não identificado', 'pill-neutral');
   }
+  function qContatoHtml(cli){
+    if(!cli) return '';
+    var tel = String(cli.telefone || '').replace(/\D/g, '');
+    var partes = [];
+    partes.push('<b>Contato:</b> ' + esc(cli.contato || '—'));
+    if(cli.responsavelClinica && cli.responsavelClinica !== cli.contato) partes.push('<b>Responsável na clínica:</b> ' + esc(cli.responsavelClinica));
+    partes.push('<b>Telefone:</b> ' + (tel ? esc(cli.telefone) + ' · <a href="https://wa.me/' + tel + '" target="_blank" rel="noopener">WhatsApp</a>' : '—'));
+    return partes.join(' &nbsp;·&nbsp; ');
+  }
   function qNome(id){ var u = usuarios.filter(function(x){ return x.id === id; })[0]; return u ? u.nome : '—'; }
 
   // ---------------- acesso (a flag) ----------------
@@ -15600,7 +15609,8 @@
       .map(function(c){ return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>'; }).join('');
     var corpo =
       '<div class="field"><label for="qnId">ID da clínica *</label><input type="text" id="qnId" list="qnLista" autocomplete="off" placeholder="Digite o ID ou escolha na lista" value="'+esc(clienteId||'')+'"><datalist id="qnLista">'+opcoes+'</datalist>' +
-      '<div class="hint" id="qnPrev" style="margin-top:6px;">O caso só abre com um ID que exista no cadastro: nome, gerente de contas, fase e data de início vêm de lá.</div></div>' +
+      '<div class="hint" id="qnPrev" style="margin-top:6px;">O caso só abre com um ID que exista no cadastro: nome, gerente de contas, fase e data de início vêm de lá.</div>' +
+      '<div id="qnContato" style="display:none;margin-top:6px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);font-size:12.5px;"></div></div>' +
       '<div class="field" id="qnExcWrap" style="display:none;"><label for="qnExc">Justificativa de exceção de elegibilidade *</label><input type="text" id="qnExc" placeholder="Por que este cliente entra mesmo fora da regra?"></div>' +
       '<div class="field-row"><div class="field"><label for="qnMotivoP">Motivo principal *</label><select id="qnMotivoP">'+qOpts(Q_MOTIVOS, '', 'Selecione...')+'</select></div>' +
       '<div class="field"><label for="qnOrigem">Origem da identificação *</label><select id="qnOrigem">'+qOpts(Q_ORIGENS, pre.origem || 'radar', 'Selecione...')+'</select></div></div>' +
@@ -15629,6 +15639,7 @@
     if(!cli){
       prev.innerHTML = qVal('qnId').trim() ? '<span style="color:var(--critical-ink);">ID não encontrado no cadastro.</span>' : 'O caso só abre com um ID que exista no cadastro: nome, gerente de contas, fase e data de início vêm de lá.';
       if(exc) exc.style.display = 'none';
+      var ctt0 = document.getElementById('qnContato'); if(ctt0){ ctt0.style.display = 'none'; ctt0.innerHTML = ''; }
       qUI.form.cli = ''; return;
     }
     var fase = qFase(cli), meses = qMesesDesde(cli.dataInicio), elig = qElegivel(cli), aberto = qCasoAbertoDoCliente(cli.id);
@@ -15639,6 +15650,7 @@
     if(!elig) aviso += '<div style="color:var(--warning-ink);margin-top:4px;">Fora da elegibilidade (Onboarding ou Base com até '+qCfg().mesesElegiveis+' meses). Abrir exige justificativa.</div>';
     prev.innerHTML = partes.filter(Boolean).join(' · ') + aviso;
     if(exc) exc.style.display = elig ? 'none' : '';
+    var ctt = document.getElementById('qnContato'); if(ctt){ ctt.innerHTML = qContatoHtml(cli); ctt.style.display = ''; }
     if(qUI.form.cli !== cli.id){ // sugere os valores só quando o cliente muda
       qUI.form.cli = cli.id;
       var r = document.getElementById('qnRisco'); if(r) r.value = qRiscoSugerido(cli);
@@ -15705,6 +15717,7 @@
       kv('Treinamento', esc(qRot(Q_TREINO, c.treino))) + kv('Utilização', esc(qRot(Q_UTIL, c.utilizacao))) +
       kv('Responsável', esc(c.responsavelNome)) + kv('Aberto em', fmtDate(c.iniciadoEm)) +
       kv('Próxima ação', aberto ? qLinhaProxima(c) : '') + '</div>';
+    resumo += '<div style="font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);">' + qContatoHtml(qCliente(c.clienteId)) + '</div>';
     if(c.excecaoElegibilidade) resumo += '<div class="hint">Exceção: '+esc(c.excecaoElegibilidade)+'</div>';
     var barra = '';
     if(aberto){
