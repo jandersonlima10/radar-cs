@@ -15336,7 +15336,7 @@
   var Q_NPS_STATUS = [['pendente','Pendente'],['andamento','Em andamento'],['concluida','Concluída'],['sem_necessidade','Sem necessidade']];
   var Q_PROP_STATUS = [['rascunho','Rascunho'],['enviada','Enviada'],['aceita','Aceita'],['implantacao','Em implantação'],['concluida','Concluída'],['recusada','Recusada']];
   var Q_TIPOS_LANC = { abertura:'Abertura', apuracao:'Apuração', contato:'Contato', acao:'Ação', escalonamento:'Escalonamento',
-                       status:'Mudança de status', diagnostico:'Diagnóstico', retificacao:'Retificação', encerramento:'Encerramento', cancelamento:'Cancelamento' };
+                       status:'Mudança de status', responsavel:'Troca de responsável', diagnostico:'Diagnóstico', retificacao:'Retificação', encerramento:'Encerramento', cancelamento:'Cancelamento' };
   var Q_CFG_PADRAO = { diasParado:5, mesesElegiveis:6, smartBloqueiaLigacao:false };
 
   function qRot(lista, v){ var r = lista.filter(function(x){ return x[0] === v; })[0]; return r ? r[1] : (v || '—'); }
@@ -15721,7 +15721,7 @@
     if(c.excecaoElegibilidade) resumo += '<div class="hint">Exceção: '+esc(c.excecaoElegibilidade)+'</div>';
     var barra = '';
     if(aberto){
-      barra = '<div class="agenda-cal-modos" style="flex-wrap:wrap;">' + [['registrar','Registrar contato ou ação'],['diagnostico','Diagnóstico'],['encerrar','Encerrar'],['cancelar','Cancelar caso']].map(function(p){
+      barra = '<div class="agenda-cal-modos" style="flex-wrap:wrap;">' + [['registrar','Registrar contato ou ação'],['diagnostico','Diagnóstico'],['responsavel','Alterar responsável'],['encerrar','Encerrar'],['cancelar','Cancelar caso']].map(function(p){
         return '<button class="btn btn-sm'+(qUI.painel === p[0] ? ' is-ativo' : '')+'" data-q="painel" data-p="'+p[0]+'">'+p[1]+'</button>';
       }).join('') + '</div>';
     }else{
@@ -15804,6 +15804,12 @@
         '<div class="field"><label for="qdAcomp">Necessita acompanhamento do CSM?</label><select id="qdAcomp">'+qOpts(Q_SIMNAO, d.acompanhamentoCsm, 'Selecione...')+'</select></div></div>' +
         '<div><button class="btn btn-accent" data-q="salvar-diagnostico">Salvar diagnóstico</button></div>';
     }
+    if(p === 'responsavel'){
+      return '<div class="hint">Responsável atual: <b>'+esc(c.responsavelNome || '—')+'</b>. A troca fica registrada na linha do tempo. Só quem tem acesso ao módulo enxerga o caso.</div>' +
+        '<div class="field"><label for="qgResp">Novo responsável *</label><select id="qgResp">'+gOptsUsers(c.responsavelId, 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="qgMotivo">Motivo da troca</label><input type="text" id="qgMotivo" placeholder="Ex.: férias, redistribuição de carga"></div>' +
+        '<div><button class="btn btn-accent" data-q="salvar-responsavel">Alterar responsável</button></div>';
+    }
     if(p === 'encerrar'){
       var falta = qDiagFalta(c);
       return (falta.length ? '<div class="hint" style="color:var(--warning-ink);">Para encerrar, complete antes o diagnóstico: '+esc(falta.join(', '))+'.</div>' : '') +
@@ -15864,6 +15870,18 @@
     var l = qNovoLanc(c.id, 'diagnostico', resumo, { deEstado:c.estado, paraEstado:c.estado });
     var novo = Object.assign({}, c, { diag:diag, ultimoMovimentoEm:l.em });
     qGravarCaso(novo, l, 'Diagnóstico salvo.');
+  }
+  function qSalvarResponsavel(){
+    qErro('');
+    var c = qCasoById(qUI.casoId); if(!c || !qAberto(c)) return;
+    var novo = usuarios.filter(function(u){ return u.id === qVal('qgResp'); })[0];
+    if(!novo){ qErro('Escolha o novo responsável.'); return; }
+    if(novo.id === c.responsavelId){ qErro('Este já é o responsável pelo caso.'); return; }
+    var motivo = qVal('qgMotivo').trim();
+    var l = qNovoLanc(c.id, 'responsavel', 'Responsável: '+(c.responsavelNome || '—')+' → '+novo.nome+(motivo ? '\nMotivo: '+motivo : ''), { deEstado:c.estado, paraEstado:c.estado });
+    var atualizado = Object.assign({}, c, { responsavelId:novo.id, responsavelNome:novo.nome, ultimoMovimentoEm:l.em });
+    qUI.painel = 'registrar';
+    qGravarCaso(atualizado, l, 'Responsável alterado para '+novo.nome+'.');
   }
   function qEncerrarCaso(){
     qErro('');
@@ -16195,6 +16213,7 @@
         case 'salvar-lancamento': qSalvarLancamento(); break;
         case 'salvar-diagnostico': qSalvarDiagnostico(); break;
         case 'encerrar-caso': qEncerrarCaso(); break;
+        case 'salvar-responsavel': qSalvarResponsavel(); break;
         case 'cancelar-caso': qCancelarCaso(); break;
         case 'salvar-retificacao': qSalvarRetificacao(); break;
         case 'reabrir':
