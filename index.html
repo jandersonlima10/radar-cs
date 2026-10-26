@@ -15594,7 +15594,7 @@
           '<td>'+qPillEstado(c)+(atras && qAberto(c) ? ' '+gPill('Atrasado','pill-critical') : '')+'</td>' +
           '<td>'+qLinhaProxima(c)+'</td>' +
           '<td class="num">'+(qAberto(c) ? dias+' d úteis' : '—')+'</td>' +
-          '<td>'+esc(c.responsavelNome || '—')+'</td></tr>';
+          '<td>'+esc(c.responsavelNome || '—')+(qAberto(c) ? '<div><a href="#" data-q="trocar-resp" data-id="'+esc(c.id)+'" style="font-size:12px;">Alterar responsável</a></div>' : '')+'</td></tr>';
       }).join('') : '<tr><td colspan="8" class="hint">Nenhum caso neste filtro. Casos abertos nunca saem da fila até serem encerrados ou cancelados.</td></tr>') +
       '</tbody></table></div></div></div>';
     return h;
@@ -15715,7 +15715,7 @@
       kv('Início na plataforma', c.dataInicioCliente ? fmtDate(c.dataInicioCliente)+(c.mesesPlataforma != null ? ' ('+c.mesesPlataforma+' meses)' : '') : '') +
       kv('Motivo principal', esc(qRot(Q_MOTIVOS, c.motivoPrincipal))) + kv('Origem da identificação', esc(qRot(Q_ORIGENS, c.origem))) +
       kv('Treinamento', esc(qRot(Q_TREINO, c.treino))) + kv('Utilização', esc(qRot(Q_UTIL, c.utilizacao))) +
-      kv('Responsável', esc(c.responsavelNome)) + kv('Aberto em', fmtDate(c.iniciadoEm)) +
+      kv('Responsável', esc(c.responsavelNome) + (aberto ? ' <a href="#" data-q="painel" data-p="responsavel" style="font-size:12px;">Alterar</a>' : '')) + kv('Aberto em', fmtDate(c.iniciadoEm)) +
       kv('Próxima ação', aberto ? qLinhaProxima(c) : '') + '</div>';
     resumo += '<div style="font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);">' + qContatoHtml(qCliente(c.clienteId)) + '</div>';
     if(c.excecaoElegibilidade) resumo += '<div class="hint">Exceção: '+esc(c.excecaoElegibilidade)+'</div>';
@@ -16209,6 +16209,7 @@
         case 'salvar-caso': qSalvarNovoCaso(); break;
         case 'fechar-modal': qFecharModal(); break;
         case 'abrir': qAbrirCaso(id); break;
+        case 'trocar-resp': qAbrirCaso(id); qUI.painel = 'responsavel'; qRenderDetalhe(); break;
         case 'painel': qUI.painel = el.getAttribute('data-p'); qRenderDetalhe(); break;
         case 'salvar-lancamento': qSalvarLancamento(); break;
         case 'salvar-diagnostico': qSalvarDiagnostico(); break;
