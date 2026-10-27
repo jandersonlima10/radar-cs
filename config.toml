@@ -1,0 +1,4 @@
+# Só o necessário para esta função. O DisparaVox não envia o token do Supabase,
+# por isso a verificação de JWT é desligada: a proteção é a assinatura HMAC.
+[functions.webhook-oportunidades]
+verify_jwt = false
