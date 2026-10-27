@@ -800,12 +800,16 @@
   }
 
   /* ---------------- Gestão ---------------- */
-  #view-gestao .btn.is-ativo, #view-qualidade .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  #view-gestao .btn.is-ativo, #view-qualidade .btn.is-ativo, #view-oportunidades .btn.is-ativo, #overlayOportunidade .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
   #view-qualidade .agenda-cal-modos, #overlayQualidade .agenda-cal-modos{ flex-wrap:wrap; }
   #overlayQualidade .modal-body > *{ flex-shrink:0; }
   #view-gestao .agenda-cal-modos{ flex-wrap:wrap; }
   #view-gestao .g-card[draggable="true"]{ cursor:grab; }
   #overlayGestao{ z-index:1100; }
+  #view-oportunidades .agenda-cal-modos, #overlayOportunidade .agenda-cal-modos{ flex-wrap:wrap; }
+  #overlayOportunidade{ z-index:1100; }
+  #opModalCorpo{ display:flex; flex-direction:column; gap:14px; }
+  #opModalCorpo > *{ flex-shrink:0; }
   #gModalCorpo > *{ flex-shrink:0; }
   #gModalCorpo{ max-height:72vh; }
 </style>
@@ -871,6 +875,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
         Gestão
         <span class="nav-badge" id="navGestaoBadge" style="display:none;">0</span>
+      </button>
+      <button class="nav-item" data-view="oportunidades" data-role-gate="oport" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8L12 2z"/></svg>
+        Oportunidades
+        <span class="nav-badge" id="navOportunidadesBadge" style="display:none;">0</span>
       </button>
       <button class="nav-item" data-view="reclamacoesRA">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 8v4M12 16h.01"/></svg>
@@ -1637,6 +1646,16 @@
         </div>
       </div>
       <div class="content"><div id="gestaoCorpo"></div></div>
+    </section>
+
+    <section class="view" id="view-oportunidades">
+      <div class="topbar">
+        <div>
+          <h1>Oportunidades</h1>
+          <div class="subtitle">Oportunidades de negócio vindas das ligações do DisparaVox, trabalhadas pelos CSMs.</div>
+        </div>
+      </div>
+      <div class="content"><div id="oportunidadesCorpo"></div></div>
     </section>
 
     <section class="view" id="view-relatorios">
@@ -2762,6 +2781,17 @@
   </div>
 </div>
 
+<div class="overlay" id="overlayOportunidade">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <h3 id="opModalTitulo"></h3>
+      <button class="icon-btn" data-close="overlayOportunidade" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body" id="opModalCorpo"></div>
+    <div class="modal-foot" id="opModalRodape"></div>
+  </div>
+</div>
+
 <div class="overlay" id="overlayValidarTreinamento">
   <div class="modal" style="max-width:620px;">
     <div class="modal-head">
@@ -2825,6 +2855,8 @@
       gestaoMetas: 'gestao_metas',
       gestaoAvisos: 'gestao_avisos',
       gestaoConfig: 'gestao_config',
+      oportunidades: 'oportunidades',
+      oportunidadesEventos: 'oportunidades_eventos',
       qualidadeAcessos: 'qualidade_acessos',
       qualidadeCasos: 'qualidade_casos',
       qualidadeLancamentos: 'qualidade_lancamentos',
@@ -4761,7 +4793,7 @@
     clientesCarregados = true;
     // Dados de exemplo da Gestão só no modo demonstração (offline): com o
     // banco real, os documentos vêm do Supabase.
-    if(offline){ gestaoSeedDemo(); qSeedDemo(); }
+    if(offline){ gestaoSeedDemo(); qSeedDemo(); opSeedDemo(); }
   }
 
   // ---------------------------------------------------------------
@@ -4884,6 +4916,7 @@
     }, function(){});
 
     gSubscribe();
+    opSubscribe();
     qIniciarAcesso();
   }
 
@@ -6558,6 +6591,10 @@
     document.querySelectorAll('[data-role-gate="admin-renov"]').forEach(function(el){
       el.style.display = (admin || renov || csrev) ? '' : 'none';
     });
+    // "oport": Oportunidades é para CSM, coordenação e admin.
+    document.querySelectorAll('[data-role-gate="oport"]').forEach(function(el){
+      el.style.display = (admin || coord || !(renov || csrev || treino)) ? '' : 'none';
+    });
     // O especialista de renovação e o CS Revenue têm um ambiente próprio
     // e exclusivo (seção 3 da spec, estendido ao CS Revenue): nada de
     // Painel do CSM, Carteira, Onboarding, Alertas, Playbooks ou Agenda
@@ -7774,6 +7811,7 @@
     renderAgenda();
     renderReclamacoesRA();
     renderGestao();
+    renderOportunidades();
     qSincronizar();
     if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); renderRenovacao(); backfillClientesCsmId(); }
     else if(isCoordenador()){ renderRelatorios(); }
@@ -7917,6 +7955,7 @@
     if(view === 'relatorios' && !isAdmin() && !isCoordenador()) view = 'painel';
     if(view === 'renovacao' && !isAdmin() && !isRenovacao() && !isCsRevenue()) view = 'painel';
     if(view === 'qualidade' && !qAcesso) view = 'painel';
+    if(view === 'oportunidades' && !opPodeVer()) view = 'painel';
     // Especialista de renovação e CS Revenue: ambiente próprio e exclusivo —
     // sem Painel do CSM, Onboarding, Playbooks, Agenda etc. (seção 3 da spec,
     // estendido ao CS Revenue). Reforçado aqui (e não só escondendo os
@@ -7931,6 +7970,7 @@
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
     if(view === 'gestao') renderGestao(true);
     if(view === 'qualidade') qRender();
+    if(view === 'oportunidades') renderOportunidades();
   }
 
   // ---------------------------------------------------------------
@@ -16290,6 +16330,394 @@
     Q.config = []; Q.audit = [];
   }
 
+
+  // ===============================================================
+  // OPORTUNIDADES DE NEGÓCIO
+  // ---------------------------------------------------------------
+  // Chegam pelo webhook do DisparaVox (Edge Function webhook-oportunidades)
+  // e são trabalhadas pelos CSMs. Cada CSM vê as suas; admin e coordenação
+  // veem todas, fazem a triagem das que chegam sem cliente e redistribuem.
+  // ===============================================================
+  var oportunidades = [];      // {id, etapa, titulo, clienteId, responsavelId, ligacoes[], eventos[], ...}
+  var opEventosWebhook = [];   // log bruto dos webhooks (só admin/coordenação leem)
+  var opEvAssinado = false;
+  var opUI = { aba:'quadro', quem:'todas', abertaId:null, vinculo:'', filtroEnc:'todas' };
+
+  var OP_ETAPAS = { nova:'Nova', em_contato:'Em contato', proposta:'Proposta', negociacao:'Negociação', ganha:'Ganha', perdida:'Perdida', descartada:'Descartada' };
+  var OP_ABERTAS = ['nova','em_contato','proposta','negociacao'];
+  var OP_FECHADAS = ['ganha','perdida','descartada'];
+  var OP_PRIO = [['alta','Alta'],['media','Média'],['baixa','Baixa']];
+  var OP_MOTIVOS_PERDA = [['preco','Preço'],['sem_necessidade','Sem necessidade agora'],['concorrente','Foi para concorrente'],['sem_retorno','Sem retorno do cliente'],['timing','Momento errado'],['outro','Outro']];
+  var OP_MOTIVOS_DESC = [['nao_era','Não era uma oportunidade'],['duplicada','Duplicada'],['cliente_errado','Contato ou cliente errado'],['outro','Outro']];
+
+  function opAberta(o){ return OP_ABERTAS.indexOf(o.etapa) > -1; }
+  function opRot(lista, v){ var r = lista.filter(function(x){ return x[0] === v; })[0]; return r ? r[1] : (v || '—'); }
+  function opEhGestor(){ return isAdmin() || isCoordenador(); }
+  function opMeuId(){ return currentUser ? currentUser.id : ''; }
+  function opVisiveis(){
+    if(!currentUser) return [];
+    if(opEhGestor()) return oportunidades;
+    return oportunidades.filter(function(o){ return o.responsavelId === opMeuId(); });
+  }
+  function opPodeEditar(o){ return !!currentUser && (opEhGestor() || o.responsavelId === opMeuId()); }
+  function opPorId(id){ return oportunidades.filter(function(o){ return o.id === id; })[0] || null; }
+  function opNaTriagem(o){ return opAberta(o) && (!o.responsavelId || o.semCliente); }
+  function opVencida(o){ return opAberta(o) && !!o.proximaAcaoData && o.proximaAcaoData < todayISO(); }
+  function opSalvar(o){
+    var i = oportunidades.findIndex(function(x){ return x.id === o.id; });
+    var anterior = i > -1 ? oportunidades[i] : null;
+    o.atualizadoEm = new Date().toISOString();
+    if(i > -1) oportunidades[i] = o; else oportunidades.push(o);
+    var body = Object.assign({}, o); delete body.id;
+    if(db && !offline){
+      return db.collection('oportunidades').doc(o.id).set(body).catch(function(e){
+        var j = oportunidades.findIndex(function(x){ return x.id === o.id; });
+        if(anterior){ if(j > -1) oportunidades[j] = anterior; } else if(j > -1){ oportunidades.splice(j, 1); }
+        throw e;
+      });
+    }
+    return Promise.resolve();
+  }
+  function opEvento(o, tipo, texto){
+    o.eventos = (o.eventos || []).concat([{ id: novoId('ev'), em: new Date().toISOString(), autor: currentUser ? currentUser.nome : '', tipo: tipo, texto: texto || '' }]);
+  }
+  function opAssinarEventos(){
+    if(opEvAssinado || !db || offline || !currentUser || !opEhGestor()) return;
+    opEvAssinado = true;
+    db.collection('oportunidadesEventos').onSnapshot(function(snap){
+      opEventosWebhook = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderOportunidades();
+    }, function(){});
+  }
+  function opUrlWebhook(){ return (RADAR_CS_SUPABASE && RADAR_CS_SUPABASE.url ? RADAR_CS_SUPABASE.url : '') + '/functions/v1/webhook-oportunidades'; }
+  function opPill(o){
+    var cls = o.etapa === 'ganha' ? 'pill-good' : (o.etapa === 'perdida' ? 'pill-critical' : (o.etapa === 'nova' ? 'pill-warning' : 'pill-neutral'));
+    return gPill(OP_ETAPAS[o.etapa] || o.etapa, cls);
+  }
+  function opAtualizarBadge(){
+    var b = document.getElementById('navOportunidadesBadge'); if(!b) return;
+    var n = opVisiveis().filter(function(o){ return opAberta(o) && (o.etapa === 'nova' || opVencida(o) || (opEhGestor() && opNaTriagem(o))); }).length;
+    b.textContent = n; b.style.display = n ? '' : 'none';
+  }
+
+  // ---------------- tela ----------------
+  function opCard(o, mostrarCsm){
+    var venc = opVencida(o), ultima = (o.ligacoes || [])[o.ligacoes.length - 1] || {};
+    return '<div class="card" data-op="abrir" data-id="'+esc(o.id)+'" style="margin:0 0 10px;cursor:pointer;'+(venc ? 'border-color:var(--critical);' : '')+'"><div class="card-body" style="padding:12px 14px;">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><b style="font-size:13.5px;">'+esc(o.clienteNome || o.contato && o.contato.nome || 'Sem cliente')+'</b>'+(o.prioridade === 'alta' ? gChip('Alta', 'c-crit') : '')+'</div>' +
+      '<div class="hint" style="margin-top:2px;">'+esc(o.produto || (ultima.resumo ? ultima.resumo.slice(0, 70) : o.titulo))+'</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;">' + (o.valorEstimado ? gChip(fmtMoney(o.valorEstimado)) : '') + (o.semCliente ? gChip('Sem cliente', 'c-warn') : '') +
+        (mostrarCsm ? gChip(o.responsavelNome || 'Sem responsável', o.responsavelId ? '' : 'c-warn') : '') + '</div>' +
+      '<div class="hint" style="margin-top:8px;'+(venc ? 'color:var(--critical-ink);font-weight:600;' : '')+'">'+(o.proximaAcao ? esc(o.proximaAcao) : 'Sem próxima ação')+(o.proximaAcaoData ? ' · '+fmtDate(o.proximaAcaoData)+(venc ? ' (vencida)' : '') : '')+'</div>' +
+      '</div></div>';
+  }
+  function opRenderQuadro(){
+    var lista = opVisiveis().filter(opAberta);
+    var gestor = opEhGestor();
+    if(gestor){
+      if(opUI.quem === 'minhas') lista = lista.filter(function(o){ return o.responsavelId === opMeuId(); });
+      else if(opUI.quem !== 'todas') lista = lista.filter(function(o){ return o.responsavelId === opUI.quem; });
+    }
+    var filtro = '';
+    if(gestor){
+      var ids = {}; opVisiveis().forEach(function(o){ if(o.responsavelId) ids[o.responsavelId] = o.responsavelNome || o.responsavelId; });
+      filtro = '<div class="filters" style="margin-bottom:12px;"><select id="opFiltroQuem">' + gOpts([{v:'todas',l:'Todos os CSMs'},{v:'minhas',l:'Só as minhas'}].concat(Object.keys(ids).map(function(k){ return {v:k,l:ids[k]}; })), opUI.quem) + '</select></div>';
+    }
+    var colunas = OP_ABERTAS.map(function(e){
+      var l = lista.filter(function(o){ return o.etapa === e; }).sort(function(a,b){ return (a.proximaAcaoData || '9') < (b.proximaAcaoData || '9') ? -1 : 1; });
+      var soma = l.reduce(function(s, o){ return s + (Number(o.valorEstimado) || 0); }, 0);
+      return '<div style="min-width:0;"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;"><b>'+esc(OP_ETAPAS[e])+' <span class="hint" style="font-weight:400;">('+l.length+')</span></b><span class="hint">'+(soma ? fmtMoney(soma) : '')+'</span></div>' +
+        (l.length ? l.map(function(o){ return opCard(o, gestor); }).join('') : '<div class="hint" style="padding:8px 0;">Nenhuma.</div>') + '</div>';
+    }).join('');
+    return filtro + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;align-items:start;" id="opQuadro">' + colunas + '</div>';
+  }
+  function opRenderTriagem(){
+    var lista = oportunidades.filter(opNaTriagem).sort(function(a,b){ return a.criadoEm < b.criadoEm ? -1 : 1; });
+    return '<div class="card"><div class="card-head"><div><h2>Triagem</h2><div class="hint">Oportunidades que chegaram sem cliente identificado ou sem CSM responsável. Vincule o cliente e distribua.</div></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Recebida</th><th>Contato</th><th>Resumo da ligação</th><th>Situação</th><th></th></tr></thead><tbody>' +
+      (lista.length ? lista.map(function(o){
+        var ul = (o.ligacoes || [])[o.ligacoes.length - 1] || {};
+        return '<tr><td>'+esc(gFmtDT(o.criadoEm))+'</td><td>'+esc((o.contato && o.contato.nome) || '—')+'<div class="hint">'+esc((o.contato && o.contato.telefone) || '')+'</div></td><td>'+esc((ul.resumo || '').slice(0, 120) || '—')+'</td>' +
+          '<td>'+(o.semCliente ? gChip('Sem cliente', 'c-warn') : '')+' '+(!o.responsavelId ? gChip('Sem responsável', 'c-warn') : '')+'</td>' +
+          '<td><button class="btn btn-sm btn-accent" data-op="abrir" data-id="'+esc(o.id)+'">Tratar</button></td></tr>';
+      }).join('') : '<tr><td colspan="5" class="hint">Nada na triagem.</td></tr>') + '</tbody></table></div></div></div>';
+  }
+  function opRenderEncerradas(){
+    var lista = opVisiveis().filter(function(o){ return !opAberta(o); }).filter(function(o){ return opUI.filtroEnc === 'todas' || o.etapa === opUI.filtroEnc; })
+      .sort(function(a,b){ return (b.encerradaEm || '') < (a.encerradaEm || '') ? -1 : 1; });
+    return '<div class="filters" style="margin-bottom:12px;"><select id="opFiltroEnc">'+gOpts([{v:'todas',l:'Todas as encerradas'},{v:'ganha',l:'Ganhas'},{v:'perdida',l:'Perdidas'},{v:'descartada',l:'Descartadas'}], opUI.filtroEnc)+'</select></div>' +
+      '<div class="card"><div class="card-body pad-top"><div class="table-wrap"><table><thead><tr><th>Encerrada</th><th>Cliente</th><th>Resultado</th><th>Valor</th><th>Motivo</th><th>Responsável</th></tr></thead><tbody>' +
+      (lista.length ? lista.map(function(o){
+        return '<tr data-op="abrir" data-id="'+esc(o.id)+'" style="cursor:pointer;"><td>'+(o.encerradaEm ? esc(gFmtDT(o.encerradaEm)) : '—')+'</td><td>'+esc(o.clienteNome || '—')+'</td><td>'+opPill(o)+'</td>' +
+          '<td>'+(o.etapa === 'ganha' ? fmtMoney(o.valorFinal) : '—')+'</td><td>'+esc(o.motivoPerda ? (opRot(OP_MOTIVOS_PERDA.concat(OP_MOTIVOS_DESC), o.motivoPerda)) : '—')+'</td><td>'+esc(o.responsavelNome || '—')+'</td></tr>';
+      }).join('') : '<tr><td colspan="6" class="hint">Nenhuma oportunidade encerrada neste filtro.</td></tr>') + '</tbody></table></div></div></div>';
+  }
+  function opRenderPainel(){
+    var todas = opVisiveis(), abertas = todas.filter(opAberta), mes = todayISO().slice(0, 7);
+    var ganhas = todas.filter(function(o){ return o.etapa === 'ganha'; }), perdidas = todas.filter(function(o){ return o.etapa === 'perdida'; });
+    var ganhasMes = ganhas.filter(function(o){ return (o.encerradaEm || '').slice(0, 7) === mes; });
+    var pipe = abertas.reduce(function(s, o){ return s + (Number(o.valorEstimado) || 0); }, 0);
+    var valorMes = ganhasMes.reduce(function(s, o){ return s + (Number(o.valorFinal) || 0); }, 0);
+    var tempos = todas.map(function(o){
+      var p = (o.eventos || []).filter(function(e){ return e.tipo === 'contato' || e.tipo === 'etapa'; })[0];
+      return p ? (new Date(p.em) - new Date(o.criadoEm)) / 3600000 : null;
+    }).filter(function(x){ return x != null; });
+    var h = '<div class="grid-stats" style="margin-top:0;margin-bottom:14px;">' +
+      '<div class="stat"><div class="label">Em aberto</div><div class="value num" id="opStAbertas">'+abertas.length+'</div><div class="sub">'+fmtMoney(pipe)+' estimados</div></div>' +
+      '<div class="stat"><div class="label">Novas sem contato</div><div class="value num">'+abertas.filter(function(o){ return o.etapa === 'nova'; }).length+'</div></div>' +
+      '<div class="stat"><div class="label">Ações vencidas</div><div class="value num" id="opStVencidas">'+abertas.filter(opVencida).length+'</div></div>' +
+      '<div class="stat"><div class="label">Ganhas no mês</div><div class="value num">'+ganhasMes.length+'</div><div class="sub">'+fmtMoney(valorMes)+'</div></div>' +
+      '<div class="stat"><div class="label">Conversão</div><div class="value num" id="opStConversao">'+((ganhas.length + perdidas.length) ? Math.round(ganhas.length * 100 / (ganhas.length + perdidas.length)) + '%' : '—')+'</div><div class="sub">'+ganhas.length+' ganhas · '+perdidas.length+' perdidas</div></div>' +
+      '<div class="stat"><div class="label">Tempo até o 1º contato</div><div class="value num">'+gFmtNum(gMediaH(tempos), ' h')+'</div></div></div>';
+    var porCsm = {};
+    todas.forEach(function(o){ var k = o.responsavelNome || 'Sem responsável'; var p = porCsm[k] = porCsm[k] || { a:0, v:0, g:0, p:0, val:0 };
+      if(opAberta(o)){ p.a++; if(opVencida(o)) p.v++; } else if(o.etapa === 'ganha'){ p.g++; p.val += Number(o.valorFinal) || 0; } else if(o.etapa === 'perdida') p.p++; });
+    h += '<div class="card"><div class="card-head"><h2>Por CSM</h2></div><div class="card-body">'+gTabela(['CSM','Em aberto','Ações vencidas','Ganhas','Perdidas','Valor ganho'], Object.keys(porCsm).sort().map(function(k){ var p = porCsm[k]; return [esc(k), p.a, p.v, p.g, p.p, fmtMoney(p.val)]; }))+'</div></div>';
+    var mot = {}; perdidas.forEach(function(o){ var k = opRot(OP_MOTIVOS_PERDA, o.motivoPerda); mot[k] = (mot[k] || 0) + 1; });
+    h += '<div class="card"><div class="card-head"><h2>Motivos de perda</h2></div><div class="card-body">'+gTabela(['Motivo','Oportunidades'], Object.keys(mot).sort(function(a,b){ return mot[b] - mot[a]; }).map(function(k){ return [esc(k), mot[k]]; }))+'</div></div>';
+    return h;
+  }
+  function opRenderWebhook(){
+    var ev = opEventosWebhook.slice().sort(function(a,b){ return (a.recebidoEm || '') < (b.recebidoEm || '') ? 1 : -1; }).slice(0, 60);
+    var rot = { processado:'Processado', sem_cliente:'Criada sem cliente', ignorado:'Ignorado', erro:'Erro', recebido:'Recebido' };
+    return '<div class="card"><div class="card-head"><div><h2>Conexão com o DisparaVox</h2><div class="hint">Cadastre este endereço no campo "URL do Endpoint" do webhook e marque apenas o evento "Ligação encerrada" (call.ended). O "Webhook Secret" deve ser o mesmo configurado na função.</div></div></div><div class="card-body">' +
+      '<div class="field"><label>URL do endpoint</label><input type="text" readonly id="opUrlWebhook" value="'+esc(opUrlWebhook())+'" onclick="this.select()"></div>' +
+      '<div class="hint">Guia completo de instalação: arquivo LEIAME-WEBHOOK.md (entregue junto com a função).</div></div></div>' +
+      '<div class="card"><div class="card-head"><div><h2>Últimas entradas</h2><div class="hint">Tudo que o DisparaVox enviou, inclusive o que não virou oportunidade. Só admin e coordenação veem.</div></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Recebido</th><th>Evento</th><th>Resultado</th><th>Observação</th></tr></thead><tbody>' +
+      (ev.length ? ev.map(function(e){
+        return '<tr><td>'+esc(gFmtDT(e.recebidoEm))+'</td><td>'+esc(e.tipo || '—')+'</td><td>'+esc(rot[e.status] || e.status)+'</td><td>'+esc(e.resumo || '')+(e.oportunidadeId && opPorId(e.oportunidadeId) ? ' <a href="#" data-op="abrir" data-id="'+esc(e.oportunidadeId)+'">Abrir</a>' : '')+'</td></tr>';
+      }).join('') : '<tr><td colspan="4" class="hint">Nenhuma entrada ainda.</td></tr>') + '</tbody></table></div></div></div>';
+  }
+  function renderOportunidades(){
+    if(!currentUser) return;
+    opAtualizarBadge();
+    opAssinarEventos();
+    var view = document.getElementById('view-oportunidades');
+    if(!view || !view.classList.contains('active')) return;
+    var a = document.activeElement;
+    if(a && view.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName)) return;
+    var gestor = opEhGestor();
+    var nTri = oportunidades.filter(opNaTriagem).length;
+    var abas = [['quadro','Quadro'],['encerradas','Encerradas'],['painel','Painel']];
+    if(gestor){ abas.splice(1, 0, ['triagem','Triagem'+(nTri ? ' ('+nTri+')' : '')]); abas.push(['webhook','Entradas do webhook']); }
+    if(!abas.some(function(x){ return x[0] === opUI.aba; })) opUI.aba = 'quadro';
+    var tabs = '<div class="agenda-cal-modos" style="margin-bottom:14px;flex-wrap:wrap;">' + abas.map(function(x){
+      return '<button class="btn btn-sm'+(opUI.aba === x[0] ? ' is-ativo' : '')+'" data-op="aba" data-aba="'+x[0]+'">'+esc(x[1])+'</button>';
+    }).join('') + '</div>';
+    var c = opUI.aba === 'quadro' ? opRenderQuadro() : opUI.aba === 'triagem' ? opRenderTriagem() : opUI.aba === 'encerradas' ? opRenderEncerradas() : opUI.aba === 'painel' ? opRenderPainel() : opRenderWebhook();
+    document.getElementById('oportunidadesCorpo').innerHTML = tabs + c;
+  }
+
+  // ---------------- detalhe ----------------
+  function opAbrir(id){
+    var o = opPorId(id); if(!o) return;
+    opUI.abertaId = id; opUI.painel = opAberta(o) ? 'trabalhar' : 'reabrir';
+    opRenderDetalhe();
+  }
+  function opModal(titulo, corpo, rodape){
+    document.getElementById('opModalTitulo').innerHTML = titulo;
+    document.getElementById('opModalCorpo').innerHTML = corpo;
+    document.getElementById('opModalRodape').innerHTML = rodape || '<button class="btn" data-op="fechar">Fechar</button>';
+    openOverlay('overlayOportunidade');
+  }
+  function opFechar(){ closeOverlay('overlayOportunidade'); opUI.abertaId = null; }
+  function opErro(m){ var el = document.getElementById('opModalErro'); if(el) el.textContent = m || ''; }
+  function opV(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+  function opRenderDetalhe(){
+    var o = opPorId(opUI.abertaId); if(!o){ opFechar(); return; }
+    var pode = opPodeEditar(o), aberta = opAberta(o), gestor = opEhGestor();
+    var tel = String((o.contato && o.contato.telefone) || '').replace(/\D/g, '');
+    function kv(k, v){ return '<div><div class="hint">'+esc(k)+'</div><div>'+(v || '—')+'</div></div>'; }
+    var cab = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + opPill(o) + (o.prioridade === 'alta' ? gChip('Prioridade alta', 'c-crit') : gChip('Prioridade '+opRot(OP_PRIO, o.prioridade).toLowerCase())) +
+      (opVencida(o) ? gPill('Ação vencida', 'pill-critical') : '') + (o.semCliente ? gChip('Sem cliente', 'c-warn') : '') + '</div>';
+    var resumo = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 16px;">' +
+      kv('Cliente', esc(o.clienteNome) + (o.clienteId ? ' <span class="hint">('+esc(o.clienteId)+')</span>' : '')) +
+      kv('Contato', esc((o.contato && o.contato.nome) || '') + (tel ? '<div><a href="https://wa.me/'+tel+'" target="_blank" rel="noopener">'+esc(o.contato.telefone)+' · WhatsApp</a></div>' : '')) +
+      kv('Responsável', esc(o.responsavelNome)) + kv('Recebida em', esc(gFmtDT(o.criadoEm))) + kv('Origem', esc(o.origem === 'disparavox' ? 'DisparaVox' : (o.origem || 'Manual'))) +
+      kv('Valor estimado', o.valorEstimado ? fmtMoney(o.valorEstimado) : '') + (o.etapa === 'ganha' ? kv('Valor ganho', fmtMoney(o.valorFinal)) : '') + '</div>';
+    var ligs = (o.ligacoes || []).slice().reverse().map(function(l){
+      return '<div style="border-left:3px solid var(--border-strong);padding:2px 0 2px 10px;margin-bottom:8px;"><div class="hint">Ligação · '+esc(gFmtDT(l.ocorridoEm))+' · desfecho: '+esc(l.desfecho || '—')+(l.duracaoSeg ? ' · '+Math.round(l.duracaoSeg / 60 * 10) / 10+' min' : '')+(l.gravacaoUrl ? ' · <a href="'+esc(l.gravacaoUrl)+'" target="_blank" rel="noopener">gravação</a>' : '')+'</div>' +
+        (l.resumo ? '<div style="white-space:pre-line;">'+esc(l.resumo)+'</div>' : '') + '</div>';
+    }).join('');
+    var barra = '';
+    if(pode){
+      barra = '<div class="agenda-cal-modos" style="flex-wrap:wrap;">' + (aberta
+        ? [['trabalhar','Trabalhar'],['encerrar','Ganhar ou encerrar']].concat(o.semCliente || gestor ? [['vinculo', o.semCliente ? 'Vincular cliente' : 'Cliente e responsável']] : [])
+        : [['reabrir','Reabrir']]).map(function(p){
+          return '<button class="btn btn-sm'+(opUI.painel === p[0] ? ' is-ativo' : '')+'" data-op="painel" data-p="'+p[0]+'">'+p[1]+'</button>';
+        }).join('') + '</div>';
+    }
+    var painel = '';
+    if(pode && opUI.painel === 'trabalhar' && aberta){
+      painel = '<div class="field-row"><div class="field"><label for="opEtapa">Etapa</label><select id="opEtapa">'+gOpts(OP_ABERTAS.map(function(e){ return {v:e,l:OP_ETAPAS[e]}; }), o.etapa)+'</select></div>' +
+        '<div class="field"><label for="opPrio">Prioridade</label><select id="opPrio">'+gOpts(OP_PRIO.map(function(p){ return {v:p[0],l:p[1]}; }), o.prioridade)+'</select></div></div>' +
+        '<div class="field-row"><div class="field"><label for="opProduto">Produto ou necessidade</label><input type="text" id="opProduto" value="'+esc(o.produto || '')+'" placeholder="Ex.: módulo de estoque"></div>' +
+        '<div class="field"><label for="opValor">Valor estimado (R$)</label><input type="number" id="opValor" min="0" step="0.01" value="'+esc(o.valorEstimado || '')+'"></div></div>' +
+        '<div class="field-row"><div class="field"><label for="opProx">Próxima ação *</label><input type="text" id="opProx" value="'+esc(o.proximaAcao || '')+'"></div>' +
+        '<div class="field"><label for="opProxData">Data da próxima ação *</label><input type="date" id="opProxData" value="'+esc(o.proximaAcaoData || addDays(todayISO(), 1))+'"></div></div>' +
+        '<div class="field"><label for="opNota">Registrar contato ou anotação</label><textarea id="opNota" rows="2" placeholder="O que foi conversado ou combinado."></textarea></div>' +
+        '<div><button class="btn btn-accent" data-op="salvar-trabalho">Salvar</button></div>';
+    }else if(pode && opUI.painel === 'encerrar' && aberta){
+      painel = '<div class="card" style="margin:0;"><div class="card-body" style="padding:12px 14px;"><b>Ganhar</b><div class="field" style="margin-top:8px;"><label for="opValorFinal">Valor fechado (R$) *</label><input type="number" id="opValorFinal" min="0" step="0.01" value="'+esc(o.valorEstimado || '')+'"></div>' +
+        '<div class="field"><label for="opNotaGanha">Observação</label><input type="text" id="opNotaGanha"></div><button class="btn btn-accent" data-op="ganhar">Marcar como ganha</button></div></div>' +
+        '<div class="card" style="margin:0;"><div class="card-body" style="padding:12px 14px;"><b>Perdida</b><div class="field-row" style="margin-top:8px;"><div class="field"><label for="opMotivoPerda">Motivo *</label><select id="opMotivoPerda">'+gOpts(OP_MOTIVOS_PERDA.map(function(m){ return {v:m[0],l:m[1]}; }), '', 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="opNotaPerda">Detalhe</label><input type="text" id="opNotaPerda"></div></div><button class="btn" data-op="perder">Marcar como perdida</button></div></div>' +
+        '<div class="card" style="margin:0;"><div class="card-body" style="padding:12px 14px;"><b>Descartar</b> <span class="hint">(não era uma oportunidade de verdade)</span><div class="field-row" style="margin-top:8px;"><div class="field"><label for="opMotivoDesc">Motivo *</label><select id="opMotivoDesc">'+gOpts(OP_MOTIVOS_DESC.map(function(m){ return {v:m[0],l:m[1]}; }), '', 'Selecione...')+'</select></div>' +
+        '<div class="field"><label for="opNotaDesc">Detalhe</label><input type="text" id="opNotaDesc"></div></div><button class="btn" data-op="descartar">Descartar</button></div></div>';
+    }else if(pode && opUI.painel === 'vinculo' && aberta){
+      var opcoes = clientes.filter(function(c){ return c.ativo !== false; }).sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome), 'pt-BR'); }).map(function(c){ return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>'; }).join('');
+      painel = (o.semCliente ? '<div class="field"><label for="opClienteId">ID da clínica *</label><input type="text" id="opClienteId" list="opListaClientes" autocomplete="off" placeholder="Digite o ID ou escolha"><datalist id="opListaClientes">'+opcoes+'</datalist><div class="hint" id="opPrevCliente" style="margin-top:4px;"></div></div>' : '') +
+        (gestor ? '<div class="field"><label for="opResp">Responsável (CSM)</label><select id="opResp">'+gOptsUsers(o.responsavelId, 'Sem responsável')+'</select><div class="hint">Ao vincular um cliente, o responsável sugerido é o CSM dono da carteira; você pode trocar.</div></div>' : '') +
+        '<div><button class="btn btn-accent" data-op="salvar-vinculo">Salvar</button></div>';
+    }else if(pode && opUI.painel === 'reabrir' && !aberta){
+      painel = '<div class="hint">Oportunidade encerrada ('+esc(OP_ETAPAS[o.etapa])+(o.motivoPerda ? ': '+esc(opRot(OP_MOTIVOS_PERDA.concat(OP_MOTIVOS_DESC), o.motivoPerda)) : '')+'). Reabrir devolve para "Em contato".</div><div><button class="btn btn-accent" data-op="reabrir">Reabrir oportunidade</button></div>';
+    }
+    var tl = (o.eventos || []).slice().reverse().map(function(e){
+      return '<div style="border-left:3px solid var(--border-strong);padding:2px 0 2px 10px;margin-bottom:8px;"><div class="hint"><b>'+esc(e.autor || '—')+'</b> · '+esc(gFmtDT(e.em))+'</div><div style="white-space:pre-line;">'+esc(e.texto)+'</div></div>';
+    }).join('');
+    var corpo = cab + resumo + (ligs ? '<div><b>Ligações do DisparaVox</b><div style="margin-top:8px;">'+ligs+'</div></div>' : '') + barra + '<div id="opPainel">'+painel+'</div><div class="gate-error" id="opModalErro"></div>' +
+      '<div><b>Histórico</b><div style="margin-top:8px;">'+(tl || '<div class="hint">Sem registros.</div>')+'</div></div>';
+    opModal(esc(o.titulo), corpo);
+  }
+  async function opGravar(o, msg){
+    try{ await opSalvar(o); if(msg) mostrarToastSucesso(msg); renderAll(); if(opUI.abertaId === o.id) opRenderDetalhe(); }
+    catch(e){ opErro('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+  function opSalvarTrabalho(){
+    opErro('');
+    var o = opPorId(opUI.abertaId); if(!o || !opAberta(o) || !opPodeEditar(o)) return;
+    var prox = opV('opProx').trim(), proxData = opV('opProxData');
+    if(!prox || !proxData){ opErro('Toda oportunidade aberta precisa de próxima ação e data.'); return; }
+    var n = Object.assign({}, o), etapa = opV('opEtapa'), nota = opV('opNota').trim();
+    var vTxt = opV('opValor').trim(), valor = vTxt === '' ? null : Number(vTxt);
+    if(valor != null && (isNaN(valor) || valor < 0)){ opErro('Informe um valor válido.'); return; }
+    if(etapa !== o.etapa) opEvento(n, 'etapa', 'Etapa: '+OP_ETAPAS[o.etapa]+' → '+OP_ETAPAS[etapa]);
+    if(nota) opEvento(n, 'contato', nota);
+    n.etapa = etapa; n.prioridade = opV('opPrio'); n.produto = opV('opProduto').trim(); n.valorEstimado = valor; n.proximaAcao = prox; n.proximaAcaoData = proxData;
+    opGravar(n, 'Oportunidade atualizada.');
+  }
+  function opFecharEtapa(etapa){
+    opErro('');
+    var o = opPorId(opUI.abertaId); if(!o || !opAberta(o) || !opPodeEditar(o)) return;
+    var n = Object.assign({}, o), agora = new Date().toISOString();
+    if(etapa === 'ganha'){
+      var v = Number(opV('opValorFinal'));
+      if(!(v > 0)){ opErro('Informe o valor fechado.'); return; }
+      n.valorFinal = v; opEvento(n, 'etapa', 'Marcada como ganha por '+fmtMoney(v)+'.'+(opV('opNotaGanha').trim() ? '\n'+opV('opNotaGanha').trim() : ''));
+    }else{
+      var mot = etapa === 'perdida' ? opV('opMotivoPerda') : opV('opMotivoDesc'), det = (etapa === 'perdida' ? opV('opNotaPerda') : opV('opNotaDesc')).trim();
+      if(!mot){ opErro('Escolha o motivo.'); return; }
+      n.motivoPerda = mot; opEvento(n, 'etapa', (etapa === 'perdida' ? 'Marcada como perdida: ' : 'Descartada: ')+opRot(etapa === 'perdida' ? OP_MOTIVOS_PERDA : OP_MOTIVOS_DESC, mot)+(det ? '\n'+det : ''));
+    }
+    n.etapa = etapa; n.encerradaEm = agora; n.proximaAcao = ''; n.proximaAcaoData = '';
+    opUI.painel = 'reabrir';
+    opGravar(n, 'Oportunidade encerrada.');
+  }
+  function opReabrir(){
+    var o = opPorId(opUI.abertaId); if(!o || opAberta(o) || !opPodeEditar(o)) return;
+    var n = Object.assign({}, o, { etapa:'em_contato', encerradaEm:null, motivoPerda:'', valorFinal:null, proximaAcao:'Retomar o contato', proximaAcaoData:addDays(todayISO(), 1) });
+    opEvento(n, 'etapa', 'Reaberta (estava '+OP_ETAPAS[o.etapa]+').');
+    opUI.painel = 'trabalhar';
+    opGravar(n, 'Oportunidade reaberta.');
+  }
+  function opAtualizarPrevCliente(){
+    var el = document.getElementById('opPrevCliente'); if(!el) return;
+    var v = opV('opClienteId').trim().toLowerCase();
+    var c = v ? clientes.filter(function(x){ return String(x.id).toLowerCase() === v; })[0] : null;
+    el.innerHTML = c ? '<b>'+esc(c.nome)+'</b> · CSM: '+esc(c.csm || '—') : (v ? '<span style="color:var(--critical-ink);">ID não encontrado no cadastro.</span>' : '');
+    var sel = document.getElementById('opResp');
+    if(c && sel){ var id = c.csmId || resolverCsmIdPorNome(c.csm); if(id) sel.value = id; }
+  }
+  function opSalvarVinculo(){
+    opErro('');
+    var o = opPorId(opUI.abertaId); if(!o || !opAberta(o) || !opPodeEditar(o)) return;
+    var n = Object.assign({}, o), msgs = [];
+    if(o.semCliente){
+      var v = opV('opClienteId').trim().toLowerCase();
+      var c = clientes.filter(function(x){ return String(x.id).toLowerCase() === v; })[0];
+      if(!c){ opErro('Informe um ID de clínica que exista no cadastro.'); return; }
+      n.clienteId = c.id; n.clienteNome = c.nome; n.csm = c.csm || ''; n.semCliente = false; msgs.push('Vinculada ao cliente '+c.nome+'.');
+    }
+    if(opEhGestor() && document.getElementById('opResp')){
+      var r = usuarios.filter(function(u){ return u.id === opV('opResp'); })[0];
+      var novoId = r ? r.id : '', novoNome = r ? r.nome : '';
+      if(novoId !== (o.responsavelId || '')){ n.responsavelId = novoId; n.responsavelNome = novoNome; n.semResponsavel = !novoId; msgs.push('Responsável: '+(o.responsavelNome || 'sem responsável')+' → '+(novoNome || 'sem responsável')+'.'); }
+    }
+    if(!msgs.length){ opErro('Nada para salvar.'); return; }
+    opEvento(n, 'triagem', msgs.join('\n'));
+    opUI.painel = 'trabalhar';
+    opGravar(n, 'Salvo.');
+  }
+
+  function wireOportunidades(){
+    function dentro(el){ return !!(el && el.closest && (el.closest('#view-oportunidades') || el.closest('#overlayOportunidade'))); }
+    document.addEventListener('click', function(ev){
+      var el = ev.target.closest && ev.target.closest('[data-op]'); if(!el || !dentro(el)) return;
+      if(el.tagName === 'A') ev.preventDefault();
+      var a = el.getAttribute('data-op'), id = el.getAttribute('data-id');
+      switch(a){
+        case 'aba': opUI.aba = el.getAttribute('data-aba'); renderOportunidades(); break;
+        case 'abrir': opAbrir(id); break;
+        case 'fechar': opFechar(); break;
+        case 'painel': opUI.painel = el.getAttribute('data-p'); opRenderDetalhe(); break;
+        case 'salvar-trabalho': opSalvarTrabalho(); break;
+        case 'ganhar': opFecharEtapa('ganha'); break;
+        case 'perder': opFecharEtapa('perdida'); break;
+        case 'descartar': opFecharEtapa('descartada'); break;
+        case 'reabrir': opReabrir(); break;
+        case 'salvar-vinculo': opSalvarVinculo(); break;
+      }
+    });
+    document.addEventListener('change', function(ev){
+      var t = ev.target; if(!t || !dentro(t)) return;
+      if(t.id === 'opFiltroQuem'){ opUI.quem = t.value; renderOportunidades(); }
+      else if(t.id === 'opFiltroEnc'){ opUI.filtroEnc = t.value; renderOportunidades(); }
+      else if(t.id === 'opClienteId') opAtualizarPrevCliente();
+    });
+    document.addEventListener('input', function(ev){ if(ev.target && ev.target.id === 'opClienteId') opAtualizarPrevCliente(); });
+  }
+
+  function opSeedDemo(){
+    function ts(h){ return new Date(Date.now() - h * 3600000).toISOString(); }
+    function dia(o){ return addDays(todayISO(), o); }
+    function mk(o){
+      return Object.assign({ origem:'disparavox', etapa:'nova', produto:'', valorEstimado:null, prioridade:'media', clienteId:'', clienteNome:'', csm:'', responsavelId:'', responsavelNome:'',
+        semCliente:false, semResponsavel:false, contato:{ nome:'', telefone:'' }, ligacoes:[], proximaAcao:'Entrar em contato e entender a oportunidade', proximaAcaoData:dia(1),
+        motivoPerda:'', valorFinal:null, criadoEm:ts(5), atualizadoEm:ts(5), eventos:[] }, o);
+    }
+    function lig(id, h, desf, res){ return { id:id, desfecho:desf, resumo:res, duracaoSeg:140, gravacaoUrl:'', ocorridoEm:ts(h) }; }
+    function ev(h, tipo, texto, autor){ return { id:novoId('ev'), em:ts(h), autor:autor || 'DisparaVox', tipo:tipo, texto:texto }; }
+    oportunidades = [
+      mk({ id:'op-dv-demo1', titulo:'Oportunidade identificada em ligação · Tech Nova Ltda', clienteId:'C001', clienteNome:'Tech Nova Ltda', csm:'Ana Souza', responsavelId:'ana-souza', responsavelNome:'Ana Souza',
+        contato:{ nome:'Marina Alves', telefone:'5511990010001' }, ligacoes:[lig('c1', 5, 'Interessado', 'Quer conhecer o módulo de estoque e pediu retorno ainda esta semana.')], criadoEm:ts(5),
+        eventos:[ev(5, 'criada', 'Ligação encerrada com desfecho "Interessado".\nQuer conhecer o módulo de estoque e pediu retorno ainda esta semana.')] }),
+      mk({ id:'op-dv-demo2', titulo:'Oportunidade identificada em ligação · Grupo Vértice', clienteId:'C002', clienteNome:'Grupo Vértice', csm:'Ana Souza', responsavelId:'ana-souza', responsavelNome:'Ana Souza', etapa:'em_contato', prioridade:'alta',
+        produto:'Nova unidade', valorEstimado:4800, contato:{ nome:'Rafael Costa', telefone:'5511990010002' }, proximaAcao:'Enviar proposta', proximaAcaoData:dia(-1), criadoEm:ts(70),
+        ligacoes:[lig('c2', 70, 'Interessado', 'Abrirá uma terceira unidade em dezembro.')], eventos:[ev(70, 'criada', 'Ligação encerrada com desfecho "Interessado".'), ev(30, 'contato', 'Conversei por WhatsApp, vai enviar os dados da unidade.', 'Ana Souza')] }),
+      mk({ id:'op-dv-demo3', titulo:'Oportunidade identificada em ligação · Comércio Azul', clienteId:'C003', clienteNome:'Comércio Azul', csm:'Ana Souza', responsavelId:'bruno-lima', responsavelNome:'Bruno Lima', etapa:'proposta',
+        produto:'Módulo financeiro', valorEstimado:2400, contato:{ nome:'Juliana Prado', telefone:'5511990010003' }, proximaAcao:'Cobrar retorno da proposta', proximaAcaoData:dia(2), criadoEm:ts(120),
+        ligacoes:[lig('c3', 120, 'Oportunidade', 'Quer integrar o financeiro.')], eventos:[ev(120, 'criada', 'Ligação encerrada com desfecho "Oportunidade".')] }),
+      mk({ id:'op-dv-demo4', titulo:'Oportunidade identificada em ligação · Dra. Helena', semCliente:true, semResponsavel:true, contato:{ nome:'Dra. Helena Prado', telefone:'11977776666' }, criadoEm:ts(2),
+        ligacoes:[lig('c4', 2, 'Interessado', 'Falou que usa o sistema em duas clínicas e quer ampliar.')], eventos:[ev(2, 'criada', 'Ligação encerrada com desfecho "Interessado". Telefone não encontrado no cadastro.')] }),
+      mk({ id:'op-dv-demo5', titulo:'Oportunidade identificada em ligação · Clínica Vida Plena', clienteId:'C010', clienteNome:'Clínica Vida Plena', csm:'Carla Mendes', responsavelId:'carla-mendes', responsavelNome:'Carla Mendes', etapa:'ganha',
+        produto:'Treinamento avançado', valorEstimado:1500, valorFinal:1650, encerradaEm:ts(48), contato:{ nome:'Henrique Melo', telefone:'5531990010010' }, proximaAcao:'', proximaAcaoData:'', criadoEm:ts(300),
+        ligacoes:[lig('c5', 300, 'Interessado', 'Pediu treinamento para a equipe nova.')], eventos:[ev(300, 'criada', 'Ligação encerrada com desfecho "Interessado".'), ev(48, 'etapa', 'Marcada como ganha por R$ 1.650.', 'Carla Mendes')] })
+    ];
+    opEventosWebhook = [
+      { id:'disparavox:call.ended:e1', provedor:'disparavox', tipo:'call.ended', recebidoEm:ts(5), status:'processado', resumo:'Oportunidade criada.', oportunidadeId:'op-dv-demo1' },
+      { id:'disparavox:call.ended:e4', provedor:'disparavox', tipo:'call.ended', recebidoEm:ts(2), status:'sem_cliente', resumo:'Oportunidade criada sem cliente (triagem).', oportunidadeId:'op-dv-demo4' },
+      { id:'disparavox:call.ended:e8', provedor:'disparavox', tipo:'call.ended', recebidoEm:ts(1), status:'ignorado', resumo:'Desfecho "Sem interesse" (sem_interesse) não gera oportunidade.' }
+    ];
+  }
+
+  function opPodeVer(){ return !!currentUser && (isAdmin() || isCoordenador() || !(isRenovacao() || isCsRevenue() || isAnalistaTreinamento())); }
+  function opSubscribe(){
+    if(!db || offline || !opPodeVer()) return;
+    db.collection('oportunidades').onSnapshot(function(snap){
+      oportunidades = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
+      renderAll();
+    }, function(){});
+  }
+
   // ---------------------------------------------------------------
   // Start
   // ---------------------------------------------------------------
@@ -16313,6 +16741,7 @@
     wireEvents();
     wireGestao();
     wireQualidade();
+    wireOportunidades();
     renderAll(); // mostra o gate em "carregando" imediatamente
     seedLocalDemo().then(function(){
       if(!dataPronta) renderAll(); // dados locais prontos; dataPronta só vira true quando initDb() concluir
