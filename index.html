@@ -800,7 +800,7 @@
   }
 
   /* ---------------- Gestão ---------------- */
-  #view-gestao .btn.is-ativo, #view-qualidade .btn.is-ativo, #view-oportunidades .btn.is-ativo, #overlayOportunidade .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  #view-gestao .btn.is-ativo, #view-qualidade .btn.is-ativo, #view-oportunidades .btn.is-ativo, #overlayOportunidade .btn.is-ativo, #view-sugestoes .btn.is-ativo, #overlaySugestao .btn.is-ativo{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
   #view-qualidade .agenda-cal-modos, #overlayQualidade .agenda-cal-modos{ flex-wrap:wrap; }
   #overlayQualidade .modal-body > *{ flex-shrink:0; }
   #view-gestao .agenda-cal-modos{ flex-wrap:wrap; }
@@ -808,6 +808,11 @@
   #overlayGestao{ z-index:1100; }
   #view-oportunidades .agenda-cal-modos, #overlayOportunidade .agenda-cal-modos{ flex-wrap:wrap; }
   #overlayOportunidade{ z-index:1100; }
+  #view-sugestoes .agenda-cal-modos, #overlaySugestao .agenda-cal-modos{ flex-wrap:wrap; }
+  #overlaySugestao{ z-index:1100; }
+  #sgModalCorpo{ display:flex; flex-direction:column; gap:14px; }
+  #sgModalCorpo > *{ flex-shrink:0; }
+  #view-sugestoes .filters input[type=text]{ padding:8px 10px; border:1px solid var(--border-strong); border-radius:9px; font:inherit; background:var(--surface); color:inherit; }
   #opModalCorpo{ display:flex; flex-direction:column; gap:14px; }
   #opModalCorpo > *{ flex-shrink:0; }
   #gModalCorpo > *{ flex-shrink:0; }
@@ -880,6 +885,11 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8L12 2z"/></svg>
         Oportunidades
         <span class="nav-badge" id="navOportunidadesBadge" style="display:none;">0</span>
+      </button>
+      <button class="nav-item" data-view="sugestoes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17h6v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"/></svg>
+        Sugestões
+        <span class="nav-badge" id="navSugestoesBadge" style="display:none;">0</span>
       </button>
       <button class="nav-item" data-view="reclamacoesRA">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 8v4M12 16h.01"/></svg>
@@ -1656,6 +1666,19 @@
         </div>
       </div>
       <div class="content"><div id="oportunidadesCorpo"></div></div>
+    </section>
+
+    <section class="view" id="view-sugestoes">
+      <div class="topbar">
+        <div>
+          <h1>Sugestões de melhoria</h1>
+          <div class="subtitle">O que os clientes pedem no contato com o CSM: registre na hora e acompanhe o retorno.</div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-accent" data-sg="nova" id="btnSgNova">+ Nova sugestão</button>
+        </div>
+      </div>
+      <div class="content"><div id="sugestoesCorpo"></div></div>
     </section>
 
     <section class="view" id="view-relatorios">
@@ -2792,6 +2815,17 @@
   </div>
 </div>
 
+<div class="overlay" id="overlaySugestao">
+  <div class="modal" style="max-width:660px;">
+    <div class="modal-head">
+      <h3 id="sgModalTitulo"></h3>
+      <button class="icon-btn" data-close="overlaySugestao" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="modal-body" id="sgModalCorpo"></div>
+    <div class="modal-foot" id="sgModalRodape"></div>
+  </div>
+</div>
+
 <div class="overlay" id="overlayValidarTreinamento">
   <div class="modal" style="max-width:620px;">
     <div class="modal-head">
@@ -2855,6 +2889,8 @@
       gestaoMetas: 'gestao_metas',
       gestaoAvisos: 'gestao_avisos',
       gestaoConfig: 'gestao_config',
+      sugestoes: 'sugestoes_melhoria',
+      sugestoesApoios: 'sugestoes_apoios',
       oportunidades: 'oportunidades',
       oportunidadesEventos: 'oportunidades_eventos',
       qualidadeAcessos: 'qualidade_acessos',
@@ -4793,7 +4829,7 @@
     clientesCarregados = true;
     // Dados de exemplo da Gestão só no modo demonstração (offline): com o
     // banco real, os documentos vêm do Supabase.
-    if(offline){ gestaoSeedDemo(); qSeedDemo(); opSeedDemo(); }
+    if(offline){ gestaoSeedDemo(); qSeedDemo(); opSeedDemo(); sgSeedDemo(); }
   }
 
   // ---------------------------------------------------------------
@@ -4917,6 +4953,7 @@
 
     gSubscribe();
     opSubscribe();
+    sgSubscribe();
     qIniciarAcesso();
   }
 
@@ -6632,7 +6669,7 @@
     }
     if((renov || csrev) && !admin){
       var avGestao = document.querySelector('.view.active');
-      if(!avGestao || (avGestao.id !== 'view-gestao' && avGestao.id !== 'view-qualidade')) switchView('renovacao');
+      if(!avGestao || (avGestao.id !== 'view-gestao' && avGestao.id !== 'view-qualidade' && avGestao.id !== 'view-sugestoes')) switchView('renovacao');
     }
     if(currentUser){
       document.getElementById('userCardAvatar').textContent = initials(currentUser.nome);
@@ -7812,6 +7849,7 @@
     renderReclamacoesRA();
     renderGestao();
     renderOportunidades();
+    renderSugestoes();
     qSincronizar();
     if(isAdmin()){ renderRelatorios(); renderConfiguracoes(); renderRenovacao(); backfillClientesCsmId(); }
     else if(isCoordenador()){ renderRelatorios(); }
@@ -7961,16 +7999,17 @@
     // estendido ao CS Revenue). Reforçado aqui (e não só escondendo os
     // botões do menu) para que a restrição valha mesmo se algo tentar
     // navegar direto por fora do menu.
-    if((isRenovacao() || isCsRevenue()) && !isAdmin() && view !== 'renovacao' && view !== 'gestao' && !(view === 'qualidade' && qAcesso)) view = 'renovacao';
+    if((isRenovacao() || isCsRevenue()) && !isAdmin() && view !== 'renovacao' && view !== 'gestao' && view !== 'sugestoes' && !(view === 'qualidade' && qAcesso)) view = 'renovacao';
     // Analista de Treinamento: só Treinamento, Onboarding (+ Reimplantação,
     // que é uma aba dentro de Onboarding) e Agenda — reforçado aqui pelo
     // mesmo motivo do bloco acima.
-    if(isAnalistaTreinamento() && !isAdmin() && ['treinamento','onboarding','agenda','gestao'].indexOf(view) === -1 && !(view === 'qualidade' && qAcesso)) view = 'treinamento';
+    if(isAnalistaTreinamento() && !isAdmin() && ['treinamento','onboarding','agenda','gestao','sugestoes'].indexOf(view) === -1 && !(view === 'qualidade' && qAcesso)) view = 'treinamento';
     document.querySelectorAll('.nav-item[data-view]').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-view')===view); });
     document.querySelectorAll('.view').forEach(function(v){ v.classList.toggle('active', v.id === 'view-'+view); });
     if(view === 'gestao') renderGestao(true);
     if(view === 'qualidade') qRender();
     if(view === 'oportunidades') renderOportunidades();
+    if(view === 'sugestoes') renderSugestoes();
   }
 
   // ---------------------------------------------------------------
@@ -15570,7 +15609,7 @@
   }
   function qToast(m){ mostrarToastErro(m); }
   function qVal(id){ var el = document.getElementById(id); return el ? el.value : ''; }
-  function qErro(msg){ var el = document.getElementById('qModalErro'); if(el) el.textContent = msg || ''; }
+  function qErro(msg){ var el = document.getElementById('qModalErro'); if(el){ el.textContent = msg || ''; el.classList[msg ? 'add' : 'remove']('show'); } }
   function qModal(opts){
     var ov = document.getElementById('overlayQualidade'); if(!ov) return;
     ov.querySelector('.modal').style.maxWidth = opts.largo ? '900px' : '680px';
@@ -16361,7 +16400,18 @@
   }
   function opPodeEditar(o){ return !!currentUser && (opEhGestor() || o.responsavelId === opMeuId()); }
   function opPorId(id){ return oportunidades.filter(function(o){ return o.id === id; })[0] || null; }
-  function opNaTriagem(o){ return opAberta(o) && (!o.responsavelId || o.semCliente); }
+  function opNaTriagem(o){ return opAberta(o) && !o.responsavelId; }
+  function opDigitos(t){ return String(t || '').replace(/\D/g, ''); }
+  function opTelWa(t){ var d = opDigitos(t); if(!d) return ''; return (d.length <= 11 ? '55' : '') + d; }
+  function opTelFmt(t){
+    var d = opDigitos(t), ddi = '';
+    if(d.length >= 12 && d.indexOf('55') === 0){ ddi = '+55 '; d = d.slice(2); }
+    if(d.length === 11) return ddi + '(' + d.slice(0,2) + ') ' + d.slice(2,7) + '-' + d.slice(7);
+    if(d.length === 10) return ddi + '(' + d.slice(0,2) + ') ' + d.slice(2,6) + '-' + d.slice(6);
+    return String(t || '');
+  }
+  function opDesf(d){ d = String(d || '').replace(/[_-]+/g, ' ').trim(); return d ? d.charAt(0).toUpperCase() + d.slice(1) : ''; }
+  function opDur(seg){ seg = Number(seg) || 0; if(!seg) return ''; return seg < 60 ? seg + ' s' : Math.floor(seg / 60) + ' min ' + (seg % 60) + ' s'; }
   function opVencida(o){ return opAberta(o) && !!o.proximaAcaoData && o.proximaAcaoData < todayISO(); }
   function opSalvar(o){
     var i = oportunidades.findIndex(function(x){ return x.id === o.id; });
@@ -16404,9 +16454,11 @@
   function opCard(o, mostrarCsm){
     var venc = opVencida(o), ultima = (o.ligacoes || [])[o.ligacoes.length - 1] || {};
     return '<div class="card" data-op="abrir" data-id="'+esc(o.id)+'" style="margin:0 0 10px;cursor:pointer;'+(venc ? 'border-color:var(--critical);' : '')+'"><div class="card-body" style="padding:12px 14px;">' +
-      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><b style="font-size:13.5px;">'+esc(o.clienteNome || o.contato && o.contato.nome || 'Sem cliente')+'</b>'+(o.prioridade === 'alta' ? gChip('Alta', 'c-crit') : '')+'</div>' +
-      '<div class="hint" style="margin-top:2px;">'+esc(o.produto || (ultima.resumo ? ultima.resumo.slice(0, 70) : o.titulo))+'</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;">' + (o.valorEstimado ? gChip(fmtMoney(o.valorEstimado)) : '') + (o.semCliente ? gChip('Sem cliente', 'c-warn') : '') +
+      '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;"><b style="font-size:13.5px;">'+esc((o.contato && o.contato.nome) || o.clienteNome || 'Contato sem nome')+'</b>'+(o.prioridade === 'alta' ? gChip('Alta', 'c-crit') : '')+'</div>' +
+      '<div class="hint" style="margin-top:2px;">'+esc(opTelFmt(o.contato && o.contato.telefone))+(o.clienteNome ? ' · '+esc(o.clienteNome) : '')+'</div>' +
+      (ultima.desfecho ? '<div style="margin-top:6px;font-size:12.5px;"><span class="hint">Resumo:</span> <b>'+esc(opDesf(ultima.desfecho))+'</b></div>' : '') +
+      (ultima.resumo ? '<div style="margin-top:4px;font-size:12.5px;"><span class="hint">Detalhamento:</span> '+esc(ultima.resumo.slice(0, 120) + (ultima.resumo.length > 120 ? '…' : ''))+'</div>' : '') +
+      '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;">' + (o.valorEstimado ? gChip(fmtMoney(o.valorEstimado)) : '') + (o.semCliente ? gChip('Prospect', 'c-warn') : '') +
         (mostrarCsm ? gChip(o.responsavelNome || 'Sem responsável', o.responsavelId ? '' : 'c-warn') : '') + '</div>' +
       '<div class="hint" style="margin-top:8px;'+(venc ? 'color:var(--critical-ink);font-weight:600;' : '')+'">'+(o.proximaAcao ? esc(o.proximaAcao) : 'Sem próxima ação')+(o.proximaAcaoData ? ' · '+fmtDate(o.proximaAcaoData)+(venc ? ' (vencida)' : '') : '')+'</div>' +
       '</div></div>';
@@ -16433,13 +16485,13 @@
   }
   function opRenderTriagem(){
     var lista = oportunidades.filter(opNaTriagem).sort(function(a,b){ return a.criadoEm < b.criadoEm ? -1 : 1; });
-    return '<div class="card"><div class="card-head"><div><h2>Triagem</h2><div class="hint">Oportunidades que chegaram sem cliente identificado ou sem CSM responsável. Vincule o cliente e distribua.</div></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Recebida</th><th>Contato</th><th>Resumo da ligação</th><th>Situação</th><th></th></tr></thead><tbody>' +
+    return '<div class="card"><div class="card-head"><div><h2>Triagem</h2><div class="hint">Ligações que chegaram sem CSM responsável. Escolha o responsável e, se o contato for cliente, vincule o cadastro.</div></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Recebida</th><th>Nome e telefone</th><th>Resumo</th><th>Detalhamento</th><th>Situação</th><th></th></tr></thead><tbody>' +
       (lista.length ? lista.map(function(o){
         var ul = (o.ligacoes || [])[o.ligacoes.length - 1] || {};
-        return '<tr><td>'+esc(gFmtDT(o.criadoEm))+'</td><td>'+esc((o.contato && o.contato.nome) || '—')+'<div class="hint">'+esc((o.contato && o.contato.telefone) || '')+'</div></td><td>'+esc((ul.resumo || '').slice(0, 120) || '—')+'</td>' +
-          '<td>'+(o.semCliente ? gChip('Sem cliente', 'c-warn') : '')+' '+(!o.responsavelId ? gChip('Sem responsável', 'c-warn') : '')+'</td>' +
+        return '<tr><td>'+esc(gFmtDT(o.criadoEm))+'</td><td>'+esc((o.contato && o.contato.nome) || '—')+'<div class="hint">'+esc(opTelFmt(o.contato && o.contato.telefone))+'</div></td><td>'+esc(opDesf(ul.desfecho) || '—')+'</td><td>'+esc((ul.resumo || '').slice(0, 160) || '—')+'</td>' +
+          '<td>'+(o.semCliente ? gChip('Prospect', 'c-warn') : gChip('Cliente'))+' '+(!o.responsavelId ? gChip('Sem responsável', 'c-warn') : '')+'</td>' +
           '<td><button class="btn btn-sm btn-accent" data-op="abrir" data-id="'+esc(o.id)+'">Tratar</button></td></tr>';
-      }).join('') : '<tr><td colspan="5" class="hint">Nada na triagem.</td></tr>') + '</tbody></table></div></div></div>';
+      }).join('') : '<tr><td colspan="6" class="hint">Nada na triagem.</td></tr>') + '</tbody></table></div></div></div>';
   }
   function opRenderEncerradas(){
     var lista = opVisiveis().filter(function(o){ return !opAberta(o); }).filter(function(o){ return opUI.filtroEnc === 'todas' || o.etapa === opUI.filtroEnc; })
@@ -16520,28 +16572,37 @@
     openOverlay('overlayOportunidade');
   }
   function opFechar(){ closeOverlay('overlayOportunidade'); opUI.abertaId = null; }
-  function opErro(m){ var el = document.getElementById('opModalErro'); if(el) el.textContent = m || ''; }
+  function opErro(m){ var el = document.getElementById('opModalErro'); if(el){ el.textContent = m || ''; el.classList[m ? 'add' : 'remove']('show'); } }
   function opV(id){ var el = document.getElementById(id); return el ? el.value : ''; }
   function opRenderDetalhe(){
     var o = opPorId(opUI.abertaId); if(!o){ opFechar(); return; }
     var pode = opPodeEditar(o), aberta = opAberta(o), gestor = opEhGestor();
-    var tel = String((o.contato && o.contato.telefone) || '').replace(/\D/g, '');
+    var tel = opDigitos(o.contato && o.contato.telefone);
     function kv(k, v){ return '<div><div class="hint">'+esc(k)+'</div><div>'+(v || '—')+'</div></div>'; }
     var cab = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + opPill(o) + (o.prioridade === 'alta' ? gChip('Prioridade alta', 'c-crit') : gChip('Prioridade '+opRot(OP_PRIO, o.prioridade).toLowerCase())) +
-      (opVencida(o) ? gPill('Ação vencida', 'pill-critical') : '') + (o.semCliente ? gChip('Sem cliente', 'c-warn') : '') + '</div>';
+      (opVencida(o) ? gPill('Ação vencida', 'pill-critical') : '') + (o.semCliente ? gChip('Prospect (sem cadastro de cliente)', 'c-warn') : gChip('Cliente')) + '</div>';
+    var ult = (o.ligacoes || [])[o.ligacoes.length - 1] || {}, cont = o.contato || {}, crm = o.crm || {};
+    var contatoBloco = '<div class="card" style="margin:0;"><div class="card-body" style="padding:12px 14px;"><div class="hint">Quem contatar</div>' +
+      '<div style="font-size:16px;font-weight:700;margin-top:2px;">'+esc(cont.nome || 'Contato sem nome')+'</div>' +
+      '<div style="font-size:14px;margin:2px 0 8px;">'+(tel ? esc(opTelFmt(cont.telefone)) : '<span class="hint">Sem telefone</span>')+'</div>' +
+      (tel ? '<div style="display:flex;gap:8px;flex-wrap:wrap;"><a class="btn btn-sm btn-accent" href="https://wa.me/'+opTelWa(cont.telefone)+'" target="_blank" rel="noopener">WhatsApp</a><a class="btn btn-sm" href="tel:+'+opTelWa(cont.telefone)+'">Ligar</a></div>' : '') +
+      '<div class="hint" style="margin-top:12px;">Resumo</div><div style="font-weight:600;">'+(esc(opDesf(ult.desfecho)) || '—')+'</div>' +
+      '<div class="hint" style="margin-top:10px;">Detalhamento</div><div style="white-space:pre-line;">'+(esc(ult.resumo) || '—')+'</div>' +
+      '</div></div>';
     var resumo = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 16px;">' +
-      kv('Cliente', esc(o.clienteNome) + (o.clienteId ? ' <span class="hint">('+esc(o.clienteId)+')</span>' : '')) +
-      kv('Contato', esc((o.contato && o.contato.nome) || '') + (tel ? '<div><a href="https://wa.me/'+tel+'" target="_blank" rel="noopener">'+esc(o.contato.telefone)+' · WhatsApp</a></div>' : '')) +
+      kv('Cliente cadastrado', o.clienteNome ? esc(o.clienteNome) + (o.clienteId ? ' <span class="hint">('+esc(o.clienteId)+')</span>' : '') : '') +
       kv('Responsável', esc(o.responsavelNome)) + kv('Recebida em', esc(gFmtDT(o.criadoEm))) + kv('Origem', esc(o.origem === 'disparavox' ? 'DisparaVox' : (o.origem || 'Manual'))) +
+      (crm.leadId ? kv('Kommo', 'lead '+esc(crm.leadId)+(crm.contatoId ? ' · contato '+esc(crm.contatoId) : '')+(crm.pipelineId ? '<div class="hint">funil '+esc(crm.pipelineId)+(crm.etapaId ? ' · etapa '+esc(crm.etapaId) : '')+'</div>' : '')) : '') +
+      (o.campanhaId ? kv('Campanha', '<span style="font-size:12px;word-break:break-all;">'+esc(o.campanhaId)+'</span>') : '') +
       kv('Valor estimado', o.valorEstimado ? fmtMoney(o.valorEstimado) : '') + (o.etapa === 'ganha' ? kv('Valor ganho', fmtMoney(o.valorFinal)) : '') + '</div>';
     var ligs = (o.ligacoes || []).slice().reverse().map(function(l){
-      return '<div style="border-left:3px solid var(--border-strong);padding:2px 0 2px 10px;margin-bottom:8px;"><div class="hint">Ligação · '+esc(gFmtDT(l.ocorridoEm))+' · desfecho: '+esc(l.desfecho || '—')+(l.duracaoSeg ? ' · '+Math.round(l.duracaoSeg / 60 * 10) / 10+' min' : '')+(l.gravacaoUrl ? ' · <a href="'+esc(l.gravacaoUrl)+'" target="_blank" rel="noopener">gravação</a>' : '')+'</div>' +
+      return '<div style="border-left:3px solid var(--border-strong);padding:2px 0 2px 10px;margin-bottom:8px;"><div class="hint">Ligação · '+esc(gFmtDT(l.ocorridoEm))+(l.status ? ' · '+esc(l.status) : '')+' · resumo: '+esc(opDesf(l.desfecho) || '—')+(l.duracaoSeg ? ' · conversa de '+esc(opDur(l.duracaoSeg)) : '')+(l.motivoEncerramento ? ' · encerrada: '+esc(l.motivoEncerramento) : '')+(l.gravacaoUrl ? ' · <a href="'+esc(l.gravacaoUrl)+'" target="_blank" rel="noopener">gravação</a>' : '')+'</div>' +
         (l.resumo ? '<div style="white-space:pre-line;">'+esc(l.resumo)+'</div>' : '') + '</div>';
     }).join('');
     var barra = '';
     if(pode){
       barra = '<div class="agenda-cal-modos" style="flex-wrap:wrap;">' + (aberta
-        ? [['trabalhar','Trabalhar'],['encerrar','Ganhar ou encerrar']].concat(o.semCliente || gestor ? [['vinculo', o.semCliente ? 'Vincular cliente' : 'Cliente e responsável']] : [])
+        ? [['trabalhar','Trabalhar'],['encerrar','Ganhar ou encerrar']].concat(o.semCliente || gestor ? [['vinculo', 'Cliente e responsável']] : [])
         : [['reabrir','Reabrir']]).map(function(p){
           return '<button class="btn btn-sm'+(opUI.painel === p[0] ? ' is-ativo' : '')+'" data-op="painel" data-p="'+p[0]+'">'+p[1]+'</button>';
         }).join('') + '</div>';
@@ -16565,7 +16626,7 @@
         '<div class="field"><label for="opNotaDesc">Detalhe</label><input type="text" id="opNotaDesc"></div></div><button class="btn" data-op="descartar">Descartar</button></div></div>';
     }else if(pode && opUI.painel === 'vinculo' && aberta){
       var opcoes = clientes.filter(function(c){ return c.ativo !== false; }).sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome), 'pt-BR'); }).map(function(c){ return '<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>'; }).join('');
-      painel = (o.semCliente ? '<div class="field"><label for="opClienteId">ID da clínica *</label><input type="text" id="opClienteId" list="opListaClientes" autocomplete="off" placeholder="Digite o ID ou escolha"><datalist id="opListaClientes">'+opcoes+'</datalist><div class="hint" id="opPrevCliente" style="margin-top:4px;"></div></div>' : '') +
+      painel = (o.semCliente ? '<div class="field"><label for="opClienteId">ID da clínica (se o contato já é cliente)</label><input type="text" id="opClienteId" list="opListaClientes" autocomplete="off" placeholder="Deixe vazio para manter como prospect"><datalist id="opListaClientes">'+opcoes+'</datalist><div class="hint" id="opPrevCliente" style="margin-top:4px;"></div></div>' : '') +
         (gestor ? '<div class="field"><label for="opResp">Responsável (CSM)</label><select id="opResp">'+gOptsUsers(o.responsavelId, 'Sem responsável')+'</select><div class="hint">Ao vincular um cliente, o responsável sugerido é o CSM dono da carteira; você pode trocar.</div></div>' : '') +
         '<div><button class="btn btn-accent" data-op="salvar-vinculo">Salvar</button></div>';
     }else if(pode && opUI.painel === 'reabrir' && !aberta){
@@ -16574,7 +16635,7 @@
     var tl = (o.eventos || []).slice().reverse().map(function(e){
       return '<div style="border-left:3px solid var(--border-strong);padding:2px 0 2px 10px;margin-bottom:8px;"><div class="hint"><b>'+esc(e.autor || '—')+'</b> · '+esc(gFmtDT(e.em))+'</div><div style="white-space:pre-line;">'+esc(e.texto)+'</div></div>';
     }).join('');
-    var corpo = cab + resumo + (ligs ? '<div><b>Ligações do DisparaVox</b><div style="margin-top:8px;">'+ligs+'</div></div>' : '') + barra + '<div id="opPainel">'+painel+'</div><div class="gate-error" id="opModalErro"></div>' +
+    var corpo = cab + contatoBloco + resumo + (ligs ? '<div><b>Ligações do DisparaVox</b><div style="margin-top:8px;">'+ligs+'</div></div>' : '') + barra + '<div id="opPainel">'+painel+'</div><div class="gate-error" id="opModalErro"></div>' +
       '<div><b>Histórico</b><div style="margin-top:8px;">'+(tl || '<div class="hint">Sem registros.</div>')+'</div></div>';
     opModal(esc(o.titulo), corpo);
   }
@@ -16633,9 +16694,11 @@
     var n = Object.assign({}, o), msgs = [];
     if(o.semCliente){
       var v = opV('opClienteId').trim().toLowerCase();
-      var c = clientes.filter(function(x){ return String(x.id).toLowerCase() === v; })[0];
-      if(!c){ opErro('Informe um ID de clínica que exista no cadastro.'); return; }
-      n.clienteId = c.id; n.clienteNome = c.nome; n.csm = c.csm || ''; n.semCliente = false; msgs.push('Vinculada ao cliente '+c.nome+'.');
+      if(v){
+        var c = clientes.filter(function(x){ return String(x.id).toLowerCase() === v; })[0];
+        if(!c){ opErro('Informe um ID de clínica que exista no cadastro, ou deixe vazio para manter como prospect.'); return; }
+        n.clienteId = c.id; n.clienteNome = c.nome; n.csm = c.csm || ''; n.semCliente = false; n.tipoContato = 'cliente'; msgs.push('Vinculada ao cliente '+c.nome+'.');
+      }
     }
     if(opEhGestor() && document.getElementById('opResp')){
       var r = usuarios.filter(function(u){ return u.id === opV('opResp'); })[0];
@@ -16684,7 +16747,7 @@
         semCliente:false, semResponsavel:false, contato:{ nome:'', telefone:'' }, ligacoes:[], proximaAcao:'Entrar em contato e entender a oportunidade', proximaAcaoData:dia(1),
         motivoPerda:'', valorFinal:null, criadoEm:ts(5), atualizadoEm:ts(5), eventos:[] }, o);
     }
-    function lig(id, h, desf, res){ return { id:id, desfecho:desf, resumo:res, duracaoSeg:140, gravacaoUrl:'', ocorridoEm:ts(h) }; }
+    function lig(id, h, desf, res){ return { id:id, desfecho:desf, status:'atendida', motivoEncerramento:'agent_hangup', resumo:res, duracaoSeg:140, gravacaoUrl:'', ocorridoEm:ts(h) }; }
     function ev(h, tipo, texto, autor){ return { id:novoId('ev'), em:ts(h), autor:autor || 'DisparaVox', tipo:tipo, texto:texto }; }
     oportunidades = [
       mk({ id:'op-dv-demo1', titulo:'Oportunidade identificada em ligação · Tech Nova Ltda', clienteId:'C001', clienteNome:'Tech Nova Ltda', csm:'Ana Souza', responsavelId:'ana-souza', responsavelNome:'Ana Souza',
@@ -16696,8 +16759,8 @@
       mk({ id:'op-dv-demo3', titulo:'Oportunidade identificada em ligação · Comércio Azul', clienteId:'C003', clienteNome:'Comércio Azul', csm:'Ana Souza', responsavelId:'bruno-lima', responsavelNome:'Bruno Lima', etapa:'proposta',
         produto:'Módulo financeiro', valorEstimado:2400, contato:{ nome:'Juliana Prado', telefone:'5511990010003' }, proximaAcao:'Cobrar retorno da proposta', proximaAcaoData:dia(2), criadoEm:ts(120),
         ligacoes:[lig('c3', 120, 'Oportunidade', 'Quer integrar o financeiro.')], eventos:[ev(120, 'criada', 'Ligação encerrada com desfecho "Oportunidade".')] }),
-      mk({ id:'op-dv-demo4', titulo:'Oportunidade identificada em ligação · Dra. Helena', semCliente:true, semResponsavel:true, contato:{ nome:'Dra. Helena Prado', telefone:'11977776666' }, criadoEm:ts(2),
-        ligacoes:[lig('c4', 2, 'Interessado', 'Falou que usa o sistema em duas clínicas e quer ampliar.')], eventos:[ev(2, 'criada', 'Ligação encerrada com desfecho "Interessado". Telefone não encontrado no cadastro.')] }),
+      mk({ id:'op-dv-demo4', titulo:'Oportunidade identificada em ligação · Dra. Helena', semCliente:true, semResponsavel:true, contato:{ nome:'Dra. Helena Prado', telefone:'5511988887777' }, tipoContato:'prospect', campanhaId:'e3574789-b746-4e48-9879-de90256581ec', crm:{ provedor:'kommo', leadId:'1000001', contatoId:'1000002', pipelineId:'12548868', etapaId:'112002264' }, criadoEm:ts(2), prioridade:'alta',
+        ligacoes:[lig('c4', 2, 'falou_com_pessoa', 'Cliente se interessou pelo sistema e pediu as condições de migração com desconto. O agente enviará as informações por WhatsApp.')], eventos:[ev(2, 'criada', 'Ligação atendida, desfecho "falou_com_pessoa".\nCliente se interessou pelo sistema e pediu as condições de migração com desconto.')] }),
       mk({ id:'op-dv-demo5', titulo:'Oportunidade identificada em ligação · Clínica Vida Plena', clienteId:'C010', clienteNome:'Clínica Vida Plena', csm:'Carla Mendes', responsavelId:'carla-mendes', responsavelNome:'Carla Mendes', etapa:'ganha',
         produto:'Treinamento avançado', valorEstimado:1500, valorFinal:1650, encerradaEm:ts(48), contato:{ nome:'Henrique Melo', telefone:'5531990010010' }, proximaAcao:'', proximaAcaoData:'', criadoEm:ts(300),
         ligacoes:[lig('c5', 300, 'Interessado', 'Pediu treinamento para a equipe nova.')], eventos:[ev(300, 'criada', 'Ligação encerrada com desfecho "Interessado".'), ev(48, 'etapa', 'Marcada como ganha por R$ 1.650.', 'Carla Mendes')] })
@@ -16705,7 +16768,7 @@
     opEventosWebhook = [
       { id:'disparavox:call.ended:e1', provedor:'disparavox', tipo:'call.ended', recebidoEm:ts(5), status:'processado', resumo:'Oportunidade criada.', oportunidadeId:'op-dv-demo1' },
       { id:'disparavox:call.ended:e4', provedor:'disparavox', tipo:'call.ended', recebidoEm:ts(2), status:'sem_cliente', resumo:'Oportunidade criada sem cliente (triagem).', oportunidadeId:'op-dv-demo4' },
-      { id:'disparavox:call.ended:e8', provedor:'disparavox', tipo:'call.ended', recebidoEm:ts(1), status:'ignorado', resumo:'Desfecho "Sem interesse" (sem_interesse) não gera oportunidade.' }
+      { id:'disparavox:call.started:e8', provedor:'disparavox', tipo:'call.started', recebidoEm:ts(1), status:'ignorado', resumo:'Evento call.started registrado, sem oportunidade.' }
     ];
   }
 
@@ -16716,6 +16779,392 @@
       oportunidades = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); });
       renderAll();
     }, function(){});
+  }
+
+  // ===============================================================
+  // SUGESTÕES DE MELHORIA DOS CLIENTES
+  // ---------------------------------------------------------------
+  // O CSM registra no momento do contato o que o cliente pediu. Todos os
+  // usuários leem todas as sugestões (para não repetir e para ver o que
+  // mais clientes pedem); admin e coordenação tratam (status e retorno).
+  // ===============================================================
+  var sugestoes = [];      // {id, clienteId, clienteNome, autorId, autorNome, titulo, descricao, categoria, impacto, risco, canal, contatoNome, modulo, status, retorno, eventos[], criadoEm}
+  var sgApoios = [];       // {id, sugestaoId, clienteId, clienteNome, autorId, autorNome, nota, em}
+  var sgUI = { aba:'minhas', abertaId:null, painel:'ver', filtroStatus:'abertas', filtroCat:'', busca:'', novo:false };
+
+  var SG_CAT = [['nova_funcionalidade','Nova funcionalidade'],['melhoria','Melhoria em algo que já existe'],['usabilidade','Facilidade de uso'],['relatorio','Relatórios e indicadores'],['integracao','Integração com outro sistema'],['desempenho','Lentidão ou desempenho'],['atendimento','Suporte e atendimento'],['outro','Outro']];
+  var SG_IMP = [['baixo','Seria bom ter'],['medio','Atrapalha o dia a dia'],['alto','Impede ou limita o uso']];
+  var SG_CANAL = [['whatsapp','WhatsApp'],['telefone','Ligação'],['reuniao','Reunião online'],['visita','Visita presencial'],['email','E-mail'],['outro','Outro']];
+  var SG_STATUS = { nova:'Nova', em_analise:'Em análise', planejada:'Planejada', entregue:'Entregue', recusada:'Recusada' };
+  var SG_ABERTAS = ['nova','em_analise','planejada'];
+
+  function sgGestor(){ return isAdmin() || isCoordenador(); }
+  function sgMeuId(){ return currentUser ? currentUser.id : ''; }
+  function sgPorId(id){ return sugestoes.filter(function(s){ return s.id === id; })[0] || null; }
+  function sgAberta(s){ return SG_ABERTAS.indexOf(s.status) > -1; }
+  function sgPodeEditar(s){ return !!currentUser && (sgGestor() || (s.autorId === sgMeuId() && s.status === 'nova')); }
+  function sgRot(lista, v){ var r = lista.filter(function(x){ return x[0] === v; })[0]; return r ? r[1] : (v || '—'); }
+  function sgApoiosDe(id){ return sgApoios.filter(function(a){ return a.sugestaoId === id; }).sort(function(a,b){ return a.em < b.em ? -1 : 1; }); }
+  // clientes distintos que pediram (o original + os que "também pediram")
+  function sgClientesQuePediram(s){
+    var vistos = {}, lista = [];
+    [{ clienteId:s.clienteId, clienteNome:s.clienteNome }].concat(sgApoiosDe(s.id)).forEach(function(x){
+      var k = x.clienteId || x.clienteNome; if(!k || vistos[k]) return; vistos[k] = true; lista.push(x.clienteNome || x.clienteId);
+    });
+    return lista;
+  }
+  function sgPill(s){
+    var cls = s.status === 'entregue' ? 'pill-good' : (s.status === 'recusada' ? 'pill-critical' : (s.status === 'nova' ? 'pill-warning' : 'pill-neutral'));
+    return gPill(SG_STATUS[s.status] || s.status, cls);
+  }
+  function sgSalvar(s){
+    var i = sugestoes.findIndex(function(x){ return x.id === s.id; }), anterior = i > -1 ? sugestoes[i] : null;
+    s.atualizadoEm = new Date().toISOString();
+    if(i > -1) sugestoes[i] = s; else sugestoes.push(s);
+    var body = Object.assign({}, s); delete body.id;
+    if(db && !offline){
+      return db.collection('sugestoes').doc(s.id).set(body).catch(function(e){
+        var j = sugestoes.findIndex(function(x){ return x.id === s.id; });
+        if(anterior){ if(j > -1) sugestoes[j] = anterior; } else if(j > -1){ sugestoes.splice(j, 1); }
+        throw e;
+      });
+    }
+    return Promise.resolve();
+  }
+  function sgSalvarApoio(a){
+    sgApoios.push(a);
+    var body = Object.assign({}, a); delete body.id;
+    if(db && !offline){
+      return db.collection('sugestoesApoios').doc(a.id).set(body).catch(function(e){
+        var j = sgApoios.findIndex(function(x){ return x.id === a.id; }); if(j > -1) sgApoios.splice(j, 1);
+        throw e;
+      });
+    }
+    return Promise.resolve();
+  }
+  function sgEvento(s, tipo, texto){
+    s.eventos = (s.eventos || []).concat([{ id: novoId('ev'), em: new Date().toISOString(), autor: currentUser ? currentUser.nome : '', tipo: tipo, texto: texto || '' }]);
+  }
+  function sgSubscribe(){
+    if(!db || offline) return;
+    db.collection('sugestoes').onSnapshot(function(snap){
+      sugestoes = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }); renderAll();
+    }, function(){});
+    db.collection('sugestoesApoios').onSnapshot(function(snap){
+      sgApoios = snap.docs.map(function(d){ return Object.assign({id:d.id}, d.data()); }); renderAll();
+    }, function(){});
+  }
+  function sgAtualizarBadge(){
+    var b = document.getElementById('navSugestoesBadge'); if(!b) return;
+    var n = sgGestor() ? sugestoes.filter(function(s){ return s.status === 'nova'; }).length : 0;
+    b.textContent = n; b.style.display = n ? '' : 'none';
+  }
+
+  // ---- busca de cliente pelo nome ou ID (datalist) ----
+  function sgClientesAtivos(){ return clientes.filter(function(c){ return c.ativo !== false; }).sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome), 'pt-BR'); }); }
+  function sgRotuloCliente(c){ return c.nome + ' (' + c.id + ')'; }
+  function sgAcharCliente(txt){
+    var v = String(txt || '').trim().toLowerCase(); if(!v) return null;
+    var lista = sgClientesAtivos();
+    var c = lista.filter(function(x){ return sgRotuloCliente(x).toLowerCase() === v || String(x.id).toLowerCase() === v; })[0];
+    if(c) return c;
+    var porNome = lista.filter(function(x){ return String(x.nome).trim().toLowerCase() === v; });
+    return porNome.length === 1 ? porNome[0] : null;
+  }
+  function sgDatalist(id){
+    return '<datalist id="'+id+'">'+sgClientesAtivos().map(function(c){ return '<option value="'+esc(sgRotuloCliente(c))+'"></option>'; }).join('')+'</datalist>';
+  }
+
+  // ---- sugestões parecidas (evita registrar a mesma coisa duas vezes) ----
+  var SG_STOP = ['para','como','mais','muito','sistema','cliente','clientes','quer','queria','poder','pode','tem','ter','uma','umas','uns','dos','das','que','com','sem','nos','nas','por','sobre','fazer','ficar','quando'];
+  function sgTokens(t){
+    return String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').split(/[^a-z0-9]+/).filter(function(w){ return w.length >= 4 && SG_STOP.indexOf(w) === -1; });
+  }
+  function sgSimilares(titulo){
+    var a = sgTokens(titulo); if(a.length < 1) return [];
+    return sugestoes.map(function(s){
+      var b = sgTokens(s.titulo), inter = a.filter(function(w){ return b.indexOf(w) > -1; }).length, base = Math.min(a.length, b.length) || 1;
+      return { s:s, score: inter / base, inter: inter };
+    }).filter(function(x){ return x.inter >= 1 && x.score >= 0.5 && (x.inter >= 2 || Math.min(a.length, sgTokens(x.s.titulo).length) <= 2); })
+      .sort(function(x,y){ return y.score - x.score; }).slice(0, 3).map(function(x){ return x.s; });
+  }
+
+  // ---------------- tela ----------------
+  function sgFiltrar(base){
+    var busca = sgTokens(sgUI.busca), txt = String(sgUI.busca || '').trim().toLowerCase();
+    return base.filter(function(s){
+      if(sgUI.filtroStatus === 'abertas' && !sgAberta(s)) return false;
+      if(sgUI.filtroStatus !== 'abertas' && sgUI.filtroStatus !== 'todas' && s.status !== sgUI.filtroStatus) return false;
+      if(sgUI.filtroCat && s.categoria !== sgUI.filtroCat) return false;
+      if(txt){
+        var alvo = (s.titulo + ' ' + s.descricao + ' ' + s.clienteNome + ' ' + (s.modulo || '')).toLowerCase();
+        if(alvo.indexOf(txt) === -1) return false;
+      }
+      return true;
+    }).sort(function(a,b){ return a.criadoEm < b.criadoEm ? 1 : -1; });
+  }
+  function sgLinhas(lista, mostrarAutor){
+    return '<div class="table-wrap"><table><thead><tr><th>Data</th><th>Cliente</th><th>Sugestão</th><th>Importância</th><th>Pediram</th>'+(mostrarAutor ? '<th>Registrada por</th>' : '')+'<th>Status</th></tr></thead><tbody>' +
+      (lista.length ? lista.map(function(s){
+        var n = sgClientesQuePediram(s).length;
+        return '<tr data-sg="abrir" data-id="'+esc(s.id)+'" style="cursor:pointer;"><td>'+esc(fmtDate((s.criadoEm || '').slice(0, 10)))+'</td><td>'+esc(s.clienteNome || '—')+'</td>' +
+          '<td><b>'+esc(s.titulo)+'</b><div class="hint">'+esc(sgRot(SG_CAT, s.categoria))+(s.risco ? ' · ' : '')+(s.risco ? '<span style="color:var(--critical-ink);font-weight:600;">risco de saída</span>' : '')+'</div></td>' +
+          '<td>'+esc(sgRot(SG_IMP, s.impacto))+'</td><td>'+(n > 1 ? '<b>'+n+' clientes</b>' : '1 cliente')+'</td>'+(mostrarAutor ? '<td>'+esc(s.autorNome || '—')+'</td>' : '')+'<td>'+sgPill(s)+'</td></tr>';
+      }).join('') : '<tr><td colspan="'+(mostrarAutor ? 7 : 6)+'" class="hint">Nenhuma sugestão neste filtro.</td></tr>') + '</tbody></table></div>';
+  }
+  function sgRenderLista(){
+    var minhas = sgUI.aba === 'minhas';
+    var base = minhas ? sugestoes.filter(function(s){ return s.autorId === sgMeuId(); }) : sugestoes;
+    return sgLinhas(sgFiltrar(base), !minhas);
+  }
+  function sgRenderFiltros(){
+    return '<div class="filters" style="margin-bottom:12px;flex-wrap:wrap;">' +
+      '<input type="text" id="sgBusca" placeholder="Buscar por palavra, cliente ou módulo" value="'+esc(sgUI.busca)+'" style="min-width:240px;">' +
+      '<select id="sgFiltroStatus">'+gOpts([{v:'abertas',l:'Em aberto'},{v:'todas',l:'Todas'}].concat(Object.keys(SG_STATUS).map(function(k){ return {v:k,l:SG_STATUS[k]}; })), sgUI.filtroStatus)+'</select>' +
+      '<select id="sgFiltroCat">'+gOpts(SG_CAT.map(function(c){ return {v:c[0],l:c[1]}; }), sgUI.filtroCat, 'Todas as categorias')+'</select></div>';
+  }
+  function sgRenderRanking(){
+    var abertas = sugestoes.filter(sgAberta).map(function(s){ return { s:s, quem:sgClientesQuePediram(s) }; })
+      .sort(function(a,b){ return b.quem.length - a.quem.length || (a.s.risco ? 0 : 1) - (b.s.risco ? 0 : 1) || (a.s.criadoEm < b.s.criadoEm ? 1 : -1); });
+    return '<div class="card"><div class="card-head"><div><h2>O que mais clientes pedem</h2><div class="hint">Sugestões em aberto, da mais pedida para a menos pedida. Conta clientes diferentes, não registros.</div></div></div><div class="card-body"><div class="table-wrap"><table><thead><tr><th>Clientes</th><th>Sugestão</th><th>Quem pediu</th><th>Importância</th><th>Status</th></tr></thead><tbody>' +
+      (abertas.length ? abertas.map(function(x){
+        return '<tr data-sg="abrir" data-id="'+esc(x.s.id)+'" style="cursor:pointer;"><td class="num"><b>'+x.quem.length+'</b></td><td><b>'+esc(x.s.titulo)+'</b><div class="hint">'+esc(sgRot(SG_CAT, x.s.categoria))+(x.s.risco ? ' · risco de saída' : '')+'</div></td>' +
+          '<td>'+esc(x.quem.slice(0, 3).join(', ')+(x.quem.length > 3 ? ' e mais '+(x.quem.length - 3) : ''))+'</td><td>'+esc(sgRot(SG_IMP, x.s.impacto))+'</td><td>'+sgPill(x.s)+'</td></tr>';
+      }).join('') : '<tr><td colspan="5" class="hint">Nenhuma sugestão em aberto.</td></tr>') + '</tbody></table></div></div></div>';
+  }
+  function sgRenderPainel(){
+    var todas = sugestoes, mes = todayISO().slice(0, 7);
+    var porStatus = {}; Object.keys(SG_STATUS).forEach(function(k){ porStatus[k] = todas.filter(function(s){ return s.status === k; }).length; });
+    var risco = todas.filter(function(s){ return sgAberta(s) && s.risco; });
+    var h = '<div class="grid-stats" style="margin-top:0;margin-bottom:14px;">' +
+      '<div class="stat"><div class="label">Novas para analisar</div><div class="value num" id="sgStNovas">'+porStatus.nova+'</div></div>' +
+      '<div class="stat"><div class="label">Em análise</div><div class="value num">'+porStatus.em_analise+'</div></div>' +
+      '<div class="stat"><div class="label">Planejadas</div><div class="value num">'+porStatus.planejada+'</div></div>' +
+      '<div class="stat"><div class="label">Entregues</div><div class="value num">'+porStatus.entregue+'</div></div>' +
+      '<div class="stat"><div class="label">Com risco de saída</div><div class="value num" id="sgStRisco">'+risco.length+'</div><div class="sub">em aberto</div></div>' +
+      '<div class="stat"><div class="label">Registradas no mês</div><div class="value num">'+todas.filter(function(s){ return (s.criadoEm || '').slice(0, 7) === mes; }).length+'</div></div></div>';
+    var porCat = {}; todas.forEach(function(s){ var k = sgRot(SG_CAT, s.categoria); porCat[k] = (porCat[k] || 0) + 1; });
+    var porCsm = {}; todas.forEach(function(s){ var k = s.autorNome || '—'; var p = porCsm[k] = porCsm[k] || { t:0, e:0 }; p.t++; if(s.status === 'entregue') p.e++; });
+    h += '<div class="card"><div class="card-head"><h2>Por categoria</h2></div><div class="card-body">'+gTabela(['Categoria','Sugestões'], Object.keys(porCat).sort(function(a,b){ return porCat[b] - porCat[a]; }).map(function(k){ return [esc(k), porCat[k]]; }))+'</div></div>';
+    h += '<div class="card"><div class="card-head"><h2>Por CSM</h2><div class="hint">Quem está coletando o que os clientes pedem.</div></div><div class="card-body">'+gTabela(['CSM','Registradas','Entregues'], Object.keys(porCsm).sort(function(a,b){ return porCsm[b].t - porCsm[a].t; }).map(function(k){ return [esc(k), porCsm[k].t, porCsm[k].e]; }))+'</div></div>';
+    if(risco.length) h += '<div class="card"><div class="card-head"><div><h2>Clientes que citam como motivo para sair</h2></div></div><div class="card-body">'+sgLinhas(risco, true)+'</div></div>';
+    return h;
+  }
+  function renderSugestoes(forcar){
+    if(!currentUser) return;
+    sgAtualizarBadge();
+    var view = document.getElementById('view-sugestoes');
+    if(!view || !view.classList.contains('active')) return;
+    var a = document.activeElement;
+    if(!forcar && a && view.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName)) return;
+    var abas = [['minhas','Minhas sugestões'],['todas','Todas'],['ranking','Mais pedidas']];
+    if(sgGestor()) abas.push(['painel','Painel']);
+    if(!abas.some(function(x){ return x[0] === sgUI.aba; })) sgUI.aba = 'minhas';
+    var tabs = '<div class="agenda-cal-modos" style="margin-bottom:14px;flex-wrap:wrap;">' + abas.map(function(x){
+      var extra = x[0] === 'todas' && sgGestor() && sugestoes.some(function(s){ return s.status === 'nova'; }) ? ' ('+sugestoes.filter(function(s){ return s.status === 'nova'; }).length+' novas)' : '';
+      return '<button class="btn btn-sm'+(sgUI.aba === x[0] ? ' is-ativo' : '')+'" data-sg="aba" data-aba="'+x[0]+'">'+esc(x[1]+extra)+'</button>';
+    }).join('') + '</div>';
+    var c;
+    if(sgUI.aba === 'ranking') c = sgRenderRanking();
+    else if(sgUI.aba === 'painel') c = sgRenderPainel();
+    else c = sgRenderFiltros() + '<div class="card"><div class="card-body pad-top" id="sgLista">'+sgRenderLista()+'</div></div>';
+    document.getElementById('sugestoesCorpo').innerHTML = tabs + c;
+  }
+
+  // ---------------- modal ----------------
+  function sgModal(titulo, corpo, rodape, largo){
+    document.getElementById('sgModalTitulo').innerHTML = titulo;
+    document.getElementById('sgModalCorpo').innerHTML = corpo;
+    document.getElementById('sgModalRodape').innerHTML = rodape || '<button class="btn" data-sg="fechar">Fechar</button>';
+    openOverlay('overlaySugestao');
+  }
+  function sgFechar(){ closeOverlay('overlaySugestao'); sgUI.abertaId = null; sgUI.novo = false; }
+  function sgErro(m){ var el = document.getElementById('sgModalErro'); if(el){ el.textContent = m || ''; el.classList[m ? 'add' : 'remove']('show'); } }
+  function sgV(id){ var el = document.getElementById(id); return el ? el.value : ''; }
+  function sgCampos(s, novo){
+    s = s || {};
+    return (novo ? '<div class="field"><label for="sgfCliente">Cliente *</label><input type="text" id="sgfCliente" list="sgListaClientes" autocomplete="off" placeholder="Digite o nome ou o ID da clínica">'+sgDatalist('sgListaClientes')+'<div class="hint" id="sgPrevCliente" style="margin-top:4px;"></div></div>' : '') +
+      '<div class="field-row"><div class="field"><label for="sgfCat">Tipo de sugestão *</label><select id="sgfCat">'+gOpts(SG_CAT.map(function(c){ return {v:c[0],l:c[1]}; }), s.categoria || '', 'Selecione...')+'</select></div>' +
+      '<div class="field"><label for="sgfImp">Quanto isso pesa para o cliente</label><select id="sgfImp">'+gOpts(SG_IMP.map(function(c){ return {v:c[0],l:c[1]}; }), s.impacto || 'medio')+'</select></div></div>' +
+      '<div class="field"><label for="sgfTitulo">Resumo da sugestão *</label><input type="text" id="sgfTitulo" maxlength="140" value="'+esc(s.titulo || '')+'" placeholder="Ex.: Enviar lembrete de consulta por WhatsApp"></div>' +
+      (novo ? '<div id="sgSimilares"></div>' : '') +
+      '<div class="field"><label for="sgfDesc">O que o cliente disse *</label><textarea id="sgfDesc" rows="4" placeholder="Com as palavras do cliente: o problema que ele tem hoje e o que gostaria que o sistema fizesse.">'+esc(s.descricao || '')+'</textarea></div>' +
+      '<div class="field-row"><div class="field"><label for="sgfModulo">Módulo ou tela do sistema</label><input type="text" id="sgfModulo" value="'+esc(s.modulo || '')+'" placeholder="Ex.: Agenda, Financeiro (opcional)"></div>' +
+      '<div class="field"><label for="sgfContato">Quem na clínica pediu</label><input type="text" id="sgfContato" value="'+esc(s.contatoNome || '')+'" placeholder="Nome (opcional)"></div></div>' +
+      '<div class="field-row"><div class="field"><label for="sgfCanal">Como foi o contato</label><select id="sgfCanal">'+gOpts(SG_CANAL.map(function(c){ return {v:c[0],l:c[1]}; }), s.canal || '', 'Não informar')+'</select></div>' +
+      '<div class="field" style="align-self:end;"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" id="sgfRisco" style="width:auto;"'+(s.risco ? ' checked' : '')+'> Cliente cita isso como motivo para sair ou não renovar</label></div></div>';
+  }
+  function sgAbrirNova(){
+    sgUI.novo = true; sgUI.abertaId = null;
+    sgModal('Nova sugestão de melhoria', '<div class="hint">Registre enquanto o cliente ainda está falando. Leva menos de um minuto.</div>' + sgCampos(null, true) + '<div class="gate-error" id="sgModalErro"></div>',
+      '<button class="btn" data-sg="fechar">Cancelar</button><button class="btn btn-accent" data-sg="salvar-nova">Registrar sugestão</button>');
+  }
+  function sgAtualizarPrevCliente(){
+    var el = document.getElementById('sgPrevCliente'); if(!el) return;
+    var txt = sgV('sgfCliente').trim(), c = sgAcharCliente(txt);
+    el.innerHTML = c ? '<b>'+esc(c.nome)+'</b> · CSM: '+esc(c.csm || '—') : (txt ? '<span style="color:var(--critical-ink);">Escolha um cliente da lista.</span>' : '');
+    sgAtualizarSimilares();
+  }
+  function sgAtualizarSimilares(){
+    var el = document.getElementById('sgSimilares'); if(!el) return;
+    var sim = sgSimilares(sgV('sgfTitulo'));
+    if(!sim.length){ el.innerHTML = ''; return; }
+    el.innerHTML = '<div class="card" style="margin:0 0 4px;border-color:var(--warning);"><div class="card-body" style="padding:10px 12px;"><b>Já existe algo parecido</b><div class="hint" style="margin-bottom:6px;">Se for a mesma coisa, registre que este cliente também pediu em vez de criar outra.</div>' +
+      sim.map(function(s){ return '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;padding:4px 0;"><div><b>'+esc(s.titulo)+'</b><div class="hint">'+esc(sgClientesQuePediram(s).length)+' cliente(s) · '+esc(SG_STATUS[s.status])+'</div></div><button class="btn btn-sm" data-sg="tambem-pediu" data-id="'+esc(s.id)+'">Este cliente também pediu</button></div>'; }).join('') +
+      '</div></div>';
+  }
+  function sgLerCampos(){
+    return { categoria: sgV('sgfCat'), impacto: sgV('sgfImp') || 'medio', titulo: sgV('sgfTitulo').trim(), descricao: sgV('sgfDesc').trim(), modulo: sgV('sgfModulo').trim(),
+      contatoNome: sgV('sgfContato').trim(), canal: sgV('sgfCanal'), risco: !!(document.getElementById('sgfRisco') || {}).checked };
+  }
+  function sgValidar(c){
+    if(!c.categoria) return 'Escolha o tipo de sugestão.';
+    if(c.titulo.length < 5) return 'Escreva um resumo da sugestão (mínimo de 5 letras).';
+    if(c.descricao.length < 10) return 'Conte o que o cliente disse (mínimo de 10 letras).';
+    return '';
+  }
+  async function sgGravar(s, msg){
+    try{ await sgSalvar(s); if(msg) mostrarToastSucesso(msg); renderAll(); if(sgUI.abertaId === s.id) sgRenderDetalhe(); }
+    catch(e){ sgErro('Não foi possível salvar agora: '+detalheErro(e)); }
+  }
+  function sgSalvarNova(){
+    sgErro('');
+    var cli = sgAcharCliente(sgV('sgfCliente'));
+    if(!cli){ sgErro('Escolha o cliente na lista (nome ou ID).'); return; }
+    var c = sgLerCampos(), erro = sgValidar(c); if(erro){ sgErro(erro); return; }
+    var s = Object.assign({ id: novoId('sg'), clienteId: cli.id, clienteNome: cli.nome, csm: cli.csm || '', autorId: sgMeuId(), autorNome: currentUser.nome, status:'nova', retorno:'', criadoEm: new Date().toISOString(), eventos: [] }, c);
+    sgEvento(s, 'criada', 'Sugestão registrada.');
+    sgSalvar(s).then(function(){ mostrarToastSucesso('Sugestão registrada.'); sgFechar(); sgUI.aba = 'minhas'; renderAll(); })
+      .catch(function(e){ sgErro('Não foi possível salvar agora: '+detalheErro(e)); });
+  }
+  function sgAdicionarApoio(sug, cli, nota, aoFinalizar){
+    if(sgClientesQuePediram(sug).some(function(n){ return n === cli.nome; })){ sgErro('Esse cliente já está nesta sugestão.'); return; }
+    var a = { id: novoId('ap'), sugestaoId: sug.id, clienteId: cli.id, clienteNome: cli.nome, autorId: sgMeuId(), autorNome: currentUser.nome, nota: nota || '', em: new Date().toISOString() };
+    sgSalvarApoio(a).then(function(){ mostrarToastSucesso('Registrado: '+cli.nome+' também pediu.'); renderAll(); if(aoFinalizar) aoFinalizar(); })
+      .catch(function(e){ sgErro('Não foi possível salvar agora: '+detalheErro(e)); });
+  }
+  function sgTambemPediuDoForm(id){
+    sgErro('');
+    var cli = sgAcharCliente(sgV('sgfCliente')), sug = sgPorId(id);
+    if(!cli){ sgErro('Escolha primeiro o cliente na lista (nome ou ID).'); return; }
+    if(!sug) return;
+    sgAdicionarApoio(sug, cli, '', function(){ sgFechar(); sgUI.abertaId = sug.id; sgRenderDetalhe(); });
+  }
+
+  // ---------------- detalhe ----------------
+  function sgAbrir(id){ var s = sgPorId(id); if(!s) return; sgUI.abertaId = id; sgUI.novo = false; sgUI.painel = 'ver'; sgRenderDetalhe(); }
+  function sgRenderDetalhe(){
+    var s = sgPorId(sgUI.abertaId); if(!s){ sgFechar(); return; }
+    var gestor = sgGestor(), aberta = sgAberta(s), pode = sgPodeEditar(s);
+    function kv(k, v){ return '<div><div class="hint">'+esc(k)+'</div><div>'+(v || '—')+'</div></div>'; }
+    var quem = sgClientesQuePediram(s), apoios = sgApoiosDe(s.id);
+    var cab = '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">' + sgPill(s) + gChip(sgRot(SG_CAT, s.categoria)) + gChip(sgRot(SG_IMP, s.impacto)) + (s.risco ? gChip('Risco de saída', 'c-crit') : '') + (quem.length > 1 ? gChip(quem.length+' clientes pediram', 'c-warn') : '') + '</div>';
+    var resumo = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px 16px;">' +
+      kv('Cliente', esc(s.clienteNome) + (s.clienteId ? ' <span class="hint">('+esc(s.clienteId)+')</span>' : '')) + kv('CSM do cliente', esc(s.csm)) +
+      kv('Registrada por', esc(s.autorNome)) + kv('Registrada em', esc(gFmtDT(s.criadoEm))) + kv('Como foi o contato', esc(s.canal ? sgRot(SG_CANAL, s.canal) : '')) +
+      kv('Quem na clínica pediu', esc(s.contatoNome)) + kv('Módulo ou tela', esc(s.modulo)) + '</div>';
+    var desc = '<div class="card" style="margin:0;"><div class="card-body" style="padding:12px 14px;"><div class="hint">O que o cliente disse</div><div style="font-weight:700;margin:2px 0 6px;">'+esc(s.titulo)+'</div><div style="white-space:pre-line;">'+esc(s.descricao)+'</div></div></div>';
+    var retorno = s.retorno ? '<div class="card" style="margin:0;"><div class="card-body" style="padding:12px 14px;"><div class="hint">Retorno para passar ao cliente</div><div style="white-space:pre-line;">'+esc(s.retorno)+'</div></div></div>' : '';
+    var lista = apoios.length ? '<div><b>Outros clientes que também pediram</b><div style="margin-top:8px;">' + apoios.map(function(a){
+      return '<div style="border-left:3px solid var(--border-strong);padding:2px 0 2px 10px;margin-bottom:8px;"><div><b>'+esc(a.clienteNome)+'</b> <span class="hint">· '+esc(a.autorNome)+' · '+esc(gFmtDT(a.em))+'</span></div>'+(a.nota ? '<div style="white-space:pre-line;">'+esc(a.nota)+'</div>' : '')+'</div>'; }).join('') + '</div></div>' : '';
+    var abas = [['ver','Detalhes'], ['tambem','Outro cliente também pediu']];
+    if(pode) abas.push(['editar','Editar']);
+    if(gestor) abas.push(['tratar','Tratar']);
+    var barra = '<div class="agenda-cal-modos" style="flex-wrap:wrap;">' + abas.filter(function(p){ return p[0] !== 'tambem' || aberta; }).map(function(p){
+      return '<button class="btn btn-sm'+(sgUI.painel === p[0] ? ' is-ativo' : '')+'" data-sg="painel" data-p="'+p[0]+'">'+esc(p[1])+'</button>'; }).join('') + '</div>';
+    var painel = '';
+    if(sgUI.painel === 'tambem' && aberta){
+      painel = '<div class="field"><label for="sgfCliente2">Cliente que também pediu *</label><input type="text" id="sgfCliente2" list="sgListaClientes2" autocomplete="off" placeholder="Digite o nome ou o ID da clínica">'+sgDatalist('sgListaClientes2')+'</div>' +
+        '<div class="field"><label for="sgfNota2">O que ele disse (opcional)</label><textarea id="sgfNota2" rows="2"></textarea></div><div><button class="btn btn-accent" data-sg="salvar-apoio">Registrar</button></div>';
+    }else if(sgUI.painel === 'editar' && pode){
+      painel = sgCampos(s, false) + '<div><button class="btn btn-accent" data-sg="salvar-edicao">Salvar alterações</button></div>';
+    }else if(sgUI.painel === 'tratar' && gestor){
+      painel = '<div class="field-row"><div class="field"><label for="sgfStatus">Status</label><select id="sgfStatus">'+gOpts(Object.keys(SG_STATUS).map(function(k){ return {v:k,l:SG_STATUS[k]}; }), s.status)+'</select></div><div></div></div>' +
+        '<div class="field"><label for="sgfRetorno">Retorno para o CSM passar ao cliente</label><textarea id="sgfRetorno" rows="3" placeholder="Obrigatório ao recusar. Ex.: já está previsto para dezembro / não faz parte do produto porque...">'+esc(s.retorno || '')+'</textarea></div>' +
+        '<div class="field"><label for="sgfNotaInterna">Anotação interna (aparece só no histórico)</label><input type="text" id="sgfNotaInterna"></div><div><button class="btn btn-accent" data-sg="salvar-status">Salvar</button></div>';
+    }
+    var tl = (s.eventos || []).slice().reverse().map(function(e){
+      return '<div style="border-left:3px solid var(--border-strong);padding:2px 0 2px 10px;margin-bottom:8px;"><div class="hint"><b>'+esc(e.autor || '—')+'</b> · '+esc(gFmtDT(e.em))+'</div><div style="white-space:pre-line;">'+esc(e.texto)+'</div></div>'; }).join('');
+    var corpo = cab + resumo + desc + retorno + lista + barra + '<div id="sgPainel">'+painel+'</div><div class="gate-error" id="sgModalErro"></div><div><b>Histórico</b><div style="margin-top:8px;">'+(tl || '<div class="hint">Sem registros.</div>')+'</div></div>';
+    sgModal(esc(s.titulo), corpo);
+  }
+  function sgSalvarEdicao(){
+    sgErro('');
+    var s = sgPorId(sgUI.abertaId); if(!s || !sgPodeEditar(s)) return;
+    var c = sgLerCampos(), erro = sgValidar(c); if(erro){ sgErro(erro); return; }
+    var n = Object.assign({}, s, c); sgEvento(n, 'edicao', 'Sugestão editada.'); sgUI.painel = 'ver';
+    sgGravar(n, 'Sugestão atualizada.');
+  }
+  function sgSalvarStatus(){
+    sgErro('');
+    var s = sgPorId(sgUI.abertaId); if(!s || !sgGestor()) return;
+    var st = sgV('sgfStatus'), ret = sgV('sgfRetorno').trim(), nota = sgV('sgfNotaInterna').trim();
+    if(st === 'recusada' && !ret){ sgErro('Ao recusar, escreva o retorno para o cliente.'); return; }
+    if(st === s.status && ret === (s.retorno || '') && !nota){ sgErro('Nada para salvar.'); return; }
+    var n = Object.assign({}, s), partes = [];
+    if(st !== s.status){ partes.push('Status: '+SG_STATUS[s.status]+' → '+SG_STATUS[st]+'.'); n.status = st; n.encerradaEm = (st === 'entregue' || st === 'recusada') ? new Date().toISOString() : null; }
+    if(ret !== (s.retorno || '')){ n.retorno = ret; partes.push('Retorno para o cliente atualizado.'); }
+    if(nota) partes.push(nota);
+    sgEvento(n, 'tratativa', partes.join('\n')); sgUI.painel = 'ver';
+    sgGravar(n, 'Sugestão atualizada.');
+  }
+
+  function wireSugestoes(){
+    function dentro(el){ return !!(el && el.closest && (el.closest('#view-sugestoes') || el.closest('#overlaySugestao'))); }
+    document.addEventListener('click', function(ev){
+      var el = ev.target.closest && ev.target.closest('[data-sg]'); if(!el || !dentro(el)) return;
+      var a = el.getAttribute('data-sg'), id = el.getAttribute('data-id');
+      switch(a){
+        case 'nova': sgAbrirNova(); break;
+        case 'aba': sgUI.aba = el.getAttribute('data-aba'); renderSugestoes(true); break;
+        case 'abrir': sgAbrir(id); break;
+        case 'fechar': sgFechar(); break;
+        case 'painel': sgUI.painel = el.getAttribute('data-p'); sgRenderDetalhe(); break;
+        case 'salvar-nova': sgSalvarNova(); break;
+        case 'tambem-pediu': sgTambemPediuDoForm(id); break;
+        case 'salvar-edicao': sgSalvarEdicao(); break;
+        case 'salvar-status': sgSalvarStatus(); break;
+        case 'salvar-apoio':
+          sgErro('');
+          var cli = sgAcharCliente(sgV('sgfCliente2')), sug = sgPorId(sgUI.abertaId);
+          if(!cli){ sgErro('Escolha o cliente na lista (nome ou ID).'); break; }
+          if(sug) sgAdicionarApoio(sug, cli, sgV('sgfNota2').trim(), function(){ sgUI.painel = 'ver'; sgRenderDetalhe(); });
+          break;
+      }
+    });
+    document.addEventListener('change', function(ev){
+      var t = ev.target; if(!t || !dentro(t)) return;
+      if(t.id === 'sgFiltroStatus'){ sgUI.filtroStatus = t.value; renderSugestoes(true); }
+      else if(t.id === 'sgFiltroCat'){ sgUI.filtroCat = t.value; renderSugestoes(true); }
+      else if(t.id === 'sgfCliente') sgAtualizarPrevCliente();
+    });
+    document.addEventListener('input', function(ev){
+      var t = ev.target; if(!t) return;
+      if(t.id === 'sgBusca'){ sgUI.busca = t.value; var l = document.getElementById('sgLista'); if(l) l.innerHTML = sgRenderLista(); }
+      else if(t.id === 'sgfCliente') sgAtualizarPrevCliente();
+      else if(t.id === 'sgfTitulo') sgAtualizarSimilares();
+    });
+  }
+
+  function sgSeedDemo(){
+    function ts(h){ return new Date(Date.now() - h * 3600000).toISOString(); }
+    function mk(o){ return Object.assign({ status:'nova', impacto:'medio', risco:false, canal:'whatsapp', contatoNome:'', modulo:'', retorno:'', eventos:[], criadoEm:ts(5), atualizadoEm:ts(5) }, o); }
+    function ev(h, tipo, texto, autor){ return { id:novoId('ev'), em:ts(h), autor:autor || 'Ana Souza', tipo:tipo, texto:texto }; }
+    sugestoes = [
+      mk({ id:'sg-demo1', clienteId:'C001', clienteNome:'Tech Nova Ltda', csm:'Ana Souza', autorId:'ana-souza', autorNome:'Ana Souza', categoria:'nova_funcionalidade', impacto:'alto', risco:true, modulo:'Agenda', contatoNome:'Marina Alves',
+        titulo:'Enviar lembrete de consulta por WhatsApp', descricao:'Hoje a recepção liga para confirmar cada consulta. Querem que o sistema mande o lembrete sozinho pelo WhatsApp e registre a confirmação.', criadoEm:ts(50), eventos:[ev(50, 'criada', 'Sugestão registrada.')] }),
+      mk({ id:'sg-demo2', clienteId:'C002', clienteNome:'Grupo Vértice', csm:'Ana Souza', autorId:'ana-souza', autorNome:'Ana Souza', categoria:'relatorio', impacto:'medio', modulo:'Financeiro', status:'em_analise',
+        titulo:'Relatório de faturamento por unidade', descricao:'Precisam comparar o faturamento das três unidades no mesmo mês, sem exportar para planilha.', criadoEm:ts(120), eventos:[ev(120, 'criada', 'Sugestão registrada.'), ev(40, 'tratativa', 'Status: Nova → Em análise.', 'Coordenação CS')] }),
+      mk({ id:'sg-demo3', clienteId:'C003', clienteNome:'Comércio Azul', csm:'Ana Souza', autorId:'bruno-lima', autorNome:'Bruno Lima', categoria:'usabilidade', impacto:'baixo', canal:'telefone',
+        titulo:'Atalho para repetir o último atendimento', descricao:'Para pacientes recorrentes, gostariam de um botão que copie o último procedimento.', criadoEm:ts(30), eventos:[ev(30, 'criada', 'Sugestão registrada.', 'Bruno Lima')] }),
+      mk({ id:'sg-demo4', clienteId:'C010', clienteNome:'Clínica Vida Plena', csm:'Carla Mendes', autorId:'carla-mendes', autorNome:'Carla Mendes', categoria:'nova_funcionalidade', impacto:'medio', status:'planejada', retorno:'Está previsto para o primeiro trimestre. Posso avisar assim que tiver data.',
+        titulo:'Lembrete de consulta automático por WhatsApp', descricao:'Pediram para o sistema avisar o paciente no dia anterior.', criadoEm:ts(200), eventos:[ev(200, 'criada', 'Sugestão registrada.', 'Carla Mendes'), ev(20, 'tratativa', 'Status: Nova → Planejada.\nRetorno para o cliente atualizado.', 'Coordenação CS')] }),
+      mk({ id:'sg-demo5', clienteId:'C001', clienteNome:'Tech Nova Ltda', csm:'Ana Souza', autorId:'ana-souza', autorNome:'Ana Souza', categoria:'integracao', impacto:'alto', status:'entregue', retorno:'Já está disponível em Configurações > Integrações.', encerradaEm:ts(10),
+        titulo:'Integrar com a máquina de cartão', descricao:'Querem baixar o pagamento automaticamente.', criadoEm:ts(400), eventos:[ev(400, 'criada', 'Sugestão registrada.')] })
+    ];
+    sgApoios = [
+      { id:'ap-demo1', sugestaoId:'sg-demo1', clienteId:'C003', clienteNome:'Comércio Azul', autorId:'bruno-lima', autorNome:'Bruno Lima', nota:'Pediu a mesma coisa na reunião de hoje.', em:ts(8) }
+    ];
   }
 
   // ---------------------------------------------------------------
@@ -16742,6 +17191,7 @@
     wireGestao();
     wireQualidade();
     wireOportunidades();
+    wireSugestoes();
     renderAll(); // mostra o gate em "carregando" imediatamente
     seedLocalDemo().then(function(){
       if(!dataPronta) renderAll(); // dados locais prontos; dataPronta só vira true quando initDb() concluir
